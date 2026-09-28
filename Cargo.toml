@@ -1,0 +1,40 @@
+# DelegationChain reference implementation and benchmark. See SPEC.md.
+#
+# The workspace root is also a package (`delegationchain`) so that the
+# workspace-level security suite can live in tests/ (SPEC §3.1, D-46).
+
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+
+[workspace.lints.rust]
+# SPEC §0 rule 9: `unsafe` only where DECISIONS.md allows it (D-48).
+unsafe_code = "deny"
+
+[workspace.dependencies]
+
+[package]
+name = "delegationchain"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+debug = false
+
+[profile.bench]
+inherits = "release"

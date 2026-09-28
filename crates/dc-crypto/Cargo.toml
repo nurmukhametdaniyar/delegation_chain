@@ -1,0 +1,12 @@
+[package]
+name = "dc-crypto"
+description = "Signature-scheme trait, BLS and Ed25519 implementations, pairing cache (SPEC §5)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]

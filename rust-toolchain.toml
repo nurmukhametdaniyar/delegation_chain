@@ -1,0 +1,5 @@
+# Pinned at project start, 2026-09-28 (SPEC §3.1, D-47).
+[toolchain]
+channel = "1.97.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

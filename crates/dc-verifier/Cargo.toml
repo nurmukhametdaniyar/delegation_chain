@@ -1,0 +1,12 @@
+[package]
+name = "dc-verifier"
+description = "Algorithms 1–2, caches, nonce cache and clock (SPEC §10)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
