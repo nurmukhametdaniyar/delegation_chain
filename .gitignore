@@ -1,0 +1,5 @@
+/target
+**/target
+scripts/.venv/
+__pycache__/
+.DS_Store
