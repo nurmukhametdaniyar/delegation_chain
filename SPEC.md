@@ -6,6 +6,18 @@
 
 Put this file in the repository root as `SPEC.md`.
 
+## Changelog
+
+**2026-09-28 — pre-M0 review, agreed with the author.** Read this before anything else; later sessions must not work from the pre-review text. New paper issues are P-15 to P-25 (Appendix C). New decisions are D-28 to D-47 (`DECISIONS.md`). Three changes run ahead of paper revision 2026-09-28 and are being carried into the next revision (P-15, P-16, P-17); §2 gives this spec precedence on those points until the revised PDF is in `docs/`.
+
+- **Policy (§9.3, §9.5, §9.7).** An atom on a path its rule does not declare makes the scope malformed (D-28, P-15): L31 at policy load, L02 inside a body. The oracle generator gains boundary constants and undeclared-path atoms. M4 waits for the revised paper (§15).
+- **Verifier (§10.2, Appendix A).** Lines 18 and 20 compare identifiers as well as keys (D-36, P-16). Line 27 checks `t ∈ [nbf, exp]` (D-35, P-17). Decode errors are split between L02 and L05 (D-31). Bodies are decoded by their own `kind` (D-32). Receipt-list rules (D-34). Caches are filled mid-verification; line 50 is the only decision-relevant mutation (D-37).
+- **Crypto (§3.2, §5.3, §5.6).** blst is built with `no-threads` for every arm (D-29). Points are validated once, at decode; line 49 passes `sig_groupcheck = false` (D-30). blst's real behaviour is recorded; line 48 is the only distinctness check.
+- **Encoding (§4.3, §4.4).** Declaration maps are a third map class (D-33).
+- **Tests (§11.2).** Rows added for T5b (bounded), P-15, P-16, P-17, receipt lists and point validation.
+- **Benchmark (§12, §13).** Supplementary threaded arm A-mt, in Q1 only (D-29). Large-profile rule dropping (D-38). warm+prefix schedule (D-39). Per-org identity pools (D-40). `stats_alloc` for Q10 (D-41). QoS user-interactive, with one logged `unsafe` FFI call (D-42). Q6 thread counts (D-43). Q5 iteration counts (D-44). macOS environment recording (D-45).
+- **Fixes.** §6.4 cross-reference; §12 fairness wording; root package for workspace tests (D-46); toolchain pin (D-47).
+
 ---
 
 ## 0. Rules of engagement
@@ -20,7 +32,9 @@ Read these before writing any code. They override anything that seems locally co
 6. **Freeze before measuring.** Before the first full benchmark run, write `BENCH_PLAN_FROZEN.md` (§13.9) and tag the commit `bench-freeze`. After that, harness changes are allowed only to fix bugs. Log each one in `BENCH_LOG.md` with the reason, then re-run every affected configuration.
 7. **No fabricated numbers.** Every number in `BENCHMARKS.md` must be generated from `results/` by the report generator. Never type a measured value by hand.
 8. **Fail closed.** Unknown fields, unknown enum values, oversized inputs, and anything the decoder cannot classify are rejected.
-9. **`unsafe` is allowed in exactly one module**, `dc-crypto::pairing_cache` (§5.7), and only if the pinned `blst` version lacks a safe API for what is needed there.
+9. **`unsafe` is allowed in exactly two places**, each logged in `DECISIONS.md`:
+   - `dc-crypto::pairing_cache` (§5.7), and only if the pinned `blst` version lacks a safe API for what is needed there. `blst` 0.3.17 has safe APIs for all of it, so none is expected.
+   - One FFI call in `dc-bench` that sets the measuring thread's QoS class (§13.5, D-42).
 10. **Do not weaken tests to make them pass.** Never mark a failing test `#[ignore]`, loosen an assertion or delete a test without logging why in `DECISIONS.md`.
 11. **When genuinely blocked**, write the question in `QUESTIONS.md` and stop that milestone. Otherwise decide, log, and continue.
 12. **No network code.** The registry and policy store are in-process behind traits, with optional injected latency (§6.6).
@@ -49,6 +63,8 @@ Production hardening, network transport, MCP integration, a transparency log, pe
 
 If this spec contradicts the paper, the paper wins. Log the contradiction as a `PAPER_ISSUES.md` or `DECISIONS.md` entry, whichever is appropriate. Appendix A reproduces Algorithms 1–2 for convenience; if it differs from the PDF, the PDF wins.
 
+**Exception (agreed with the author, 2026-09-28).** P-15 (D-28), P-16 (D-36) and P-17 (D-35) are paper defects the author is fixing in the next revision. On those three points this spec wins over paper revision 2026-09-28. Once the revised PDF is in `docs/`, check that it matches, and log any difference.
+
 ---
 
 ## 3. Repository and toolchain
@@ -57,8 +73,8 @@ If this spec contradicts the paper, the paper wins. Log the contradiction as a `
 
 ```
 delegationchain/
-  Cargo.toml                 # workspace
-  rust-toolchain.toml        # pin the current stable at project start; record it
+  Cargo.toml                 # workspace, plus root package `delegationchain` that hosts tests/ (D-46)
+  rust-toolchain.toml        # pin the current stable at project start; record it (1.97.1, D-47)
   SPEC.md  DECISIONS.md  PAPER_ISSUES.md  BENCH_LOG.md
   BENCH_PLAN_FROZEN.md  BENCHMARKS.md  QUESTIONS.md  MILESTONES.md
   docs/paper.pdf
@@ -83,7 +99,7 @@ Pin exact versions in `Cargo.lock`, and record every version that affects a meas
 
 | Purpose            | Crate                        | Notes                                                                             |
 | ------------------ | ---------------------------- | --------------------------------------------------------------------------------- |
-| BLS12-381          | `blst` 0.3.x                 | min-pk API (`blst::min_pk`). Record whether the build uses the ADX assembly path. |
+| BLS12-381          | `blst` 0.3.x                 | min-pk API (`blst::min_pk`). Feature `no-threads` in every arm (D-29). Record whether the build uses the ADX assembly path (N/A on aarch64: armv8 assembly, D-45). |
 | Ed25519            | `ed25519-dalek` 2.x          | features `batch`, `rand_core`. Record which `curve25519-dalek` backend is active. |
 | Hashing            | `sha2` 0.10.x                |                                                                                   |
 | Unicode            | `unicode-normalization`      | NFC checks (§4.3)                                                                 |
@@ -94,6 +110,8 @@ Pin exact versions in `Cargo.lock`, and record every version that affects a meas
 | Tests              | `proptest`                   | differential and property tests                                                   |
 | Micro-bench        | `criterion` 0.5.x            |                                                                                   |
 | Latency histograms | `hdrhistogram`               |                                                                                   |
+| Memory (Q10)       | `stats_alloc`                | counting global allocator without `unsafe` in our code (D-41)                     |
+| QoS (bench only)   | `libc`                       | the one `pthread_set_qos_class_self_np` call (D-42)                               |
 | Determinism        | `rand_chacha`                | all key and workload generation is seeded                                         |
 | Output             | `serde`, `serde_json`, `csv` |                                                                                   |
 
@@ -114,6 +132,8 @@ inherits = "release"
 ```
 
 Benchmarks run with `RUSTFLAGS="-C target-cpu=native"` for **all** arms, and the flag is recorded. CI builds and tests without it.
+
+The flag reaches Rust code only. `blst`'s C and assembly are compiled by the `cc` crate, which ignores `RUSTFLAGS`. So the flags are equal, but the effect is not: the pure-Rust Ed25519 arms can benefit and `blst` mostly cannot. Record this under threats to validity. Do not hand-tune C flags for `blst`; that would be optimizing one arm (D-45).
 
 ---
 
@@ -147,6 +167,7 @@ Follow RFC 8949 §4.2.1, core deterministic encoding:
 
 - **Protocol structures** (bodies, certificates, receipts, approval bodies, PoP challenges, revocation assertions, policy AST nodes, chain envelope): map keys are **unsigned integers**. Unknown keys are rejected (**D-01**).
 - **Parameter maps** (`InvocationBody.params`): map keys are **text** and NFC-normalized; text values are NFC-normalized. Keys are sorted by encoded bytes like any other map.
+- **Declaration maps** (key 4 of a scope-AST `Rule`, §9.2): map keys are **text** that must follow the `path` grammar (ASCII, so NFC is automatic); values are type uints. This is a third map class; every other map inside a protocol structure has uint keys (**D-33**).
 
 ### 4.4 Decoder
 
@@ -163,6 +184,21 @@ The decoder is strict. It rejects:
 - total encoded size of any single body > 64 KiB (**D-03**)
 
 In addition, the verifier re-encodes each decoded body and compares the result to the received bytes (Algorithm 1 line 5). Implement both the strict decoder and the re-encode check. They are redundant on purpose.
+
+**Error classes and reject lines (D-31).** A strict decoder that rejected everything at line 2 would make line 5 unreachable. So the decoder splits its failures into two classes:
+
+- **Canonical-form violations**: a non-shortest argument, an indefinite length, unsorted map keys, or non-NFC text in a parameter map. These are valid values encoded the wrong way.
+  - When the verifier decodes a body, these are **recorded, not rejected**.
+  - Line 5 rejects a recorded violation, and then separately rejects any mismatch between the re-encoded body and the received bytes. Both give `L05`.
+- **Malformed input**: everything else. That covers
+  - malformed CBOR, tags, floats, disallowed simple values;
+  - invalid UTF-8, duplicate map keys, unknown keys, wrong field types;
+  - trailing bytes, the depth and size limits;
+  - malformed scopes (D-28) and invalid points (D-30).
+  - These are rejected at line 2 (`L02`).
+- Outside the verifier's body decoding, `decode_strict` rejects both classes.
+- A non-canonical **envelope** (as opposed to a body) is rejected at `L02`, since line 5 covers bodies only.
+- The re-encode comparison gets its own test, through a test-only hook that ignores the recorded violations. The hook shows that the comparison alone catches every canonical-form violation.
 
 ### 4.5 Tests
 
@@ -216,8 +252,13 @@ The paper's protocol is the BLS aggregate implementation of this trait. The othe
 - Accept the compressed form only.
 - Every deserialized G1 or G2 point gets a subgroup check.
 - The identity element is rejected, both as a public key and as a signature.
-- Use library functions (`PublicKey::key_validate`, `Signature::sig_validate(bytes, true)`); never reimplement subgroup checks.
+- Use library functions (`PublicKey::key_validate`, `Signature::sig_validate(bytes, true)`); never reimplement subgroup checks. Check the length first (48 or 96 bytes): `blst`'s `from_bytes` also accepts the uncompressed 96- and 192-byte forms, which must be rejected.
 - A public key is validated **once**: at registration, and again when its certificate is resolved into the verifier's cache. Hot-path aggregate verification then passes `pks_validate = false` (**D-05**). The Ed25519 arms get the equivalent treatment.
+- **Signatures are validated once, at decode (D-30).**
+  - Every signature the verifier receives (σ_agg, individual chain signatures, receipt signatures, certificate signatures) goes through `Signature::sig_validate(bytes, true)` when it is decoded. That call checks both the subgroup and the identity; a failure is `L02`, or a certificate rejection for certificate signatures.
+  - Line 49 then passes `sig_groupcheck = false`. `blst`'s group check would only repeat the subgroup check, and it does not reject the identity (it calls `validate(false)`).
+  - Public-key fields inside bodies are only length-checked at decode. They are compared as bytes and resolved (line 23), and the certified key was validated when its certificate was cached.
+  - The Ed25519 arms likewise decode each point once.
 
 ### 5.4 Digests (paper §4.3, plus decisions)
 
@@ -247,7 +288,15 @@ The aggregate accumulates along the chain: each participant receives the running
 
 ### 5.6 Verification (Algorithm 2 line 49)
 
-Use `Signature::aggregate_verify(true, &msgs, CHAIN_DST, &pks, false)` over the N+1 pairs `(pk_k, m_k)`. It computes a single multi-pairing with shared Miller loops and one final exponentiation, which is the implementation the paper's §4.6 cost model describes.
+Use `Signature::aggregate_verify(false, &msgs, CHAIN_DST, &pks, false)` over the N+1 pairs `(pk_k, m_k)`. σ_agg was validated at decode (D-30).
+
+What `blst` 0.3.17 actually does (recorded in D-29 and D-30):
+
+- **Threading.** With its default `std` build, `aggregate_verify` splits the pairs across a thread pool sized to the core count. Each worker computes its own Miller-loop product, and the products are merged before one final exponentiation. With the `no-threads` feature, it runs a single multi-Miller loop in the calling thread, which is what the paper's §4.6 cost model describes.
+  - Every arm is built with `no-threads` (D-29), so one verification runs on one thread.
+  - The threaded build appears only as the supplementary arm A-mt (§12).
+- **Distinct messages.** It does **not** check that messages are distinct (the source has a `TODO` saying so). Line 48 is the only distinctness check.
+- **Group check.** Its `sig_groupcheck` does not reject the identity element.
 
 ### 5.7 Pairing cache (**VARIANT**, arm B only)
 
@@ -267,7 +316,7 @@ Then per invocation compute `FE( P · ML(H(m_N), pk_N) · ML(σ_agg, −g1) ) ==
 
 Implementation:
 
-- Prefer safe `blst` APIs if the pinned version exposes Miller loop, `Fp12` multiplication and final exponentiation.
+- Prefer safe `blst` APIs if the pinned version exposes Miller loop, `Fp12` multiplication and final exponentiation. `blst` 0.3.17 does: `Pairing::aggregate` and `Pairing::as_fp12` (hash-to-G2 plus Miller loop), `Pairing::aggregated` (Miller loop of σ against g1), `blst_fp12::miller_loop_n`, `Mul`, `final_exp`, `finalverify`, and `From<PublicKey> for blst_p1_affine`. No `unsafe` is expected.
 - Otherwise use the raw FFI (`blst_hash_to_g2`, `blst_p2_to_affine`, `blst_miller_loop`, `blst_fp12_mul`, `blst_final_exp`, `blst_fp12_is_one`, the G1 generator and negation), confined to this module.
 - Confirm exact function names and signatures against the pinned crate before writing code.
 
@@ -348,7 +397,9 @@ Default lifetimes (**D-10**): 24 hours for agents, signers and issuers, 7 days f
    - the public key passes subgroup and identity checks.
 4. The registry issues the certificate.
 
-The purpose is attribution, not aggregate security (paper §5.3). The tests in §11.3 check that registration without a valid PoP fails.
+The purpose is attribution, not aggregate security (paper §5.3). The tests in §11.1 and §11.2 (T5a) check that registration without a valid PoP fails.
+
+PoP proves possession, not uniqueness. A registrant may register its own key under two identifiers, and registries cannot coordinate across organizations to prevent it. This is why lines 18 and 20 also compare identifiers (D-36, P-16).
 
 ### 6.5 Revocation (paper §5.6)
 
@@ -366,6 +417,8 @@ trait PolicyStore{ fn load(&self, policy_hash: &[u8; 32]) -> Option<Vec<u8>>; }
 - **In-process implementations.** Both accept an optional injected latency (a sleep per call) for cold-path experiments (§13.4).
 - **Resolution is by identifier and key** (paper §5.4, Algorithm 1 line 23). Every body names its signer's key, so during a scheduled rotation, when two certificates for one identifier are valid at once, the key selects between them. This applies to issuers, agents and approvers alike. Implement scheduled rotation with overlapping certificates (§11.2 has a test for it).
 - **`resolve` returns the most recently issued certificate binding `id` to `pk`, whether or not it is currently valid** (**D-26**). Expiry and revocation are then rejected at line 27, where the paper checks them. If `resolve` filtered them out instead, line 27 would never fire and a test could not tell the two failures apart.
+  - This conflicts with the paper's §5.4 wording, "resolution returns the valid certificate". Logged as P-18; D-26 stands.
+  - Line 27 checks `t ∈ [nbf, exp]` and revocation (D-35, P-17).
 - **Content addressing.** `load` returns bytes; the verifier accepts them only if `SHA256(bytes) == policy_hash` and the bytes decode as a well-formed policy (§9.3). A malformed policy is treated as _unavailable_ (line 31) (**D-12**).
 
 ---
@@ -428,6 +481,14 @@ Body kind is a uint enum (**D-13**): `0 session`, `1 delegation`, `2 invocation`
 
 `sid = invoker_id`, `spk = invoker_pk`. Receipts are ordered by `approver_id`, bytewise ascending, with at most one per approver (**D-15**; paper §4.3 and §4.5 allow one receipt per required service).
 
+Receipt lists (**D-34**):
+- These make the body malformed (`L02`):
+  - receipts out of order;
+  - two receipts for one approver;
+  - key 9 present with an empty array;
+  - a receipt whose parts are not well formed.
+- A receipt from an approver that the evaluated decision (line 36) does not require is **ignored**. No line of Algorithm 2 rejects it, and line 40 only looks up the approvers that are required.
+
 ### 7.4 Receipts (paper §4.5)
 
 - **Receipt:** a CBOR array `[approval_body_bytes: bstr, sig: bstr]`.
@@ -453,7 +514,7 @@ The envelope is a CBOR array `[bodies: [bstr; N+1], sigs]`.
   - **A, B:** a single `bstr` of 96 bytes (the aggregate).
   - **A-ind:** an array of N+1 BLS signatures (96 B each).
   - **C, C-batch, D:** an array of N+1 Ed25519 signatures (64 B each).
-- N ≥ 1, so the smallest chain is session plus invocation. Cap N at 16 (**D-16**; ZCAP recommends a cap of 10).
+- N ≥ 1, so the smallest chain is session plus invocation. Cap N at 16 (**D-16**; ZCAP recommends a cap of 10). A chain with N > 16 fails decoding (`L02`).
 
 ---
 
@@ -565,7 +626,17 @@ Anything that fails validation is **malformed** and rejected.
   - `starts_with ends_with contains`: string path, string operand.
   - `in`: non-empty array, every element of the path's type.
   - `under`: string path, operand a canonical absolute path (paper §6.1: a non-canonical literal is malformed).
-- **Where-paths not declared in `params` are not malformed.** They make the rule unmatchable, because the path always resolves absent (paper §6.3 step 1(c)). Emit a lint warning; do not reject.
+- **Every where-path must be declared in its rule's `params` (D-28, P-15).**
+  - An atom on a path its rule does not declare makes the scope **malformed**.
+  - This validator runs:
+    - at policy load: a malformed policy is unavailable, `L31` (D-12);
+    - on every scope inside a session or delegation body: a malformed scope is a decoding failure, `L02`.
+  - The evaluator keeps paper §6.3 step 1(c) as a defensive check. For a well-formed scope it never fires.
+  - _History:_ the pre-review text allowed undeclared where-paths, with a lint. Combined with §9.5, where an atom on a path is judged against that path's unconstrained domain, that made `Contains` unsound. A tautology on an undeclared path (`z >= -18446744073709551616`, `f in [true, false]`) counts as implied by any clause, although the rule carrying it can never match.
+    - In step 3(b), such a dead child rule wrongly triggers the skip, and a required approval is dropped.
+    - In step 3(a), a dead parent rule wrongly subsumes a live child rule.
+    - The counterexample is in P-15.
+  - Because every where-path is now declared, D-20 below is always well defined.
 - **Size limits** (**D-21**): ≤ 256 rules per scope, ≤ 32 params per rule, ≤ 32 atoms per rule, ≤ 64 list elements, text ≤ 1024 bytes, path depth ≤ 8.
 
 **Canonical absolute path (paper §6.1):**
@@ -587,7 +658,7 @@ Anything that fails validation is **malformed** and rejected.
 - **Rules, in declaration order:**
   - (a) Skip the rule unless `at == I.aud`, `tool == I.tool` and `action == I.action`.
   - (b) Closed-world check: skip unless the set of leaf paths equals the declared set **exactly** and every value has its declared type.
-  - (c) Skip if any where-path resolves absent.
+  - (c) Skip if any where-path resolves absent. This is a defensive check: because of D-28, it never fires for a well-formed scope.
   - (d) Skip unless every atom holds.
   - (e) Return `allow` if the rule has no approval clause, else `allow_with_approval(set)`.
 - If no rule matched, return `deny`.
@@ -647,7 +718,11 @@ If E does not exist, use these sound rules.
   - `b = under q`: ∃ q′ ∈ U with `segments(q)` a prefix of `segments(q′)`.
   - `b = eq/in`: never.
 
-**Conjunction implication:** `implies(C2, C1)` holds iff, for every atom b in C1, `implies(atoms of C2 on b's path, b)`. An atom of C1 on a path C2 does not constrain is judged against the unconstrained domain.
+**Conjunction implication:** `implies(C2, C1)` holds iff, for every atom b in C1, `implies(atoms of C2 on b's path, b)`. An atom of C1 on a path C2 does not constrain is judged against the unconstrained domain of that path's **declared** type.
+
+- This is sound only because every where-path is declared (D-28), and because the rules compared by subsumption and by the step-3(b) skip have identical declarations.
+- An undeclared path's true domain is "absent", on which every atom is false.
+- `implies` and `unsat` are never called on a malformed scope. The oracle checks that the validator rejects every scope the generator gives an undeclared-path atom.
 
 **Joint satisfiability** of two clauses is `¬unsat(C1 ∧ C2)`.
 
@@ -683,21 +758,26 @@ Special forms need a test each (**D-24**):
   - A file path containing `/../` returns `deny`.
   - A mismatched `aud` returns `deny`.
 - **Remark 1:** the counterexample returns false from `Contains` while the oracle (below) says contained.
+- **P-15 regression.** The P-15 counterexample is a fixed test.
+  - The child scope (a dead rule carrying `z >= -18446744073709551616`) is rejected as malformed.
+  - So is the parent-side variant (a dead parent rule).
+  - Separately, running the pre-review procedure on the P-15 pair is shown to return `true` although the oracle finds a counterexample. This keeps the bug demonstrable.
 - **Reflexivity:** `Contains(P, P)` is true for every generated P. Include the recommended-order policy (an approval rule before an overlapping permissive rule), the regression this property was added for.
 - **Differential oracle (the most important test in the repository):**
   - **Generator.** Use proptest over a tiny universe:
     - 2 audiences, 2 tools, 1 action;
     - parameter declarations drawn from subsets of `{x: int, s: string, f: bool}`;
-    - int constants in [−2, 6];
+    - int constants in [−2, 6], plus the boundary constants −2⁶⁴ and 2⁶⁴ − 1 (the ends of the CBOR integer range; +2⁶⁴ itself is outside it);
     - string constants drawn from a set that includes canonical paths, non-canonical paths (`/a/../b`, `//a`, `/a/`), near-miss prefixes (`/home/agent/workspace-evil`), short words, and the empty string;
-    - 2 approvers.
-  - **Enumeration.** Enumerate every invocation in the universe: ints in [−4, 8], the string set plus concatenations of pairs, both booleans, and every parameter-set shape.
+    - 2 approvers;
+    - where-atoms that may name a path the rule does not declare. The validator must reject every such scope as malformed (D-28), and the test asserts it does. Only well-formed scopes go on to the soundness assertions.
+  - **Enumeration.** Enumerate every invocation in the universe: ints in [−4, 8] plus −2⁶⁴, −2⁶⁴ + 1, 2⁶⁴ − 2 and 2⁶⁴ − 1; the string set plus concatenations of pairs; both booleans; and every parameter-set shape.
   - **Oracle.** Definition 1 evaluated exhaustively over the enumeration.
   - **Assertions.**
     - (i) Soundness: `Contains(S1, S2) == true` implies the oracle finds no counterexample. Any counterexample is a real bug, because it is a concrete invocation.
     - (ii) Reflexivity.
     - (iii) The same soundness property separately for `implies` and `unsat`, per type.
-  - **Reporting.** Track the completeness rate (the fraction of oracle-contained pairs that `Contains` accepts) and report it; do not assert on it.
+  - **Reporting.** Track the completeness rate (the fraction of oracle-contained pairs that `Contains` accepts) and report it; do not assert on it. The oracle is bounded to the enumerated universe, so a pair it calls contained may have a counterexample outside that universe. Report the rate as relative to the bounded oracle.
   - **Scale.** At least 100,000 generated cases in CI's extended profile.
 
 ---
@@ -735,16 +815,28 @@ Definitions, from paper §4.6:
 
 Line-level notes:
 
-- **Line 5:** strict decode plus re-encode comparison (§4.4).
+- **Line 2:** decode the envelope. Decode each body **by its own `kind` field** (key 1), not by its position (**D-32**), so that a misplaced body reaches line 7 rather than failing here.
+  - Also decode and validate every scope (D-28) and every signature point (D-30).
+  - Malformed input is rejected here (`L02`). Canonical-form violations are only recorded (D-31).
+  - An unknown `kind` value is malformed.
+- **Line 5:** reject a recorded canonical-form violation, then compare the re-encoding with the received bytes (§4.4, D-31).
 - **Line 9:** recompute `params_hash` from the canonical parameter map.
 - **Line 11:** every delegation body's `hop_index` equals its position, and its `session_id` equals `B_0`'s. These are redundant with the digest recursion (paper §4.3), which is why §11.2 tests Theorem 3 on the phase-8 check directly as well as end to end.
 - **Line 13:** no clock-skew tolerance, as written (P-07).
+- **Lines 18 and 20 compare identifiers as well as keys (D-36, P-16).** Reject at line 18 unless both `B0.subject_id = sid(B1)` and `B0.subject_pk = spk(B1)`. Reject at line 20 unless both `Bk.delegatee_id = sid(Bk+1)` and `Bk.delegatee_pk = spk(Bk+1)`.
+  - Comparing keys alone lets a chain name one party and be signed by another. PoP does not stop one key from being registered under two identifiers (§6.4). That breaks provenance, asset (ii) of paper §3.1.
+  - This runs ahead of paper revision 2026-09-28 (§2 exception).
 - **Line 23:** `Resolve(sid(B_k), spk(B_k))`, per D-26.
-- **Line 24:** verify the certificate signature under `Root[org(sid)]`. Once verified, it is cached with its certificate.
+- **Line 24:** verify the certificate signature under `Root[org(sid)]`. Once verified, it is cached with its certificate. If no root is configured for `org(sid)`, reject at line 24.
+- **Line 27:** reject unless `t ∈ [cert.nbf, cert.exp]`, and reject if the serial is revoked (**D-35**, P-17). The paper's line 27 says only "expired or revoked", and this runs ahead of that revision (§2 exception). Line 42's "phase-5 checks" include the same window.
 - **Lines 41–42:** `Resolve(s, R.approver_pk)`, then the phase-5 checks (lines 24–27) with kind `approver`. Line 41 has no reject clause of its own; an unresolvable approver fails line 42 (**D-27**).
-- **Line 48:** compare all N+1 digests pairwise; use a hash set.
+- **Line 40:** receipts from approvers outside `svcs` are ignored (D-34).
+- **Line 48:** compare all N+1 digests pairwise; use a hash set. This is the only distinctness check; `blst` does not do one (§5.6).
 - **Line 49:** §5.6.
-- **Line 50:** atomic `InsertIfAbsent` (§10.4). The only mutation of verifier state is here.
+- **Line 50:** atomic `InsertIfAbsent` (§10.4). This is the only mutation that can change a later **decision** (**D-37**, P-20).
+  - The certificate and policy caches are filled during phases 5 and 6 (paper §5.4): a certificate after line 24 passes, a policy after its hash and well-formedness check.
+  - They are semantically transparent, and §11.3 enforces that.
+  - A chain rejected later may still leave cache entries behind.
 
 ### 10.3 Instrumentation
 
@@ -799,7 +891,7 @@ Unless a row says otherwise, give every body the same `exp`, set every `hop_inde
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | T1a token forgery                      | Replace σ_agg with an unrelated valid G2 signature                                                                                                                                                                                                                                                                                                                | L49                                                    |
 | T1a                                    | Delegation claims victim's `delegator_id` and `delegator_pk`, signed with the attacker's key                                                                                                                                                                                                                                                                      | L49                                                    |
-| T1a                                    | Delegation claims victim's `delegator_id` with the attacker's own `delegator_pk`                                                                                                                                                                                                                                                                                  | L23 (no certificate binds that identifier to that key) |
+| T1a                                    | Delegation claims victim's `delegator_id` with the attacker's own `delegator_pk` (the preceding body names `(victim_id, attacker_pk)` as delegatee, so line 20 passes)                                                                                                                                                                                              | L23 (no certificate binds that identifier to that key) |
 | T1b reorder                            | Swap two delegation bodies                                                                                                                                                                                                                                                                                                                                        | L11                                                    |
 | T1b truncation                         | Drop an interior delegation hop                                                                                                                                                                                                                                                                                                                                   | L11                                                    |
 | T1b                                    | Drop the session body; drop the invocation body                                                                                                                                                                                                                                                                                                                   | L07, L07                                               |
@@ -825,22 +917,28 @@ Unless a row says otherwise, give every body the same `exp`, set every `hop_inde
 | T4b routing                            | Receipt only from a non-required approver                                                                                                                                                                                                                                                                                                                         | L40                                                    |
 | T4c receipt reuse                      | Receipt for I attached to I′ ≠ I                                                                                                                                                                                                                                                                                                                                  | L43                                                    |
 | T4d stale approval                     | Invoker changes params after approval, recomputes `params_hash`, re-signs                                                                                                                                                                                                                                                                                         | L43                                                    |
-| Receipt window                         | Expired receipt; revoked approver; receipt's `approver_pk` not certified for its `approver_id`                                                                                                                                                                                                                                                                    | L44; L42; L42                                          |
+| Receipt window                         | Expired receipt; revoked approver; receipt's `approver_pk` not certified for its `approver_id`; approver certificate not yet valid (`t < nbf`, D-35)                                                                                                                                                                                                                 | L44; L42; L42; L42                                     |
+| Receipt list (D-34)                    | Two receipts for one approver; receipts out of order; key 9 present but empty; the required receipt plus one from a non-required approver                                                                                                                                                                                                                          | L02; L02; L02; **accept**                              |
 | T5a misattribution                     | Register another principal's pk without their secret key                                                                                                                                                                                                                                                                                                          | registry rejects                                       |
 | T5a                                    | Replay a used PoP nonce; PoP signed under the CHAIN DST                                                                                                                                                                                                                                                                                                           | registry rejects                                       |
+| T5b compromised root (bounded)         | With `orga`'s stolen root key: issue an issuer certificate and a session within `orga`'s pinned policy; the same with a session scope exceeding that policy; a certificate for an `orgb:` identifier signed with `orga`'s root. Paper §7.1 assumes an honest root; §7.3 bounds the damage by pinning and the namespace binding (P-19)                                 | **accept** (document the bound); L32; L24              |
 | T5c revocation                         | Revoke a delegator. Verify one chain through it before ingesting the assertion, and a second chain (new nonce) after                                                                                                                                                                                                                                              | **accept** (the propagation window), then L27          |
-| T5c expiry                             | Signer's certificate expired at `t`                                                                                                                                                                                                                                                                                                                               | L27                                                    |
+| T5c expiry                             | Signer's certificate expired at `t`; signer's certificate not yet valid at `t` (`t < nbf`, D-35, P-17)                                                                                                                                                                                                                                                              | L27; L27                                               |
 | T5d substitution                       | Cert for an `orga:` identifier signed by `orgb`'s root                                                                                                                                                                                                                                                                                                            | L24                                                    |
 | T5d                                    | `registry_id` ≠ org of the identifier                                                                                                                                                                                                                                                                                                                             | L25                                                    |
 | T5e role confusion                     | Agent-kind cert at position 0                                                                                                                                                                                                                                                                                                                                     | L26                                                    |
 | T5e                                    | Issuer-kind cert as a delegator; approver-kind cert as the invoker                                                                                                                                                                                                                                                                                                | L26, L26                                               |
 | T5e                                    | Agent key signs a receipt                                                                                                                                                                                                                                                                                                                                         | L42                                                    |
-| Scheduled rotation (P-04, resolved)    | Issuer, a delegator and an approver each hold two overlapping certificates; chains signed under either key verify; a chain naming the old key after its certificate expires fails                                                                                                                                                                                 | **accept**, **accept**; L27                            |
+| Scheduled rotation (P-04, resolved)    | Issuer, a delegator and an approver each hold two overlapping certificates; chains signed under either key verify; a chain naming the old key after its certificate expires fails; a chain naming the new key before its certificate's `nbf` fails (D-35)                                                                                                          | **accept**, **accept**; L27; L27                       |
 | T6a prompt injection (bounded)         | Within-policy invocation by a "compromised" agent; out-of-policy invocation                                                                                                                                                                                                                                                                                       | **accept**; L37                                        |
 | T6b confused deputy (bounded)          | Delegation to an adversary within scope; wider than scope                                                                                                                                                                                                                                                                                                         | **accept**; L34                                        |
 | Closed world                           | Undeclared parameter; array-valued parameter; `/../` path under `under`                                                                                                                                                                                                                                                                                           | L37 each                                               |
 | Structure                              | Garbage bytes; single body (N = 0); non-canonical body encoding                                                                                                                                                                                                                                                                                                   | L02, L03, L05                                          |
+| Structure (D-16, D-31, D-32)           | N = 17; non-canonical envelope encoding; float or tag inside a body; unknown `kind` value; the same body with a non-shortest integer (canonical-form violation only)                                                                                                                                                                                                 | L02; L02; L02; L02; L05                                |
+| Point validation (D-30)                | σ_agg is the identity; σ_agg is not in the G2 subgroup; σ_agg in uncompressed form; a receipt signature that is the identity                                                                                                                                                                                                                                      | L02 each                                               |
+| Malformed scope (P-15, D-28)           | The P-15 child scope (an atom on an undeclared path) as a delegation scope; the same defect in a session scope; the same defect in the pinned policy document                                                                                                                                                                                                       | L02; L02; L31                                          |
 | Key chain                              | `subject_pk` ≠ `spk(B_1)`; `delegatee_pk` ≠ next `spk`                                                                                                                                                                                                                                                                                                            | L18, L20                                               |
+| Key chain, identifiers (P-16, D-36)    | One key registered under two identifiers (PoP passes for both). `subject_id` ≠ `sid(B_1)` with `subject_pk` = `spk(B_1)`; `delegatee_id` ≠ next `sid` with `delegatee_pk` = next `spk`                                                                                                                                                                            | L18, L20                                               |
 | Resolution                             | Unknown signer identifier                                                                                                                                                                                                                                                                                                                                         | L23                                                    |
 | Distinct messages                      | Unit test through a test-only hook that injects duplicate digests (a real duplicate needs a SHA-256 collision; say so in the test)                                                                                                                                                                                                                                | L48                                                    |
 | Phase ordering (Figure 2, `count-ops`) | Expired chain; wrong `aud`; L34 rejection                                                                                                                                                                                                                                                                                                                         | 0 pairings in each; 0 resolver calls for the first two |
@@ -864,7 +962,11 @@ Unless a row says otherwise, give every body the same `exp`, set every `hop_inde
 
 ## 12. Benchmark arms (`dc-baselines`)
 
-Arms A, A-ind, C and C-batch run the **same** generic verifier (§5.1). Phases 1–7 are identical code; only the signature scheme and phase 8 differ. This is the fairness guarantee: any difference between those arms is caused by the signature scheme.
+Arms A, A-ind, C and C-batch run the **same** generic verifier (§5.1). Phases 1–7 are identical code, except where they verify a signature with the arm's scheme; phase 8 differs by construction. This is the fairness guarantee: any difference between those arms is caused by the signature scheme.
+
+Phases 1–7 use the arm's scheme in two places, and reports must say so wherever it matters:
+- certificate signatures in phase 5, which are paid only on a cache miss, so in the cold state;
+- receipt signatures in phase 7, which are paid on every call in the medium-approval profile.
 
 | Arm                   | Chain signatures          | Phase 8                             | Purpose                                                 |
 | --------------------- | ------------------------- | ----------------------------------- | ------------------------------------------------------- |
@@ -875,8 +977,11 @@ Arms A, A-ind, C and C-batch run the **same** generic verifier (§5.1). Phases 1
 | **C-batch** (VARIANT) | as C                      | one `verify_batch`                  | Best-case non-aggregating verification                  |
 | **D** (VARIANT)       | as C                      | prefix cache: verify σ_N only       | Non-aggregating design with the caching UCAN recommends |
 | **E** (external)      | Biscuit, biscuit-auth 6.x | Biscuit verify + authorize          | AIP's chained-mode primitive; positioning only (§12.3)  |
+| **A-mt** (supplementary) | as A                   | `aggregate_verify` on `blst`'s thread pool (no `no-threads`) | Shows what the library's default threading does to Q1 latency. Q1 only, never Q6, always labelled "supplementary: multi-threaded blst" (D-29) |
 
-Within an arm, registry certificates use the arm's scheme (BLS for A, A-ind and B; Ed25519 for C, C-batch and D).
+Within an arm, registry certificates use the arm's scheme (BLS for A, A-ind, A-mt and B; Ed25519 for C, C-batch and D).
+
+A-mt needs a separate build, because Cargo unifies features and `no-threads` cannot be switched off for one arm in a binary that has it on (D-29). The harness records in `env.json` which `blst` threading mode each binary was built with, and refuses to run a row whose build does not match its label.
 
 ### 12.1 Prefix cache (arms B and D; VARIANT)
 
@@ -884,12 +989,12 @@ Within an arm, registry certificates use the arm's scheme (BLS for A, A-ind and 
 - **Value:**
   - `m_0 … m_{N−1}`
   - resolved `pk_0 … pk_{N−1}` and their certificate serials
-  - the key the last prefix body hands on (`B_0.subject_pk` if N = 1, else `B_{N−1}.delegatee_pk`), plus `B_{N−1}`'s `scope` and `exp`
+  - the identifier and key the last prefix body hands on (`B_0.subject_id`/`subject_pk` if N = 1, else `B_{N−1}.delegatee_id`/`delegatee_pk`; D-36), plus `B_{N−1}`'s `scope` and `exp`
   - the containment results for the ceiling and every prefix link (lines 30–35)
   - the prefix's hop and session checks (line 11) and expiry checks (line 15 for k < N)
   - arm B: the Miller-loop product P (§5.7)
   - arm D: the verified prefix signature bytes `σ_0 … σ_{N−1}`. A hit additionally requires the received prefix signatures to be byte-identical to them; otherwise treat it as a miss. Without this, a chain with valid prefix bodies but garbage prefix signatures would be accepted on a hit and rejected on a miss, and §11.3's equivalence test would rightly fail. Arm B needs no such rule, because its full pairing equation covers every signature.
-- **Entry TTL:** the minimum of every prefix body's `exp` and every prefix certificate's `exp`.
+- **Entry validity:** from the latest prefix-certificate `nbf` to the earliest of every prefix body's `exp` and every prefix certificate's `exp` (D-35). Outside that window, treat a lookup as a miss.
 - **Invalidation:** evict on revocation of any listed serial, and on a change to the pins.
 
 **Hit path**, in Algorithm order:
@@ -897,7 +1002,7 @@ Within an arm, registry certificates use the arm's scheme (BLS for A, A-ind and 
 1. Hash the prefix bodies to obtain `m_{N−1}`, and look it up.
 2. Strictly decode and canonical-check `B_N` only (line 5); line 7 for `B_N`; lines 8 and 9.
 3. Line 13; line 15 for k = N; line 17.
-4. The last key link only: line 18 if N = 1, else line 20 for k = N − 1.
+4. The last key link only, identifier and key (D-36): line 18 if N = 1, else line 20 for k = N − 1.
 5. Lines 23–28 for k = N only.
 6. Lines 36–46.
 7. Line 48, `m_N` against the cached digests.
@@ -933,7 +1038,7 @@ The paper itself (§8.3) says a comparison without caching "would not reflect ho
 
 ### 13.1 Pre-registered questions
 
-- **Q1 (primary).** Warm per-invocation verification latency, median and p99, for N ∈ {1, 2, 3, 5, 10}: A vs C vs C-batch, and B vs D. The headline comparison is N = 3 with the medium profile.
+- **Q1 (primary).** Warm per-invocation verification latency, median and p99, for N ∈ {1, 2, 3, 5, 10}: A vs C vs C-batch, and B vs D. The headline comparison is N = 3 with the medium profile. A-mt appears as a separately labelled supplementary row; it never enters a headline ratio (D-29).
 - **Q2 (primary).** Bytes on the wire per chain, by arm, N and profile, with the signature share of the total.
 - **Q3.** Does the paper's cost model hold for arm A? Fit `latency = α + β·N` and report α, β, 95% CIs, R², and `10β/α`. The paper (§4.6) claims the variation with N is small relative to α for N ≤ 10.
 - **Q4.** The multi-pairing saving: A vs A-ind.
@@ -959,16 +1064,18 @@ Generate everything from a seeded `ChaCha20Rng`, and record the seed.
 - **large**
   - Policy: 16 rules × 4 params × 3 atoms, spread over 2 services and 4 tools.
   - 2 rules require approval, and they are ordered before overlapping permissive rules (the recommended order, paper §6.3).
-  - Delegations: each hop drops 2 rules and tightens 1 bound.
+  - Delegations: each hop drops 2 rules and tightens 1 bound, but never drops below 4 rules. From then on, hops only tighten. With 9 hops at N = 10, hops 1–6 drop rules and hops 7–9 only tighten; smaller N are unaffected (**D-38**).
+  - A hop never drops an approval rule while keeping a permissive rule that the approval rule overlaps. That would be a real escalation, and line 34 correctly rejects it.
   - Invocation: matches the last surviving rule, which is Evaluate's worst case.
 
-Every hop uses a distinct agent identity, except in the correctness tests of §11.2.
+**Identities (D-40).** Within a chain, every hop uses a distinct agent identity, except in the correctness tests of §11.2. Identities are drawn from a fixed per-organization pool. The warm-up chains of the warm states cover every identity and certificate the measured chains use, so "warm" really means the certificate cache holds every certificate a measured chain needs.
 
 ### 13.3 Grid
 
 | Dimension | Values                                                                                         |
 | --------- | ---------------------------------------------------------------------------------------------- |
 | Arm       | A, A-ind, C, C-batch in states cold and warm; B, D in states warm+prefix (hit) and prefix-miss |
+| Supplementary | A-mt in state warm only, same N and profiles as A; separate build; Q1 only (D-29)          |
 | N         | 1, 2, 3, 5, 10                                                                                 |
 | Profile   | small, medium, large (plus medium-approval at N = 3)                                           |
 
@@ -977,6 +1084,7 @@ Every hop uses a distinct agent identity, except in the correctness tests of §1
 - For arms A and C at N = 3 (medium profile), run the cold state with resolver and policy-store latency of 0, 1, 20 and 80 ms per call.
 - Report latency and call counts.
 - Purpose: to quantify the paper's §8.2 claim that verification is local only in the steady state.
+- **Iteration counts (D-44).** These configurations are dominated by injected sleeps: cold N = 3 makes 5 registry or store calls per verify, so at 80 ms and full counts each arm would take about 73 minutes per run. They therefore use reduced counts, fixed in the frozen plan. Every configuration still gets at least 200 measured verifications, and results are reported with CIs.
 
 ### 13.5 Method
 
@@ -992,8 +1100,10 @@ Every hop uses a distinct agent identity, except in the correctness tests of §1
 **States.**
 
 - _cold_: a fresh verifier with empty caches is constructed before each call, outside the timer.
-- _warm_: caches are populated by a separate set of chains from the same organizations and policies before measurement.
-- _warm+prefix_: B and D chains share prefixes. Use 10 prefixes with 1,100 invocations each; the first invocation per prefix is warm-up.
+- _warm_: caches are populated by a separate set of chains from the same organizations, policies and identity pools (D-40) before measurement.
+- _warm+prefix_: B and D chains share prefixes (**D-39**).
+  - Use 10 prefixes with 1,100 invocations each, presented round-robin across the prefixes.
+  - The first 100 invocations per prefix are warm-up, including the miss that populates the entry. The remaining 1,000 per prefix are measured, which gives 1,000 warm-up and 10,000 measured, as in every other configuration.
 - _prefix-miss_: every chain has a new prefix, and caches are otherwise warm.
 
 **Order and repeats.**
@@ -1010,16 +1120,28 @@ Every hop uses a distinct agent identity, except in the correctness tests of §1
 - `rustc -vV` and `RUSTFLAGS`
 - versions of every crate listed in §3.2, read from `Cargo.lock`
 - whether the `blst` ADX path is used, and which `curve25519-dalek` backend is active
-- git commit hash, date, and AC or battery power
+- `blst` threading mode of each binary (D-29)
+- git commit hash, date, and AC or battery power; the macOS power mode (`pmset -g`: `powermode`, low-power mode)
+- performance and efficiency core counts
 
 Where possible, set the performance governor and disable turbo. If you cannot, record that.
 
-**Pinning.** Pin single-threaded latency runs to one core if a crate for this is available, and record it.
+**This machine (D-45).** macOS on an Apple M4 Max (10 performance + 4 efficiency cores). Record each of these in `env.json` and under threats to validity:
+- There is no frequency governor or turbo control.
+- There is no ADX path; `blst` uses its armv8 assembly.
+- `curve25519-dalek` uses its serial u64 backend; its SIMD backends are x86-only.
+- `target-cpu=native` does not reach `blst`'s C code (§3.3).
+- Full runs need AC power and an otherwise idle machine. Record the power source and power mode.
+
+**Pinning and QoS (D-42).**
+- macOS has no thread-affinity API that works on Apple Silicon, so latency runs are **not pinned**. Record that.
+- Instead, every measuring thread, in every arm, sets its QoS class to user-interactive, with `pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0)`, so that macOS schedules it on the performance cores.
+- This is the one permitted `unsafe` FFI call in `dc-bench` (§0 rule 9). It is logged in `DECISIONS.md`, and the harness records whether the call succeeded.
 
 **Throughput (Q6):**
 
-- Arms A, B, C and D; medium profile; N = 3.
-- Threads: 1, 2, 4, 8, and all cores.
+- Arms A, B, C and D; medium profile; N = 3. Never A-mt (D-29).
+- Threads: 1, 2, 4, 8, 10 (all performance cores), and 14, labelled "includes efficiency cores" (**D-43**).
 - Workload: 100 prefixes × 1,000 invocations.
 - Measure the wall time to verify all of them. Report accepted/s, plus the p99 per-call latency under load.
 
@@ -1031,7 +1153,7 @@ Where possible, set the performance governor and disable turbo. If you cannot, r
 - SHA-256 chain digest.
 - Evaluate and Contains for rules ∈ {1, 4, 16, 64} × atoms ∈ {1, 4, 8}, in both the typical case and the worst case (last rule matches).
 
-**Memory (Q10).** Measure with a counting global allocator in a dedicated binary. Insert 100,000 entries and report bytes per entry.
+**Memory (Q10).** Measure with a counting global allocator in a dedicated binary. Insert 100,000 entries and report bytes per entry. Use the `stats_alloc` crate, so that our code has no `unsafe impl GlobalAlloc` (**D-41**).
 
 ### 13.6 Statistics
 
@@ -1056,7 +1178,7 @@ Also compute the actual certificate size in this encoding, and the chain size if
 - `results/raw/*.csv` with columns `run, arm, state, N, profile, iter, ns` (and the throughput and memory equivalents)
 - `results/env.json`
 - `results/summary.md`, generated by `cargo run --release -p dc-bench -- report`
-- `results/plots/*.png`, generated by `scripts/plot.py`:
+- `results/plots/*.png`, generated by `scripts/plot.py`, run from a virtual environment at `scripts/.venv` built from `scripts/requirements.txt` (matplotlib is not installed system-wide on this machine):
   - latency vs N per arm, one plot each for warm and warm+prefix
   - bytes vs N
   - throughput vs threads
@@ -1091,6 +1213,8 @@ From Prakash (2026), arXiv:2603.24775, Tables 4–5, measured on an Apple M3 Max
 | depth 5              | 0.745            | 2,448                   |
 
 Never mix these into measured tables without labelling them as published figures from different hardware. Their use is to sanity-check arm E: if arm E on this machine differs from them by more than about 3×, investigate before trusting any result.
+
+These figures come from this spec. The implementer has not re-checked them against arXiv:2603.24775, and reports must say so.
 
 ### 13.11 Paper claims to check (report a verdict for each)
 
@@ -1155,7 +1279,7 @@ Work through the milestones in order. Each ends with all tests green, a commit, 
 | M1  | `dc-cbor`                                                                                                                                | §4.5 tests pass                                                                            |
 | M2  | `dc-crypto` (both schemes, DSTs, validation) and `dc-types` (bodies, digests, envelope)                                                  | Unit tests and regression vectors committed                                                |
 | M3  | `dc-registry`: certificates, PoP, revocation, resolver, policy store                                                                     | PoP and revocation tests pass                                                              |
-| M4  | `dc-policy`: parser, AST, validation, evaluate, implies/unsat, contains                                                                  | §9.7 passes, including the differential oracle at 100k cases                               |
+| M4  | `dc-policy`: parser, AST, validation, evaluate, implies/unsat, contains. **Do not start until `docs/paper.pdf` is the revision that fixes P-15; if it is not there yet, stop and ask.** | §9.7 passes, including the differential oracle at 100k cases                               |
 | M5  | `dc-chain` builders and approval flow                                                                                                    | Chains verify end-to-end in a smoke test                                                   |
 | M6  | `dc-verifier`, the full security suite, concurrency, `count-ops` ordering                                                                | All of §11.2 passes                                                                        |
 | M7  | `dc-baselines`: A-ind, C, C-batch; prefix caches B and D; arm E                                                                          | §5.7 and §11.3 equivalence pass; arm E runs                                                |
@@ -1233,6 +1357,16 @@ Work through the milestones in order. Each ends with all tests green, a commit, 
 
 `sid(B_k)` is `issuer_id`, `delegator_id` or `invoker_id`, and `spk(B_k)` is `issuer_pk`, `delegator_pk` or `invoker_pk`, by position. `role(k)` is `issuer` for k = 0 and `agent` for k ≥ 1. `self` is the verifier's own service identifier.
 
+**Agreed amendments (2026-09-28), ahead of the paper revision (§2 exception).** The listing above is paper revision 2026-09-28 verbatim. The implementation replaces these three lines:
+
+```
+18': reject if B0.subject_id ≠ sid(B1) or B0.subject_pk ≠ spk(B1)            ▷ D-36, P-16
+20':   reject if Bk.delegatee_id ≠ sid(Bk+1) or Bk.delegatee_pk ≠ spk(Bk+1)  ▷ D-36, P-16
+27':   reject if t ∉ [certk.nbf, certk.exp] or certk is revoked at t          ▷ D-35, P-17
+```
+
+A malformed scope (D-28, P-15) fails decoding at line 2, or makes the policy unavailable at line 31.
+
 ---
 
 ## Appendix B — File templates
@@ -1291,4 +1425,21 @@ Configurations re-run: <list>
 - **P-11.** The approver's key is now used for resolution (line 41).
 - **P-13.** Containment step 2 now handles `allow all` explicitly.
 
-Add new entries (from P-15) as you find them. Finding them is part of the job.
+**Found in the pre-M0 review (2026-09-28); log at M0.** P-15, P-16 and P-17 are being fixed in the next paper revision (§2 exception).
+
+- **P-15. Containment is unsound when a where clause names an undeclared path** (soundness). The proof of Proposition 2 assumes every where-path is declared; the language does not require it, and §6.3 step 1(c) exists for exactly that case.
+  - A tautological atom on an undeclared path makes a rule dead, yet it counts as implied.
+  - In step 3(b) this drops a required approval; in step 3(a) a dead parent rule subsumes a live child rule.
+  - Fixed by D-28.
+- **P-16. Lines 18 and 20 compare keys, never identifiers** (soundness: provenance, asset (ii) of §3.1). `subject_id` and `delegatee_id` are never checked against the next signer. PoP does not stop a key from being registered under two identifiers. Fixed by D-36.
+- **P-17. Line 27 omits the certificate's `nbf`** (soundness). Certificates carry one (§5.2), and §5.5 speaks of the certificate "valid at verification time". Fixed by D-35.
+- **P-18. §5.4's "resolution returns the valid certificate" makes line 27 unreachable except for stale cache entries** (clarity). See D-26.
+- **P-19. T5b is listed as prevented (§3.3.1), but §7.1 assumes an honest root** (clarity). §7.3 only bounds it, through pinning and the namespace binding.
+- **P-20. "A chain that fails any check leaves the verifier exactly as it found it" (§4.6) ignores the certificate and policy caching of §5.4** (clarity). See D-37.
+- **P-21. The cost model (§4.6) makes β "the per-Miller-loop cost", but each hop also pays one hash-to-G2** (clarity).
+- **P-22. §4.5's "a single pairing operation per approval" is two pairings and one final exponentiation** by §4.6's own way of counting (clarity).
+- **P-23. The grammar leaves operator/operand type compatibility unspecified (`amount < "x"`), and never defines `string-value`, `integer`, `string` or `letter`** (interoperability). See D-17 and D-20.
+- **P-24. The `signer` kind has no role in Algorithms 1–2** (clarity). No position or receipt accepts a signer certificate.
+- **P-25. The session's `iat` is never checked, and only B_N has a not-before** (clarity).
+
+Add new entries (from P-26) as you find them. Finding them is part of the job.
