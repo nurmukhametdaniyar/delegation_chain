@@ -18,6 +18,10 @@ publish = false
 unsafe_code = "deny"
 
 [workspace.dependencies]
+dc-cbor = { path = "crates/dc-cbor" }
+thiserror = "2"
+unicode-normalization = "0.1.25"
+proptest = "1.11"
 
 [package]
 name = "delegationchain"

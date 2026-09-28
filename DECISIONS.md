@@ -18,7 +18,7 @@ Affects benchmarks: no
 
 ## D-02 — Maximum CBOR nesting depth 16
 Spec section: §4.4     Paper section: not specified
-Decision: The decoder rejects any item nested deeper than 16 levels. The top-level item is depth 1.
+Decision: Containers (arrays and maps) are counted, and the top-level container is depth 1. Sixteen nested containers decode; seventeen are rejected. The encoder refuses to write deeper values, so it never produces what the decoder rejects.
 Why: Bounds the decoder's recursion. The deepest legitimate structure needs about 10 levels: a body whose parameters are nested to D-21's path depth of 8 (body, parameter map, seven nested maps, leaf). A scope AST inside a body needs 7. Each body is decoded separately from the envelope, so the envelope adds nothing.
 Affects benchmarks: no
 
@@ -397,4 +397,10 @@ Decision:
 - Only `crates/dc-crypto/src/pairing_cache.rs` (none expected) and `crates/dc-bench/src/qos.rs` (D-42) may carry `#[allow(unsafe_code)]`.
 - `scripts/check-unsafe.sh` runs in CI and fails on any other opt-out, on a package that does not inherit the lints, or on a manifest that relaxes the lint.
 Why: This makes rule 9 mechanically enforced rather than a convention.
+Affects benchmarks: no
+
+## D-49 — Map keys are unsigned integers or text
+Spec section: §4.1, §4.3     Paper section: §4.4, §4.7
+Decision: The CBOR layer rejects any map key that is not an unsigned integer or a text string, as malformed (`L02`). Which of the two a given map needs is checked by the structure that owns it: uint keys in protocol structures (D-01), text keys in parameter and declaration maps (D-33).
+Why: The paper uses no other key type. Rejecting the rest at the lowest layer fails closed (SPEC §0 rule 8), and gives keys a simple canonical order: uints numerically, then texts by length and then bytes. A property test checks that order against the encoded bytes.
 Affects benchmarks: no

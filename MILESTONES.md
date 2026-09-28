@@ -33,3 +33,22 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
 - **Not verified:** the GitHub workflow itself. The repository has no remote, so "CI green" at M0 means the same commands pass locally.
 - **Decisions added:** D-48 (the mechanical `unsafe` policy). The rest were logged from SPEC.
 - **Paper issues found:** none beyond the pre-M0 review.
+
+## M1 — `dc-cbor` (2026-09-28)
+
+- **Done:**
+  - Strict deterministic CBOR subset (SPEC §4): a `Value` model, a canonical encoder, a single-pass decoder, NFC helpers for parameter maps, and a reader for uint-keyed protocol structures (D-01).
+  - The decoder fails on malformed input and records the first canonical-form violation (D-31). `decode_strict` rejects both. The encoder refuses anything the decoder would reject: out-of-range integers, duplicate keys, too-deep nesting.
+- **Tests:** 25 hand-written vectors and 5 property tests (4,096 cases each).
+  - Vectors: every §4.4 rejection rule with its exact error; every canonical-form violation, checked as recorded, strictly rejected, and re-encoding differently; and accepted boundary values at every argument width.
+  - Properties:
+    - `decode(encode(x)) == x`;
+    - key order equals encoded-byte order;
+    - for deliberately non-canonical encodings, a violation is recorded exactly when the bytes differ from the canonical encoding;
+    - for mutated inputs, `decode_strict` acceptance implies `encode(decode(b)) == b`;
+    - arbitrary bytes never panic.
+  - A one-off count (not committed) confirmed that the properties are not vacuous: 3,285 of 4,096 variant encodings were non-canonical, and 748 of 4,096 mutations decoded.
+- **Test fixes:** two of my own vectors were wrong and were corrected. `8201…` had been truncated to a valid array, and a truncation offset was off by one. No assertion was weakened.
+- **Not done:** the optional `cargo-fuzz` target (§4.5, §11.4). It is deferred to §11.4's "if time allows".
+- **Decisions added:** D-49 (map key types). D-02 was made precise: containers are counted, and the top-level container is depth 1.
+- **Paper issues found:** none.
