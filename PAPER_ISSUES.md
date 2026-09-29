@@ -1,10 +1,17 @@
 # Paper issues
 
-Problems in the paper, _DelegationChain: Aggregatable Capability Chains for Cross-Organizational Agent Authorization_, revision 2026-09-28 (`docs/paper.pdf`, sha256 `bd94cef2…2e81e`). The format is SPEC Appendix B.
+Problems in the paper, _DelegationChain: Aggregatable Capability Chains for Cross-Organizational Agent Authorization_. The format is SPEC Appendix B, plus a `Status` line.
 
-- P-03 to P-14 are the open issues from SPEC Appendix C. P-01, P-02, P-04, P-11 and P-13 are resolved in this revision and not logged.
-- P-15 to P-25 were found in the pre-M0 review (2026-09-28).
-- The author is fixing P-15, P-16 and P-17 in the next revision. Until it lands, the implementation follows the agreed fixes (SPEC §2 exception).
+| Revision | Pages | sha256 | In `docs/` |
+| --- | --- | --- | --- |
+| 2026-09-28 | 42 | `bd94cef24e50a5bfca09375ef495b54e07aeba986e8c5096a2fc0c329f62e81e` | until 2026-09-29 (commit `e223f05`) |
+| 2026-09-29 | 44 | `51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14` | current |
+
+- **Sources:** P-03 to P-14 come from SPEC Appendix C; P-01, P-02, P-04, P-11 and P-13 were resolved before 2026-09-28 and are not logged. P-15 to P-25 were found in the pre-M0 review (2026-09-28). P-26 was found while reconciling revision 2026-09-29.
+- **Status after revision 2026-09-29:**
+  - resolved: P-03, P-07, P-09, P-10, P-14, and P-15 to P-25;
+  - open: P-05, P-06, P-08, P-12, P-26.
+- "Location" and "Evidence" below refer to revision 2026-09-28, where the issue was found. Each `Status` line says where revision 2026-09-29 addresses it.
 
 ---
 
@@ -15,6 +22,7 @@ Evidence: The Theorem 6 sketch describes the digest only as "a hash of the invoc
 What the implementation does: `SHA256("TAG_IVD\0" ‖ canon(B_N with key 9 removed))` (D-06). Receipts are omitted when empty (D-14), so this is exactly the preliminary body.
 Suggested fix to the paper: Define InvocationDigest as a tagged hash of the canonical invocation body with the receipts field removed.
 Severity: interoperability
+Status: resolved in revision 2026-09-29. §4.5 defines InvocationDigest(B_N) = H(TAG_IVD ‖ Canon(B_N without its receipts field)), which is D-06 exactly, and says that the receipts field is omitted when empty.
 
 ## P-05 — Some digests are untagged
 Paper location: §4.4 (`params_hash`), §5.4 (policy hash)
@@ -23,6 +31,7 @@ Evidence: Equations (1)–(3) tag every chain message; §4.4 and §5.4 define th
 What the implementation does: Implements them as written, untagged (SPEC §5.4).
 Suggested fix to the paper: Tag both, or state why an untagged hash is safe in these two places.
 Severity: clarity
+Status: open in revision 2026-09-29. §4.4 and §5.4 are unchanged.
 
 ## P-06 — Encodings of the auxiliary structures are unspecified
 Paper location: §4 (introduction), §4.5, §5.2, §5.3, §5.6
@@ -31,6 +40,7 @@ Evidence: §4, first paragraph.
 What the implementation does: D-04 (DSTs), D-07 (message tags), D-09 (kind enum), and the layouts in SPEC §6.3–§6.5 and §7.4.
 Suggested fix to the paper: Defer to a normative specification, as the paper already says. No change is needed beyond cross-referencing one when it exists.
 Severity: interoperability
+Status: open in revision 2026-09-29, as the paper intends: §4 still leaves field numbering and byte layout to a normative specification. One piece is now fixed: the InvocationDigest tag (§4.5, P-03).
 
 ## P-07 — Clock skew is handled inconsistently
 Paper location: Algorithm 1 line 13; §4.6 ("Replay protection"); Theorem 5
@@ -39,6 +49,7 @@ Evidence: Line 13 versus the §4.6 replay paragraph and the Theorem 5 sketch.
 What the implementation does: Line 13 without tolerance, as written. The nonce TTL adds 60 s (D-25).
 Suggested fix to the paper: State one skew policy and apply it to both.
 Severity: clarity
+Status: resolved in revision 2026-09-29. §4.6 ("Replay protection") now says that line 13 applies no tolerance, and that senders allow for skew when they set `nbf` and `exp`. The TTL's added term has a different purpose: it must be at least the clock disagreement among the verifier instances sharing the cache. Theorem 5 is restated to match. D-25 is consistent.
 
 ## P-08 — "Closed-form" implication and satisfiability for strings is not established
 Paper location: §6.4 (the paragraph before Proposition 2; the Proposition 2 cost argument)
@@ -47,6 +58,7 @@ Evidence: SPEC §9.5 gives sound but incomplete rules for that case. The M4 diff
 What the implementation does: Sound but incomplete procedures for strings without a finite set; exact for ints, bools, and strings with a finite set (SPEC §9.5).
 Suggested fix to the paper: Say that string implication is decided soundly but incompletely, or give the exact procedure.
 Severity: clarity (soundness is preserved either way)
+Status: open in revision 2026-09-29. §6.4 still calls the per-atom checks "closed-form", and the Proposition 2 cost argument is unchanged. The M4 oracle measures completeness for strings without a finite set.
 
 ## P-09 — `allow all` ignores the audience clause
 Paper location: §6.1, §6.3 ("The audience clause")
@@ -55,6 +67,7 @@ Evidence: §6.3 decides `allow all` directly; §6.1 calls it "a reserved form us
 What the implementation does: As written.
 Suggested fix to the paper: Say that `allow all` is audience-unrestricted and should not be pinned across partners, or give it an audience.
 Severity: clarity
+Status: resolved in revision 2026-09-29, as documentation. §6.1 now says that `allow all` "permits every audience as well as every tool and action, so the mandatory audience clause does not constrain it", and that it "is not meant to be pinned across organizations".
 
 ## P-10 — Receipt order, multiplicity and extra receipts are unspecified
 Paper location: §4.3, §4.5; Algorithm 2 line 40
@@ -63,6 +76,7 @@ Evidence: §4.3: "one approval receipt for each approval service the policy requ
 What the implementation does: Receipts are sorted by `approver_id` with at most one per approver (D-15). Violations, and a present-but-empty list, are malformed (`L02`). Receipts from approvers that are not required are ignored (D-34).
 Suggested fix to the paper: State the order and multiplicity, and say that extra receipts are ignored.
 Severity: interoperability
+Status: resolved in revision 2026-09-29. §4.5 fixes the order (by approver identifier, bytewise ascending) and multiplicity (at most one per approval service). A violation, or an empty receipts field, makes the body malformed, and receipts from approval services the policy does not require are ignored. This is D-14, D-15 and D-34 exactly.
 
 ## P-12 — Signing-service enforcement is unspecified
 Paper location: §3.1, §3.2
@@ -71,6 +85,7 @@ Evidence: §3.1, the signing-service description.
 What the implementation does: A pluggable `EnforcementPolicy` hook, accepting by default (SPEC §8.2). The verifier's checks do not depend on it.
 Suggested fix to the paper: Specify the minimum checks, or state that security never relies on the signing service's enforcement.
 Severity: clarity
+Status: open in revision 2026-09-29. §3.1 is unchanged. §5.2 now describes a signing service's own `signer` identity (P-24), but not what it checks before signing.
 
 ## P-14 — Line 41 has no reject clause
 Paper location: Algorithm 2 lines 41–42
@@ -79,6 +94,7 @@ Evidence: Line 41 as printed.
 What the implementation does: An unresolvable approver is rejected at line 42 (D-27).
 Suggested fix to the paper: Add "reject if unresolvable" to line 41, as line 23 has.
 Severity: clarity
+Status: resolved in revision 2026-09-29. Line 41 now reads "cert_R ← Resolve(s, R.approver_pk); reject if unresolvable". D-27 was changed to match: an unresolvable approver is now `L41`, not `L42`.
 
 ## P-15 — Containment is unsound when a where clause names an undeclared path
 Paper location: §6.1, §6.3 step 1(c), §6.4 (procedure, step 3), Proposition 2 and its proof; Theorems 4 and 6
@@ -108,7 +124,12 @@ The child is the same two rules, with `and z >= -18446744073709551616` added to 
 What the implementation does: D-28. An atom on a path its rule does not declare makes the scope malformed: `L31` for a policy, `L02` inside a body. The evaluator keeps step 1(c) as a defensive check. The M4 oracle generator includes undeclared-path atoms, and asserts that the validator rejects them.
 Suggested fix to the paper: Require every where-path to be declared (a policy that breaks this is malformed), and repair the Proposition 2 proof, which currently assumes it.
 Severity: soundness
-Status: The author is fixing this in the next revision (agreed 2026-09-28).
+Status: resolved in revision 2026-09-29.
+- §6.1 adds "Well-formedness". Condition 1 reads "Every path its where clause mentions is declared in its params", which is D-28's rule.
+- A malformed policy is rejected by LoadPolicy, and a malformed scope inside a body at line 2.
+- §6.4's procedure also returns false on a malformed scope, as a defensive check.
+- The Proposition 2 proof now invokes well-formedness in step 3(a) ("r1 is well-formed … so every path its clause mentions is declared and therefore present") and in the skip argument, where it adds the missing step: every path in r2′'s clause is present.
+- The counterexample above is rejected as malformed under the revised text.
 
 ## P-16 — Lines 18 and 20 compare keys, never identifiers
 Paper location: Algorithm 1 lines 18–20; §4.6 ("Public key chain consistency"); §3.1 asset (ii); §5.3
@@ -124,7 +145,7 @@ Evidence:
 What the implementation does: D-36. Line 18 also requires `B0.subject_id = sid(B1)`, and line 20 also requires `Bk.delegatee_id = sid(Bk+1)`. The §11.2 test asserts `L18` and `L20`.
 Suggested fix to the paper: Compare identifier and key at lines 18 and 20.
 Severity: soundness (provenance)
-Status: The author is fixing this in the next revision (agreed 2026-09-28).
+Status: resolved in revision 2026-09-29. Lines 18 and 20 compare identifier and key as pairs. §4.6 ("Public key chain consistency") explains that comparing identifiers ensures "the party that acts is the one that was named, even where one key is certified under more than one identifier". This matches D-36.
 
 ## P-17 — Line 27 omits the certificate's not-before time
 Paper location: Algorithm 1 line 27; Algorithm 2 line 42; §5.2; §5.4; §5.5
@@ -133,7 +154,7 @@ Evidence: Line 27 as printed, compared with the certificate fields listed in §5
 What the implementation does: D-35. Line 27 rejects unless `t ∈ [nbf, exp]`, and rejects revoked serials. Line 42 applies the same window to approvers.
 Suggested fix to the paper: "reject unless t ∈ [cert_k.nbf, cert_k.exp] and cert_k is not revoked at t".
 Severity: soundness
-Status: The author is fixing this in the next revision (agreed 2026-09-28).
+Status: resolved in revision 2026-09-29. Line 27 reads "reject if cert_k is not yet valid, expired, or revoked at t", and §5.4 uses the same three words. This matches D-35, except that the boundary is not stated (P-26).
 
 ## P-18 — §5.4's resolution wording makes line 27 unreachable
 Paper location: §5.4 ("Resolution returns the valid certificate …"); Algorithm 1 lines 23 and 27
@@ -142,6 +163,7 @@ Evidence: §5.4 against lines 23 and 27.
 What the implementation does: Resolution returns the latest certificate binding (id, pk), valid or not, and line 27 decides (D-26). This keeps "unknown key" (`L23`) and "expired or revoked" (`L27`) distinguishable.
 Suggested fix to the paper: Say that resolution returns the certificate for (id, pk), and that validity is checked at line 27.
 Severity: clarity
+Status: resolved in revision 2026-09-29. §5.4: "Resolution returns the most recently issued certificate binding that identifier to that key, whether or not it is currently valid", and validity is decided "at line 27 of Algorithm 1, not by the resolver". This is D-26 exactly.
 
 ## P-19 — T5b is listed as prevented, but the analysis assumes an honest root
 Paper location: §3.3.1 (T5b under "Threats the protocol prevents"); §7.1 ("Honest registry root"); §7.3
@@ -153,6 +175,7 @@ What the implementation does: The §11.2 T5b row tests the bound.
 - A certificate for an `orgb` identifier signed with `orga`'s root: `L24`.
 Suggested fix to the paper: Move T5b to §3.3.2 (bounded) and state the bound.
 Severity: clarity (overclaim)
+Status: resolved in revision 2026-09-29. T5b has moved to §3.3.2 (bounded), with the bound stated: the namespace binding of §5.4 and pinning. §3.3 now says two families are split, T4 and T5. §7.3 addresses "the prevented part of the identity family (T5a, T5c, T5d)" and states T5b's bound separately. The §11.2 T5b row tests that bound.
 
 ## P-20 — "Leaves the verifier exactly as it found it" ignores caching
 Paper location: §4.6 ("The only state the procedure changes is the nonce cache … A chain that fails any check therefore leaves the verifier exactly as it found it"); §5.4 (certificate and policy caches); Figure 2 caption
@@ -161,6 +184,7 @@ Evidence: §4.6 against §5.4.
 What the implementation does: D-37. Caches fill during verification, and line 50 is the only mutation that can change a later decision. §11.3 checks that the caches never change one.
 Suggested fix to the paper: "No state that affects any later decision changes until the final phase; caches may be populated."
 Severity: clarity
+Status: resolved in revision 2026-09-29. §4.6: "The only decision-relevant state the procedure changes is the nonce cache … Resolution and policy loading may fill caches (Section 5.4)", which affects cost but not outcomes. A failed chain "leaves the nonce cache exactly as it found it". The Figure 2 caption says the same. This matches D-37.
 
 ## P-21 — The cost model leaves out hash-to-G2
 Paper location: §4.6 ("Cost")
@@ -169,6 +193,7 @@ Evidence: Eq. (5) needs `HashToG2(m_k)` for k = 0…N.
 What the implementation does: Nothing needs implementing. Q3 fits end-to-end latency, and the M8 micro-benchmarks time hash-to-G2, the Miller loop and the final exponentiation separately, so each term can be attributed.
 Suggested fix to the paper: Include hash-to-G2 in β.
 Severity: clarity
+Status: resolved in revision 2026-09-29. §4.6 ("Cost") now makes β "one hash to G2 plus one Miller loop", and α "the final exponentiation and the terms that do not grow with N". It no longer claims that the variation is small for N ≤ 10: "β cannot be assumed small relative to α … which dominates in practice is for the measurements of Section 8.3 to settle". SPEC §13.1 Q3 and §13.11 were updated to the new claim.
 
 ## P-22 — The approval cost is undercounted
 Paper location: §4.5 ("approval verification adds a single pairing operation per approval")
@@ -177,6 +202,7 @@ Evidence: §4.5 against §4.6.
 What the implementation does: Nothing needs implementing. The medium-approval profile measures the cost.
 Suggested fix to the paper: "adds one signature verification (two pairings sharing a final exponentiation) per approval".
 Severity: clarity
+Status: resolved in revision 2026-09-29. §4.5 now counts, per receipt, "a hash to G2 and a two-pairing check (two Miller loops and one final exponentiation)", and Figure 2 says "two-pairing check each".
 
 ## P-23 — The grammar leaves types and terminals undefined
 Paper location: §6.1 (grammar)
@@ -190,6 +216,7 @@ Evidence: §6.1 grammar.
 What the implementation does: D-17 (lexical syntax), D-08 (letters are ASCII), D-20 (type compatibility; anything else is malformed).
 Suggested fix to the paper: Define the terminals and a typing rule for atoms.
 Severity: interoperability
+Status: resolved in revision 2026-09-29. §6.1 adds `string-value ::= string` to the grammar, and a "Lexical details" paragraph that defines integers, strings, booleans, `letter` and `digit` (D-08, D-17). Well-formedness condition 2 gives a typing table for atoms that matches D-20. The paper also adds that string literals are NFC-normalized (D-17, D-55).
 
 ## P-24 — The `signer` kind has no role in verification
 Paper location: §5.2 (kinds); §3.1 (the signing service "holds an agent's private key"); Algorithm 1 line 26; Algorithm 2 line 42
@@ -198,6 +225,7 @@ Evidence: §5.2 and §3.1 against lines 26 and 42.
 What the implementation does: The registry issues `signer` certificates (D-09), and the verifier never accepts one; one at any position fails line 26.
 Suggested fix to the paper: State what a signer certificate is for (for example, the service's own identity for audit), or drop the kind.
 Severity: clarity
+Status: resolved in revision 2026-09-29. §5.2: the `signer` kind "identifies a signing service in its own right, for operational authentication outside this protocol", and "no position in a chain, and no receipt, accepts a signer certificate".
 
 ## P-25 — The session's `iat` is never checked
 Paper location: §4.3 (session "issue and expiry timestamps"); Algorithm 1 lines 13–15
@@ -206,3 +234,13 @@ Evidence: Lines 13–15.
 What the implementation does: As written: `iat` is carried and signed, but not checked.
 Suggested fix to the paper: Say that `iat` is informational, or check `t ≥ B0.iat`.
 Severity: clarity
+Status: resolved in revision 2026-09-29. §4.3: "The issue timestamp is informational. No check in the verifier depends on it, since, like every timestamp a signer supplies, it is not evidence of when signing happened." Delegation bodies still have no not-before time; the paper does not treat that as a gap, and neither do we.
+
+## P-26 — Line 27 does not say whether a certificate is valid at t = exp
+Paper location: Algorithm 1 line 27 and §5.4 (revision 2026-09-29)
+Problem: "not yet valid, expired, or revoked at t" does not say whether validity is closed at `nbf` and at `exp`. The other time checks are explicit closed intervals: line 13 (`t ∉ [B_N.nbf, B_N.exp]`) and line 44 (`t ∉ [R.iat, R.exp]`). Two implementations could disagree about a chain verified exactly at a certificate's `exp`.
+Evidence: Line 27 against lines 13 and 44.
+What the implementation does: Treats validity as the closed interval `t ∈ [nbf, exp]`, consistent with lines 13 and 44 (D-35). A test covers both boundaries.
+Suggested fix to the paper: "reject unless t ∈ [cert_k.nbf, cert_k.exp] and cert_k is not revoked at t".
+Severity: interoperability
+Status: open in revision 2026-09-29, where it was introduced by the rewording of line 27.

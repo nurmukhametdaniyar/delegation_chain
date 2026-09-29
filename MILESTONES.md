@@ -115,3 +115,24 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
 - **Decisions added:** D-53 (registration procedure), D-54 (test hooks).
 - **Paper issues found:** none new.
 - **Next:** M4 (`dc-policy`) needs the paper revision that fixes P-15. As of this entry, `docs/paper.pdf` is still revision 2026-09-28 (sha256 `bd94cef2…2e81e`), so work stops here, and the question is in `QUESTIONS.md`.
+
+## Reconciliation with paper revision 2026-09-29 (2026-09-29)
+
+- **Paper:** revision 2026-09-29, 44 pages, sha256 `51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14`. It replaces revision 2026-09-28 (sha256 `bd94cef2…2e81e`), which remains in git history at commit `e223f05`.
+- **Algorithms 1–2:** compared line by line from the rendered pages 14–15. Numbering is unchanged (1–52). Only four lines changed:
+  - lines 18 and 20: identifier and key pairs, matching D-36;
+  - line 27: "not yet valid, expired, or revoked", matching D-35;
+  - line 41: gains "reject if unresolvable", which changes D-27.
+  SPEC Appendix A now reproduces revision 2026-09-29.
+- **Decisions that ran ahead of the paper:** D-28 (§6.1 well-formedness, condition 1), D-35 (line 27) and D-36 (lines 18 and 20) all match the paper now. The SPEC §2 exception is closed.
+- **§6.1 against D-17 and D-20:** same meaning.
+  - The lexical details equal D-17 plus D-08. They add that string literals are NFC-normalized, which is now in D-17, with the AST side logged as D-55.
+  - The well-formedness table equals D-20. The paper writes "any" as the path type of `==` and `in`, and says the declared type decides `==`; both agree with D-20.
+- **Other sections diffed** (the Proposition 2 proof, §3.3, §4.3, §4.5, §4.6, §5.2, §5.4, §6.1, §6.4, §7.3, Theorems 5 and 6):
+  - 16 issues resolved: P-03, P-07, P-09, P-10, P-14, P-15 to P-25;
+  - 4 still open: P-05, P-06, P-08, P-12;
+  - 1 new: P-26 (line 27 does not state its boundary).
+- **Decisions changed:** D-27, because the paper wins: an unresolvable approver is now `L41`, and two §11.2 rows moved from L42 to L41.
+- **Decisions added:** D-55 (NFC scope text). Sixteen decisions gained a "Paper status" line.
+- **Benchmark impact:** §4.6 no longer claims that the variation with N is small for N ≤ 10. SPEC §13.1 Q3 and §13.11 now check the revised claim, which leaves the dominant term to measurement.
+- **No decision needed the author.** Nothing in the revision weakens soundness relative to the decisions.

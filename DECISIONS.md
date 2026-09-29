@@ -6,7 +6,7 @@ Every choice the paper leaves open, in the format of SPEC Appendix B.
 - D-28 to D-47 were agreed with the author in the pre-M0 review (2026-09-28; SPEC changelog).
 - Later entries were added during implementation. The milestone that added each one is in `MILESTONES.md`.
 
-"Paper" means revision 2026-09-28, `docs/paper.pdf`.
+"Paper" means `docs/paper.pdf`. It was revision 2026-09-28 until 2026-09-29, and is now revision 2026-09-29 (sha256 `51eff0ec…6da84e14`). Entries the revision affected carry a "Paper status" line.
 
 ---
 
@@ -53,6 +53,7 @@ Spec section: §5.4     Paper section: §4.5 ("a digest over this preliminary bo
 Decision: `InvocationDigest(B_N) = SHA256("TAG_IVD\0" ‖ canon(B_N with key 9 removed))`.
 Why: Receipts are omitted when empty (D-14), so the body with key 9 removed is exactly the preliminary body of §4.5. The tag separates this digest from `m_N`.
 Affects benchmarks: no
+Paper status (revision 2026-09-29): adopted verbatim. §4.5 now defines InvocationDigest(B_N) = H(TAG_IVD ‖ Canon(B_N without its receipts field)), and notes that the tag separates it from m_N (P-03 resolved).
 
 ## D-07 — Tags for the auxiliary signed messages
 Spec section: §5.4     Paper section: not specified (P-06)
@@ -70,6 +71,7 @@ Spec section: §6.1     Paper section: §5.2, §6.1 (`letter` undefined; P-23)
 Decision: `letter` is `[A-Za-z]` and `digit` is `[0-9]`.
 Why: This rules out Unicode confusables, and makes NFC irrelevant for identifiers.
 Affects benchmarks: no
+Paper status (revision 2026-09-29): adopted. §6.1 "Lexical details" says `letter` is `[A-Za-z]` and `digit` is `[0-9]`.
 
 ## D-09 — Certificate kind enum
 Spec section: §6.1     Paper section: §5.2
@@ -106,12 +108,14 @@ Spec section: §7.3     Paper section: §4.3, §4.5
 Decision: `InvocationBody` key 9 is absent when there are no receipts. Present-but-empty is malformed (D-34).
 Why: This gives every receipt-free body exactly one encoding, and makes D-06's "key 9 removed" equal to the preliminary body.
 Affects benchmarks: bytes only. Bodies without approval are one byte smaller than they would be with an empty array.
+Paper status (revision 2026-09-29): adopted. §4.5: "The receipts field is omitted when there are no receipts", and a body carrying an empty receipts field is malformed.
 
 ## D-15 — Receipt order and multiplicity
 Spec section: §7.3     Paper section: §4.3, §4.5 (P-10)
 Decision: Receipts are sorted by `approver_id`, bytewise ascending, with at most one per approver. How violations are handled is in D-34.
 Why: A canonical order makes the receipt list deterministic, and one receipt per approver matches the paper's "one approval receipt for each approval service the policy requires".
 Affects benchmarks: no
+Paper status (revision 2026-09-29): adopted. §4.5: receipts are ordered by approver identifier, bytewise ascending, with at most one per approval service (P-10 resolved).
 
 ## D-16 — Chain length cap
 Spec section: §7.5     Paper section: not specified
@@ -126,8 +130,10 @@ Decision:
 - Strings are double-quoted, with JSON escapes.
 - Integers are decimal, with an optional leading `-`, and must lie in the CBOR integer range [−2⁶⁴, 2⁶⁴ − 1].
 - Booleans are `true` and `false`.
+- String literals are NFC-normalized; the string operators compare bytewise (added from the paper, revision 2026-09-29; the AST side is D-55).
 Why: This is the smallest lexical layer that accepts the paper's §6.2 example verbatim.
 Affects benchmarks: no
+Paper status (revision 2026-09-29): adopted into §6.1 "Lexical details", with the same meaning; the wording differs only in layout. The paper adds one rule, that string literals are NFC-normalized like the parameter values they are compared with. The decision above now includes it (P-23 resolved).
 
 ## D-18 — Canonical scope AST
 Spec section: §9.2     Paper section: not specified
@@ -140,6 +146,7 @@ Spec section: §9.3     Paper section: not specified
 Decision: A `params` declaration containing both `a` and `a.b` is malformed.
 Why: After flattening, a leaf cannot also be an interior node, so such a rule could never match. Rejecting it keeps declarations meaningful.
 Affects benchmarks: no
+Paper status (revision 2026-09-29): adopted. §6.1 well-formedness, condition 1: "No path is declared twice, and no declared path is a strict prefix of another."
 
 ## D-20 — Operator/operand type compatibility
 Spec section: §9.3     Paper section: not specified (P-23)
@@ -153,18 +160,21 @@ Decision:
 - Because of D-28, every path has a declared type, so this is always defined.
 Why: The grammar lets `path numop value` take a string or boolean value (`amount < "x"`). The paper never says what that means.
 Affects benchmarks: no
+Paper status (revision 2026-09-29): adopted as the table in §6.1 well-formedness, condition 2, with the same meaning. Wording differences, none of which changes the rule: (1) the paper lists the path type of `==` and `in` as "any", constrained through the operand ("a literal of the path's type"; "every element of the path's type"), which is what the bullets above say; (2) the paper says "the declared type of the path decides" whether `==` is the numeric or the string operator, where SPEC §9.2 says the operand's type disambiguates, and since the two types must be equal these agree (P-23 resolved).
 
 ## D-21 — Policy size limits
 Spec section: §9.3     Paper section: not specified
 Decision: At most 256 rules per scope, 32 params per rule, 32 atoms per rule, 64 list elements. Text at most 1,024 bytes; path depth at most 8.
 Why: This bounds `Evaluate` and `Contains` on input the sender chooses. The Q8 sizes (up to 64 rules, 8 atoms) are within the limits.
 Affects benchmarks: no
+Paper status (revision 2026-09-29): consistent. §6.1 says implementations bound scope size and that "those bounds belong in a normative specification", so the values stay ours.
 
 ## D-22 — `under` includes equality
 Spec section: §9.3     Paper section: §6.1 ("q is a prefix of it segment by segment")
 Decision: `p under q` holds when `p` is a canonical absolute path and `segments(q)` is a prefix of `segments(p)`, including `p = q`.
 Why: "Prefix" in the paper is non-strict.
 Affects benchmarks: no
+Paper status (revision 2026-09-29): adopted. §6.1 now defines a canonical absolute path in these terms, and says "the segments of q are a prefix of its segments, equality included".
 
 ## D-23 — Invalid parameter keys match no rule
 Spec section: §9.4     Paper section: §6.3 (flattening unspecified)
@@ -189,18 +199,21 @@ Decision:
 - Eviction is lazy on lookup, plus a periodic sweep; neither removes an unexpired entry.
 Why: The paper asks for the remaining validity window plus a clock-skew tolerance. 60 s makes that tolerance concrete.
 Affects benchmarks: Q10 memory, and the constant cost of the insert in every arm.
+Paper status (revision 2026-09-29): consistent. §4.6 ("Replay protection") and Theorem 5 now say that line 13 applies no tolerance, and that the TTL's added term must be at least the clock disagreement among the instances sharing the cache. Here one instance holds the cache, so 60 s satisfies that (P-07 resolved).
 
 ## D-26 — Resolution returns the latest certificate for (id, pk), valid or not
 Spec section: §6.6     Paper section: §5.4, Algorithm 1 lines 23 and 27 (P-18)
 Decision: `resolve(id, pk, t)` returns the most recently issued certificate binding `id` to `pk`, whether or not it is currently valid. Validity and revocation are rejected at line 27.
-Why: If resolution filtered out invalid certificates, line 27 could never fire, and tests could not tell "unknown" from "expired". This departs from §5.4's wording, "returns the valid certificate". The author agreed to keep D-26 and log the conflict.
+Why: If resolution filtered out invalid certificates, line 27 could never fire, and tests could not tell "unknown" from "expired".
 Affects benchmarks: no
+Paper status (revision 2026-09-29): adopted verbatim. §5.4: "Resolution returns the most recently issued certificate binding that identifier to that key, whether or not it is currently valid", with validity decided at line 27 (P-18 resolved). This was a departure from revision 2026-09-28, which said "returns the valid certificate"; it no longer departs.
 
-## D-27 — An unresolvable approver fails line 42
-Spec section: §10.2     Paper section: Algorithm 2 lines 41–42 (P-14)
-Decision: Line 41 has no reject clause. If `Resolve(s, R.approver_pk)` fails, the chain is rejected at line 42.
-Why: Line 42's "passes the phase-5 checks" includes resolution. Adding a new reject line is not ours to do.
+## D-27 — An unresolvable approver is rejected at line 41
+Spec section: §10.2, §11.2     Paper section: Algorithm 2 lines 41–42 (P-14)
+Decision: If `Resolve(s, R.approver_pk)` fails, the chain is rejected at line 41 (`L41`). Every other approver-certificate failure (root, namespace, kind, validity, revocation) is line 42.
+Why: Revision 2026-09-29 gives line 41 its own clause: "reject if unresolvable".
 Affects benchmarks: no
+Change log: until 2026-09-29 this decision read "Line 41 has no reject clause; an unresolvable approver fails line 42", as revision 2026-09-28 required. The paper now has the clause, and the paper wins (SPEC §2). This changes two §11.2 rows from L42 to L41: a receipt whose `approver_pk` is not certified for its `approver_id`, and an agent key signing a receipt.
 
 ## D-28 — An atom on an undeclared path makes the scope malformed
 Spec section: §9.3, §9.4, §9.5, §9.7     Paper section: §6.1, §6.3 step 1(c), §6.4 Proposition 2 (P-15)
@@ -210,8 +223,10 @@ Decision:
   - at policy load, the policy is unavailable (`L31`, D-12);
   - inside a session or delegation body, decoding fails (`L02`).
 - The evaluator keeps §6.3 step 1(c) as a defensive check; it never fires for a well-formed scope.
-Why: Without this, `Contains` is unsound (P-15). A tautology on an undeclared path lets a dead child rule drop a required approval (step 3(b)), or lets a dead parent rule subsume a live child rule (step 3(a)). The author chose to forbid such scopes rather than special-case them in `implies`/`unsat`, and is revising the paper to match. This is ahead of paper revision 2026-09-28 (SPEC §2 exception).
+- `Contains` returns false if either scope is malformed, as a defensive check that a decoded chain never reaches (paper §6.4, revision 2026-09-29).
+Why: Without this, `Contains` is unsound (P-15). A tautology on an undeclared path lets a dead child rule drop a required approval (step 3(b)), or lets a dead parent rule subsume a live child rule (step 3(a)). The author chose to forbid such scopes rather than special-case them in `implies`/`unsat`.
 Affects benchmarks: no. Every benchmark policy declares its where-paths.
+Paper status (revision 2026-09-29): adopted. §6.1 well-formedness, condition 1: "Every path its where clause mentions is declared in its params." A malformed scope is rejected by LoadPolicy, and at line 2 inside a body. The Proposition 2 proof now relies on well-formedness in both step 3(a) and the step-3(b) skip argument (P-15 resolved). The paper adds the defensive rule that Contains returns false on a malformed scope, which is now in the decision above. This decision was ahead of the paper under the SPEC §2 exception, and no longer is.
 
 ## D-29 — `blst` is single-threaded in every arm; A-mt is supplementary
 Spec section: §3.2, §5.6, §12, §13.1, §13.3, §13.5     Paper section: §4.6 (the cost model assumes one multi-pairing)
@@ -281,6 +296,7 @@ Decision:
 - A receipt from an approver that the evaluated decision (line 36) does not require is ignored.
 Why: No line of Algorithm 2 rejects an extra receipt, and line 40 only looks up required approvers, so ignoring extras implements the paper as written. The ordering rules make the list canonical.
 Affects benchmarks: no
+Paper status (revision 2026-09-29): adopted. §4.5: violations of the receipt order or multiplicity, or an empty receipts field, make the body malformed, and "a receipt from an approval service that the policy does not require for the invocation is ignored" (P-10 resolved).
 
 ## D-35 — Certificate validity is `t ∈ [nbf, exp]`
 Spec section: §6.6, §10.2, §12.1, Appendix A     Paper section: Algorithm 1 line 27, §5.2, §5.5 (P-17)
@@ -288,8 +304,9 @@ Decision:
 - Line 27 rejects unless `t ∈ [cert.nbf, cert.exp]`, and rejects a revoked serial.
 - Line 42's "phase-5 checks" include the same window.
 - A prefix-cache entry is valid only from the latest prefix-certificate `nbf` to its earliest expiry.
-Why: The paper's line 27 says only "expired or revoked", so a certificate that is not yet valid would be accepted. The author is fixing line 27. This is ahead of paper revision 2026-09-28 (SPEC §2 exception).
+Why: Revision 2026-09-28's line 27 said only "expired or revoked", so a certificate that is not yet valid would have been accepted (P-17). The interval is closed at both ends, as in lines 13 and 44.
 Affects benchmarks: no
+Paper status (revision 2026-09-29): adopted. Line 27 now reads "reject if cert_k is not yet valid, expired, or revoked at t", and §5.4 repeats "not yet valid, expired, or revoked" (P-17 resolved). The paper does not say whether t = exp counts as expired; this decision keeps the closed interval, which is consistent with lines 13 and 44 (logged as P-26). This decision was ahead of the paper under the SPEC §2 exception, and no longer is.
 
 ## D-36 — Lines 18 and 20 compare identifiers as well as keys
 Spec section: §6.4, §10.2, §12.1, Appendix A     Paper section: Algorithm 1 lines 18 and 20 (P-16)
@@ -297,8 +314,8 @@ Decision:
 - Line 18 rejects unless `B0.subject_id = sid(B1)` and `B0.subject_pk = spk(B1)`.
 - Line 20 rejects unless `Bk.delegatee_id = sid(Bk+1)` and `Bk.delegatee_pk = spk(Bk+1)`.
 - The prefix cache stores the handed-on identifier as well as the key.
-Why: PoP does not stop one key from being registered under two identifiers. With keys alone, a chain could name one party and be signed by another, which violates provenance, asset (ii) of paper §3.1. The author is fixing the paper. This is ahead of paper revision 2026-09-28 (SPEC §2 exception).
-Affects benchmarks: negligibly. It adds one identifier comparison per hop in every arm.
+Why: PoP does not stop one key from being registered under two identifiers. With keys alone, a chain could name one party and be signed by another, which violates provenance, asset (ii) of paper §3.1. Affects benchmarks: negligibly. It adds one identifier comparison per hop in every arm.
+Paper status (revision 2026-09-29): adopted. Lines 18 and 20 now compare `(B0.subject_id, B0.subject_pk)` with `(sid(B1), spk(B1))`, and `(Bk.delegatee_id, Bk.delegatee_pk)` with `(sid(Bk+1), spk(Bk+1))`. §4.6 explains that this makes the party that acts the one that was named, "even where one key is certified under more than one identifier" (P-16 resolved). This decision was ahead of the paper under the SPEC §2 exception, and no longer is.
 
 ## D-37 — Caches are filled during verification
 Spec section: §10.2     Paper section: §4.6, §5.4 (P-20)
@@ -309,6 +326,7 @@ Decision:
 - Line 50 is the only mutation that can change a later decision. §11.3's equivalence test checks that the caches never change one.
 Why: §5.4 describes resolution caches that fill on use, which contradicts §4.6's "leaves the verifier exactly as it found it".
 Affects benchmarks: yes. It defines what the warm state has cached.
+Paper status (revision 2026-09-29): adopted. §4.6: "The only decision-relevant state the procedure changes is the nonce cache … Resolution and policy loading may fill caches"; the Figure 2 caption says the same (P-20 resolved).
 
 ## D-38 — Large profile: rule dropping never goes below 4 rules
 Spec section: §13.2     Paper section: not applicable (workload)
@@ -461,3 +479,13 @@ Decision:
 - Only dev-dependencies enable the feature. `scripts/check-deps.sh` fails if any protocol crate's normal dependency graph enables it.
 Why: The T5b bounded tests and the T5d `registry_id` test need a root that signs what an honest registry would refuse. That capability must not exist in the default build.
 Affects benchmarks: no
+
+## D-55 — Text in a scope AST is NFC, like parameters
+Spec section: §4.4, §9.2, §10.2     Paper section: §6.1 "Lexical details" (revision 2026-09-29: "String literals are NFC-normalized, like the text values they are compared with")
+Decision:
+- The policy parser NFC-normalizes string literals.
+- The canonical scope AST (D-18) holds NFC text. `Canon` of a session or delegation body NFC-normalizes the text inside its scope, as it does parameters.
+- A received body whose scope contains non-NFC text is therefore a canonical-form violation, rejected at line 5 (`L05`), the same class as non-NFC parameters (extends D-31).
+- A policy document is decoded strictly (D-12), so non-NFC text there makes it malformed, and it is rejected at line 31.
+Why: The paper puts literals and parameter values under the same normalization rule, so the two are treated alike. Identifiers, principals and paths are ASCII (D-08), so in practice only string operands are affected.
+Affects benchmarks: no. It adds one NFC check per scope text, identical in every arm.

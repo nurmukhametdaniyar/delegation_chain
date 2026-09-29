@@ -1,12 +1,22 @@
 # DelegationChain — Reference Implementation and Benchmark Specification
 
 **Audience:** Claude Code, working in a fresh Rust repository.
-**Protocol source of truth:** the paper _DelegationChain: Aggregatable Capability Chains for Cross-Organizational Agent Authorization_, revision dated 2026-09-28 (42 pages). Place it at `docs/paper.pdf`. Section and line numbers below (e.g. "§4.3", "Algorithm 1 line 26") refer to that revision.
+**Protocol source of truth:** the paper _DelegationChain: Aggregatable Capability Chains for Cross-Organizational Agent Authorization_, revision dated 2026-09-29 (44 pages; sha256 `51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14`). Place it at `docs/paper.pdf`. Section and line numbers below (e.g. "§4.3", "Algorithm 1 line 26") refer to that revision; its line numbering is the same as revision 2026-09-28's.
 **What this document adds:** every bit-level and engineering decision the paper deliberately leaves open (§4 says field numbering and byte layout "are not fixed by this paper"), a test plan, and a benchmark plan.
 
 Put this file in the repository root as `SPEC.md`.
 
 ## Changelog
+
+**2026-09-29 — reconciled with paper revision 2026-09-29.** The paper now carries every change that ran ahead of it, so the §2 exception is closed. Algorithm line numbering is unchanged; only lines 18, 20, 27 and 41 differ from revision 2026-09-28.
+- **Resolved:** P-03, P-07, P-09, P-10, P-14 and P-15 to P-25. **Open:** P-05, P-06, P-08, P-12, and the new P-26 (Appendix C).
+- **Adopted by the paper:** D-06, D-08, D-14, D-15, D-17, D-19, D-20, D-22, D-26, D-28, D-34, D-35, D-36 and D-37 now match the paper. The "ahead of the paper" notes are removed from §6.6, §10.2 and Appendix A.
+- **Changed because the paper wins:** D-27. Line 41 now rejects an unresolvable approver itself, so two §11.2 rows move from L42 to L41 (§10.2, §11.2).
+- **Added from the paper:**
+  - string literals are NFC-normalized (D-17, §9.1), with non-NFC scope text in a body rejected at L05 as a canonical-form violation (new D-55, §4.4);
+  - `Contains` returns false on a malformed scope, as a defensive check (§9.6, D-28).
+- **Benchmark claims:** §4.6 no longer claims that the variation with N is small relative to α for N ≤ 10. It now says β (one hash to G2 plus one Miller loop per hop) "cannot be assumed small relative to α", and leaves which term dominates to measurement. §13.1 Q3 and §13.11 are updated.
+- **Tests:** added a boundary row for certificate validity at `nbf` and `exp` (P-26, D-35).
 
 **2026-09-28 — pre-M0 review, agreed with the author.** Read this before anything else; later sessions must not work from the pre-review text. New paper issues are P-15 to P-25 (Appendix C). New decisions are D-28 to D-47 (`DECISIONS.md`). Three changes run ahead of paper revision 2026-09-28 and are being carried into the next revision (P-15, P-16, P-17); §2 gives this spec precedence on those points until the revised PDF is in `docs/`.
 
@@ -63,7 +73,7 @@ Production hardening, network transport, MCP integration, a transparency log, pe
 
 If this spec contradicts the paper, the paper wins. Log the contradiction as a `PAPER_ISSUES.md` or `DECISIONS.md` entry, whichever is appropriate. Appendix A reproduces Algorithms 1–2 for convenience; if it differs from the PDF, the PDF wins.
 
-**Exception (agreed with the author, 2026-09-28).** P-15 (D-28), P-16 (D-36) and P-17 (D-35) are paper defects the author is fixing in the next revision. On those three points this spec wins over paper revision 2026-09-28. Once the revised PDF is in `docs/`, check that it matches, and log any difference.
+**Exception (agreed 2026-09-28, closed 2026-09-29).** For P-15 (D-28), P-16 (D-36) and P-17 (D-35), this spec ran ahead of paper revision 2026-09-28 and took precedence on those points. Revision 2026-09-29 adopts all three, so no exception remains, and the paper wins everywhere again.
 
 ---
 
@@ -187,7 +197,7 @@ In addition, the verifier re-encodes each decoded body and compares the result t
 
 **Error classes and reject lines (D-31).** A strict decoder that rejected everything at line 2 would make line 5 unreachable. So the decoder splits its failures into two classes:
 
-- **Canonical-form violations**: a non-shortest argument, an indefinite length, unsorted map keys, or non-NFC text in a parameter map. These are valid values encoded the wrong way.
+- **Canonical-form violations**: a non-shortest argument, an indefinite length, unsorted map keys, or non-NFC text in a parameter map or in a body's scope (D-55). These are valid values encoded the wrong way.
   - When the verifier decodes a body, these are **recorded, not rejected**.
   - Line 5 rejects a recorded violation, and then separately rejects any mismatch between the re-encoded body and the received bytes. Both give `L05`.
 - **Malformed input**: everything else. That covers
@@ -417,7 +427,7 @@ trait PolicyStore{ fn load(&self, policy_hash: &[u8; 32]) -> Option<Vec<u8>>; }
 - **In-process implementations.** Both accept an optional injected latency (a sleep per call) for cold-path experiments (§13.4).
 - **Resolution is by identifier and key** (paper §5.4, Algorithm 1 line 23). Every body names its signer's key, so during a scheduled rotation, when two certificates for one identifier are valid at once, the key selects between them. This applies to issuers, agents and approvers alike. Implement scheduled rotation with overlapping certificates (§11.2 has a test for it).
 - **`resolve` returns the most recently issued certificate binding `id` to `pk`, whether or not it is currently valid** (**D-26**). Expiry and revocation are then rejected at line 27, where the paper checks them. If `resolve` filtered them out instead, line 27 would never fire and a test could not tell the two failures apart.
-  - This conflicts with the paper's §5.4 wording, "resolution returns the valid certificate". Logged as P-18; D-26 stands.
+  - Paper §5.4 (revision 2026-09-29) says the same. Revision 2026-09-28 said "resolution returns the valid certificate" (P-18, resolved).
   - Line 27 checks `t ∈ [nbf, exp]` and revocation (D-35, P-17).
 - **Content addressing.** `load` returns bytes; the verifier accepts them only if `SHA256(bytes) == policy_hash` and the bytes decode as a well-formed policy (§9.3). A malformed policy is treated as _unavailable_ (line 31) (**D-12**).
 
@@ -588,6 +598,9 @@ Lexical details (**D-17**):
 - Strings are double-quoted, with JSON escapes.
 - Integers are decimal with an optional leading `-`, within the CBOR integer range.
 - Booleans are `true` and `false`.
+- String literals are NFC-normalized, and the string operators compare bytewise (paper §6.1, revision 2026-09-29). In the canonical AST, scope text is NFC (D-55).
+
+Paper §6.1 "Lexical details" (revision 2026-09-29) states these rules and D-08.
 
 The parser must accept the paper's §6.2 example verbatim, `at` clauses included.
 
@@ -610,7 +623,7 @@ op_uint: 0 lt, 1 le, 2 eq, 3 ge, 4 gt, 5 starts_with, 6 ends_with, 7 contains, 8
 operand: int | text | bool | array (for `in`, elements as written)
 ```
 
-- The text form `x == "a"` (strop) and `x == 5` (numop) both map to `eq`; the operand's type disambiguates.
+- The text form `x == "a"` (strop) and `x == 5` (numop) both map to `eq`; the operand's type disambiguates. Paper §6.1 says "the declared type of the path decides which is meant"; the two agree, because D-20 requires the operand's type to equal the path's.
 - A rule without `params` declares the empty parameter set. Under the closed-world rule it matches only invocations with no parameters.
 - The policy document that `policy_hash` names is a Scope, canonically encoded.
 
@@ -637,6 +650,7 @@ Anything that fails validation is **malformed** and rejected.
     - In step 3(a), a dead parent rule wrongly subsumes a live child rule.
     - The counterexample is in P-15.
   - Because every where-path is now declared, D-20 below is always well defined.
+  - Paper §6.1 "Well-formedness" (revision 2026-09-29) states this rule (condition 1), together with D-19 (condition 1), D-20 (condition 2, as a table) and the `at`/`approval` kinds (condition 3).
 - **Size limits** (**D-21**): ≤ 256 rules per scope, ≤ 32 params per rule, ≤ 32 atoms per rule, ≤ 64 list elements, text ≤ 1024 bytes, path depth ≤ 8.
 
 **Canonical absolute path (paper §6.1):**
@@ -728,6 +742,7 @@ If E does not exist, use these sound rules.
 
 ### 9.6 Containment `Contains(S1, S2)` (paper §6.4, exactly)
 
+0. If either scope is malformed (§9.3), return false. This is a defensive check that a decoded chain never reaches (paper §6.4, revision 2026-09-29; D-28).
 1. If S1 is `allow all`, return true.
 2. If S2 is `deny all`, return true. If S2 is `allow all` (and, by step 1, S1 is not), return false.
 3. For each rule r2 of S2, in order:
@@ -825,11 +840,12 @@ Line-level notes:
 - **Line 13:** no clock-skew tolerance, as written (P-07).
 - **Lines 18 and 20 compare identifiers as well as keys (D-36, P-16).** Reject at line 18 unless both `B0.subject_id = sid(B1)` and `B0.subject_pk = spk(B1)`. Reject at line 20 unless both `Bk.delegatee_id = sid(Bk+1)` and `Bk.delegatee_pk = spk(Bk+1)`.
   - Comparing keys alone lets a chain name one party and be signed by another. PoP does not stop one key from being registered under two identifiers (§6.4). That breaks provenance, asset (ii) of paper §3.1.
-  - This runs ahead of paper revision 2026-09-28 (§2 exception).
+  - Paper revision 2026-09-29 states lines 18 and 20 this way.
 - **Line 23:** `Resolve(sid(B_k), spk(B_k))`, per D-26.
 - **Line 24:** verify the certificate signature under `Root[org(sid)]`. Once verified, it is cached with its certificate. If no root is configured for `org(sid)`, reject at line 24.
-- **Line 27:** reject unless `t ∈ [cert.nbf, cert.exp]`, and reject if the serial is revoked (**D-35**, P-17). The paper's line 27 says only "expired or revoked", and this runs ahead of that revision (§2 exception). Line 42's "phase-5 checks" include the same window.
-- **Lines 41–42:** `Resolve(s, R.approver_pk)`, then the phase-5 checks (lines 24–27) with kind `approver`. Line 41 has no reject clause of its own; an unresolvable approver fails line 42 (**D-27**).
+- **Line 27:** reject unless `t ∈ [cert.nbf, cert.exp]`, closed at both ends, and reject if the serial is revoked (**D-35**). The paper's line 27 says "not yet valid, expired, or revoked at t", without stating the boundary (P-26). Line 42's "phase-5 checks" include the same window.
+- **Line 41:** `Resolve(s, R.approver_pk)`; reject if unresolvable (`L41`, **D-27**).
+- **Line 42:** the phase-5 checks (lines 24–27) with kind `approver`: root, namespace, kind, validity window, revocation.
 - **Line 40:** receipts from approvers outside `svcs` are ignored (D-34).
 - **Line 48:** compare all N+1 digests pairwise; use a hash set. This is the only distinctness check; `blst` does not do one (§5.6).
 - **Line 49:** §5.6.
@@ -917,18 +933,18 @@ Unless a row says otherwise, give every body the same `exp`, set every `hop_inde
 | T4b routing                            | Receipt only from a non-required approver                                                                                                                                                                                                                                                                                                                         | L40                                                    |
 | T4c receipt reuse                      | Receipt for I attached to I′ ≠ I                                                                                                                                                                                                                                                                                                                                  | L43                                                    |
 | T4d stale approval                     | Invoker changes params after approval, recomputes `params_hash`, re-signs                                                                                                                                                                                                                                                                                         | L43                                                    |
-| Receipt window                         | Expired receipt; revoked approver; receipt's `approver_pk` not certified for its `approver_id`; approver certificate not yet valid (`t < nbf`, D-35)                                                                                                                                                                                                                 | L44; L42; L42; L42                                     |
+| Receipt window                         | Expired receipt; revoked approver; receipt's `approver_pk` not certified for its `approver_id` (unresolvable, D-27); approver certificate not yet valid (`t < nbf`, D-35)                                                                                                                                                                                            | L44; L42; L41; L42                                     |
 | Receipt list (D-34)                    | Two receipts for one approver; receipts out of order; key 9 present but empty; the required receipt plus one from a non-required approver                                                                                                                                                                                                                          | L02; L02; L02; **accept**                              |
 | T5a misattribution                     | Register another principal's pk without their secret key                                                                                                                                                                                                                                                                                                          | registry rejects                                       |
 | T5a                                    | Replay a used PoP nonce; PoP signed under the CHAIN DST                                                                                                                                                                                                                                                                                                           | registry rejects                                       |
 | T5b compromised root (bounded)         | With `orga`'s stolen root key: issue an issuer certificate and a session within `orga`'s pinned policy; the same with a session scope exceeding that policy; a certificate for an `orgb:` identifier signed with `orga`'s root. Paper §7.1 assumes an honest root; §7.3 bounds the damage by pinning and the namespace binding (P-19)                                 | **accept** (document the bound); L32; L24              |
 | T5c revocation                         | Revoke a delegator. Verify one chain through it before ingesting the assertion, and a second chain (new nonce) after                                                                                                                                                                                                                                              | **accept** (the propagation window), then L27          |
-| T5c expiry                             | Signer's certificate expired at `t`; signer's certificate not yet valid at `t` (`t < nbf`, D-35, P-17)                                                                                                                                                                                                                                                              | L27; L27                                               |
+| T5c expiry                             | Signer's certificate expired at `t`; signer's certificate not yet valid at `t` (`t < nbf`, D-35, P-17); boundaries `t = nbf` and `t = exp` (P-26)                                                                                                                                                                                                                  | L27; L27; **accept**, **accept**                       |
 | T5d substitution                       | Cert for an `orga:` identifier signed by `orgb`'s root                                                                                                                                                                                                                                                                                                            | L24                                                    |
 | T5d                                    | `registry_id` ≠ org of the identifier                                                                                                                                                                                                                                                                                                                             | L25                                                    |
 | T5e role confusion                     | Agent-kind cert at position 0                                                                                                                                                                                                                                                                                                                                     | L26                                                    |
 | T5e                                    | Issuer-kind cert as a delegator; approver-kind cert as the invoker                                                                                                                                                                                                                                                                                                | L26, L26                                               |
-| T5e                                    | Agent key signs a receipt                                                                                                                                                                                                                                                                                                                                         | L42                                                    |
+| T5e                                    | Agent key signs a receipt, naming the required approver (no certificate binds that approver to the agent's key, D-27)                                                                                                                                                                                                                                             | L41                                                    |
 | Scheduled rotation (P-04, resolved)    | Issuer, a delegator and an approver each hold two overlapping certificates; chains signed under either key verify; a chain naming the old key after its certificate expires fails; a chain naming the new key before its certificate's `nbf` fails (D-35)                                                                                                          | **accept**, **accept**; L27; L27                       |
 | T6a prompt injection (bounded)         | Within-policy invocation by a "compromised" agent; out-of-policy invocation                                                                                                                                                                                                                                                                                       | **accept**; L37                                        |
 | T6b confused deputy (bounded)          | Delegation to an adversary within scope; wider than scope                                                                                                                                                                                                                                                                                                         | **accept**; L34                                        |
@@ -1040,7 +1056,7 @@ The paper itself (§8.3) says a comparison without caching "would not reflect ho
 
 - **Q1 (primary).** Warm per-invocation verification latency, median and p99, for N ∈ {1, 2, 3, 5, 10}: A vs C vs C-batch, and B vs D. The headline comparison is N = 3 with the medium profile. A-mt appears as a separately labelled supplementary row; it never enters a headline ratio (D-29).
 - **Q2 (primary).** Bytes on the wire per chain, by arm, N and profile, with the signature share of the total.
-- **Q3.** Does the paper's cost model hold for arm A? Fit `latency = α + β·N` and report α, β, 95% CIs, R², and `10β/α`. The paper (§4.6) claims the variation with N is small relative to α for N ≤ 10.
+- **Q3.** Does the paper's cost model hold for arm A? Fit `latency = α + β·N` and report α, β, 95% CIs, R², and `10β/α`. Paper §4.6 (revision 2026-09-29) claims that the cost is approximated by α + βN, with β being one hash to G2 plus one Miller loop per hop. It says β "cannot be assumed small relative to α", and that which term dominates is for measurement to settle. Report which dominates for N ≤ 10. (Revision 2026-09-28 claimed that the variation with N is small relative to α for N ≤ 10; that claim was withdrawn, P-21.)
 - **Q4.** The multi-pairing saving: A vs A-ind.
 - **Q5.** Cold-path latency, with empty caches and a local registry, plus the injected-RTT variants in §13.4.
 - **Q6.** Throughput under concurrency (§13.5).
@@ -1221,7 +1237,7 @@ These figures come from this spec. The implementer has not re-checked them again
 | Claim                                                                                         | Paper section  | How it is checked                                      |
 | --------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------ |
 | Aggregation gives significant constant-factor savings over verifying signatures independently | §2.2           | A vs A-ind (Q4)                                        |
-| Cost ≈ α + βN, with the variation small relative to α for N ≤ 10                              | §4.6           | Q3 fit; `10β/α`                                        |
+| Cost ≈ α + βN, with β = one hash to G2 plus one Miller loop per hop; which term dominates is left to measurement | §4.6 | Q3 fit (R², residuals); `10β/α`, and which term dominates for N ≤ 10; micro-benchmarks of hash-to-G2, Miller loop and final exponentiation, to attribute α and β |
 | A chain carries a constant 96-byte signature regardless of N                                  | §2.2, §4.3     | Q2 bytes                                               |
 | Carrying certificates inline costs more per hop than aggregation saves                        | §8.2           | §13.7                                                  |
 | In the steady state, verification touches no registry                                         | §8.2           | `count-ops` in the warm state (§11.2)                  |
@@ -1313,9 +1329,9 @@ Work through the milestones in order. Each ends with all tests green, a commit, 
     ▷ Phase 3 — replay
 17:   reject if (spk(BN), BN.nonce) ∈ NonceCache
     ▷ Phase 4 — key chain consistency
-18:   reject if B0.subject_pk ≠ spk(B1)
+18:   reject if (B0.subject_id, B0.subject_pk) ≠ (sid(B1), spk(B1))
 19:   for k ← 1 to N − 1 do
-20:     reject if Bk.delegatee_pk ≠ spk(Bk+1)
+20:     reject if (Bk.delegatee_id, Bk.delegatee_pk) ≠ (sid(Bk+1), spk(Bk+1))
 21:   end for
     ▷ Phase 5 — identity resolution
 22:   for k ← 0 to N do
@@ -1323,7 +1339,7 @@ Work through the milestones in order. Each ends with all tests green, a commit, 
 24:     reject unless certk verifies under Root[org(sid(Bk))]
 25:     reject unless certk.registry_id = org(sid(Bk))
 26:     reject unless certk.kind = role(k)
-27:     reject if certk is expired or revoked at t
+27:     reject if certk is not yet valid, expired, or revoked at t
 28:     pkk ← certk.pk                        ▷ equals spk(Bk) by resolution
 29:   end for
     ▷ Phase 6 — policy
@@ -1339,7 +1355,7 @@ Work through the milestones in order. Each ends with all tests green, a commit, 
 38:   if d = allow-with-approval(svcs) then
 39:     for all s ∈ svcs do
 40:       R ← the receipt in BN with R.approver_id = s; reject if none
-41:       certR ← Resolve(s, R.approver_pk)
+41:       certR ← Resolve(s, R.approver_pk); reject if unresolvable
 42:       reject unless certR passes the phase-5 checks with kind approver
 43:       reject unless R verifies under certR.pk over InvocationDigest(BN)
 44:       reject if t ∉ [R.iat, R.exp]
@@ -1357,15 +1373,9 @@ Work through the milestones in order. Each ends with all tests green, a commit, 
 
 `sid(B_k)` is `issuer_id`, `delegator_id` or `invoker_id`, and `spk(B_k)` is `issuer_pk`, `delegator_pk` or `invoker_pk`, by position. `role(k)` is `issuer` for k = 0 and `agent` for k ≥ 1. `self` is the verifier's own service identifier.
 
-**Agreed amendments (2026-09-28), ahead of the paper revision (§2 exception).** The listing above is paper revision 2026-09-28 verbatim. The implementation replaces these three lines:
-
-```
-18': reject if B0.subject_id ≠ sid(B1) or B0.subject_pk ≠ spk(B1)            ▷ D-36, P-16
-20':   reject if Bk.delegatee_id ≠ sid(Bk+1) or Bk.delegatee_pk ≠ spk(Bk+1)  ▷ D-36, P-16
-27':   reject if t ∉ [certk.nbf, certk.exp] or certk is revoked at t          ▷ D-35, P-17
-```
-
-A malformed scope (D-28, P-15) fails decoding at line 2, or makes the policy unavailable at line 31.
+The listing above is paper revision 2026-09-29, checked line by line on 2026-09-29. It differs from revision 2026-09-28 only at lines 18 and 20 (D-36, P-16), line 27 (D-35, P-17) and line 41 (D-27, P-14), and the numbering is unchanged.
+- The implementation reads line 27 as `t ∈ [certk.nbf, certk.exp]`, closed at both ends (P-26).
+- A malformed scope (D-28; paper §6.1) fails decoding at line 2, or makes the policy unavailable at line 31.
 
 ---
 
@@ -1403,43 +1413,37 @@ Configurations re-run: <list>
 
 ---
 
-## Appendix C — Paper issues already known (log at M0)
+## Appendix C — Paper issues (status against revision 2026-09-29)
 
-**Open.** Log each of these in `PAPER_ISSUES.md` at M0:
+`PAPER_ISSUES.md` holds the full entries, each with a `Status` line saying where revision 2026-09-29 addresses it.
 
-- **P-03. `InvocationDigest` is not defined precisely.** §4.5 says "a digest over this preliminary body"; the bytes and the tag are unspecified. See D-06.
+**Still open in revision 2026-09-29:**
+
 - **P-05. Some digests are untagged.** `policy_hash` and `params_hash` are plain SHA-256 of an encoding, while the chain digests are domain-separated by tags.
-- **P-06. Encodings of auxiliary structures are unspecified.** DSTs, field numbering and encodings for PoP challenges, receipts, certificates and revocation assertions are left open. The paper acknowledges this (§4); the choices are in D-04, D-07 and D-09.
-- **P-07. Clock skew is handled inconsistently.** Line 13 applies no clock-skew tolerance, while the nonce-cache TTL adds one (§4.6).
-- **P-08. "Closed-form" implication and satisfiability for strings is not established.** §6.4 describes the per-atom checks as closed-form; exactness for mixed `starts_with`/`ends_with`/`contains`/`under` constraints without a finite set is not shown. The implementation is sound but incomplete there (§9.5).
-- **P-09. `allow all` ignores the audience clause.** `allow all` permits any audience, tool and action, so the mandatory `at` clause does not constrain a scope written in this form (§6.1, §6.3).
-- **P-10. Receipt order inside the InvocationBody is unspecified** (§4.3). See D-15.
+- **P-06. Encodings of auxiliary structures are unspecified.** DSTs, field numbering and encodings for PoP challenges, receipts, certificates and revocation assertions are left open, deliberately (§4). The choices are D-04, D-07 and D-09. The InvocationDigest tag is now fixed by §4.5.
+- **P-08. "Closed-form" implication and satisfiability for strings is not established.** §6.4 calls the per-atom checks closed-form. Exactness for mixed `starts_with`/`ends_with`/`contains`/`under` constraints without a finite set is not shown. The implementation is sound but incomplete there (§9.5).
 - **P-12. Signing-service enforcement is unspecified.** The signing service "applies policy enforcement before signing" (§3.1), but the checks it performs are not specified.
-- **P-14. Line 41 has no reject clause.** `Resolve(s, R.approver_pk)` can fail, and only line 42's "passes the phase-5 checks" implicitly covers it. Clarity only; see D-27.
+- **P-26. Line 27 does not state its boundary.** "Not yet valid, expired" does not say whether validity is closed at `nbf` and `exp`, while lines 13 and 44 use closed intervals. The implementation uses the closed interval (D-35). Found in revision 2026-09-29.
 
-**Resolved in the 2026-09-28 revision.** Do not log these; they are listed so the numbering stays stable:
+**Resolved in revision 2026-09-29** (logged at M0, then marked resolved):
 
-- **P-01.** The `params_hash` check is now Algorithm 1 line 9.
-- **P-02.** `hop_index` and `session_id` are now checked at line 11.
-- **P-04.** The session body carries `issuer_pk`, and resolution is by identifier and key (line 23), so rotation overlap is unambiguous.
-- **P-11.** The approver's key is now used for resolution (line 41).
-- **P-13.** Containment step 2 now handles `allow all` explicitly.
+- **P-03** InvocationDigest: defined in §4.5 exactly as D-06.
+- **P-07** clock skew: §4.6 and Theorem 5 explain the difference between line 13 and the TTL.
+- **P-09** `allow all` and audiences: documented in §6.1.
+- **P-10** receipt order and multiplicity: fixed in §4.5 (D-14, D-15, D-34).
+- **P-14** line 41: now has "reject if unresolvable" (D-27 changed).
+- **P-15** containment soundness: §6.1 well-formedness, and the Proposition 2 proof now relies on it (D-28).
+- **P-16** lines 18 and 20: compare identifiers and keys (D-36).
+- **P-17** line 27: checks "not yet valid" (D-35).
+- **P-18** resolution: §5.4 now matches D-26.
+- **P-19** T5b: moved to the bounded threats, with the bound stated.
+- **P-20** caches: §4.6 and Figure 2 (D-37).
+- **P-21** cost model: β includes hash-to-G2, and the "small variation" claim was withdrawn.
+- **P-22** approval cost: a two-pairing check per receipt.
+- **P-23** grammar: lexical details, `string-value`, and the typing table (D-17, D-20).
+- **P-24** signer kind: its role is explained in §5.2.
+- **P-25** session `iat`: declared informational in §4.3.
 
-**Found in the pre-M0 review (2026-09-28); log at M0.** P-15, P-16 and P-17 are being fixed in the next paper revision (§2 exception).
+**Resolved before 2026-09-28.** Not logged; listed so the numbering stays stable: P-01 (line 9), P-02 (line 11), P-04 (`issuer_pk`, resolution by key), P-11 (line 41 uses the approver's key), P-13 (containment step 2).
 
-- **P-15. Containment is unsound when a where clause names an undeclared path** (soundness). The proof of Proposition 2 assumes every where-path is declared; the language does not require it, and §6.3 step 1(c) exists for exactly that case.
-  - A tautological atom on an undeclared path makes a rule dead, yet it counts as implied.
-  - In step 3(b) this drops a required approval; in step 3(a) a dead parent rule subsumes a live child rule.
-  - Fixed by D-28.
-- **P-16. Lines 18 and 20 compare keys, never identifiers** (soundness: provenance, asset (ii) of §3.1). `subject_id` and `delegatee_id` are never checked against the next signer. PoP does not stop a key from being registered under two identifiers. Fixed by D-36.
-- **P-17. Line 27 omits the certificate's `nbf`** (soundness). Certificates carry one (§5.2), and §5.5 speaks of the certificate "valid at verification time". Fixed by D-35.
-- **P-18. §5.4's "resolution returns the valid certificate" makes line 27 unreachable except for stale cache entries** (clarity). See D-26.
-- **P-19. T5b is listed as prevented (§3.3.1), but §7.1 assumes an honest root** (clarity). §7.3 only bounds it, through pinning and the namespace binding.
-- **P-20. "A chain that fails any check leaves the verifier exactly as it found it" (§4.6) ignores the certificate and policy caching of §5.4** (clarity). See D-37.
-- **P-21. The cost model (§4.6) makes β "the per-Miller-loop cost", but each hop also pays one hash-to-G2** (clarity).
-- **P-22. §4.5's "a single pairing operation per approval" is two pairings and one final exponentiation** by §4.6's own way of counting (clarity).
-- **P-23. The grammar leaves operator/operand type compatibility unspecified (`amount < "x"`), and never defines `string-value`, `integer`, `string` or `letter`** (interoperability). See D-17 and D-20.
-- **P-24. The `signer` kind has no role in Algorithms 1–2** (clarity). No position or receipt accepts a signer certificate.
-- **P-25. The session's `iat` is never checked, and only B_N has a not-before** (clarity).
-
-Add new entries (from P-26) as you find them. Finding them is part of the job.
+Add new entries (from P-27) as you find them. Finding them is part of the job.
