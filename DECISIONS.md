@@ -489,3 +489,40 @@ Decision:
 - A policy document is decoded strictly (D-12), so non-NFC text there makes it malformed, and it is rejected at line 31.
 Why: The paper puts literals and parameter values under the same normalization rule, so the two are treated alike. Identifiers, principals and paths are ASCII (D-08), so in practice only string operands are affected.
 Affects benchmarks: no. It adds one NFC check per scope text, identical in every arm.
+
+## D-56 — Canonical form of the scope AST, and policy-document decoding
+Spec section: §9.2, §9.3, §6.6     Paper section: §6.1, §5.4
+Decision:
+- A `Scope` value can only be built by validating it (`Scope::new`, `Scope::parse`, `Scope::from_value`, `Scope::decode_policy`). `contains` therefore performs the paper's defensive "malformed ⇒ false" check through a flag set at construction, in O(1) per call (D-28). Only the `test-hooks` constructor can produce a malformed `Scope`.
+- The AST's own canonical-form rules, beyond CBOR's:
+  - an approval list is sorted bytewise and deduplicated;
+  - keys 4, 5 and 6 of a rule are either absent or non-empty;
+  - a special form carries no key but key 1;
+  - a rule list is non-empty.
+  - Violations are malformed.
+- `Scope::decode_policy`, for line 31, requires all of: strict canonical CBOR, NFC text (D-55), well-formedness, and that re-encoding reproduces the bytes exactly. Anything else is a malformed policy, which is unavailable (D-12).
+- In the text form, a path declared twice is a syntax error, since the AST map cannot represent it.
+- Keywords are contextual: a parameter may be called `in`, `and` or `approval`.
+- JSON escapes include `\uXXXX` with surrogate pairs; a lone surrogate or an unescaped control character is a syntax error.
+Why: The paper leaves the AST open, and SPEC fixes its shape (D-18). These rules give every scope exactly one encoding, and make "well-formed" a property of the type rather than something each caller has to remember to check.
+Affects benchmarks: no. Scopes in bodies are validated once, at line 2, in every arm.
+
+## D-57 — String implication: two tautologies are handled exactly
+Spec section: §9.5     Paper section: §6.4 (P-08)
+Decision: Besides the sound rules SPEC §9.5 lists for strings without a finite set, `implies` returns true for `starts_with ""`, `ends_with ""` and `contains ""`, which every string satisfies. Every other rule is as SPEC gives it. A string path constrained by `==`/`in` is decided exactly by filtering the finite set.
+Why: SPEC asks for exactness where it is easy to get and easy to test. These three are both, and they remove a trivially avoidable source of incompleteness. The differential oracle checks them for soundness.
+Affects benchmarks: no
+
+## D-58 — Differential oracle method
+Spec section: §9.7     Paper section: §6.4, Definition 1
+Decision:
+- **Universe:** SPEC §9.7's, with boundary constants and undeclared-path atoms added.
+- **Generated pairs:** half are independent pairs; in the other half, S2 is derived from S1 by mutation (dropping, adding, replacing and duplicating atoms and rules, toggling approvals, swapping adjacent rules), so that containment is often true or nearly so.
+- **Validator check:** for every generated scope, the test computes independently whether it is malformed (an atom on an undeclared path, or `under` with a non-canonical literal), and asserts that the validator agrees.
+- **Oracle:** Definition 1, over the invocations that can match one of S2's rule heads, which is complete for a rule-list S2. For S2 = `allow all`, every invocation is checked, including two shapes no rule can declare.
+- **Per-type check:** `implies`/`unsat` are tested against each type's enumerated domain. Strings are also tested against a richer domain (concatenations of up to three constants). Soundness must hold against both; completeness is reported against both, because the SPEC domain is small enough to make some implications look true that are false.
+- **Determinism:** runs are seeded (`DC_ORACLE_SEED`), sharded across cores, and write their statistics to JSON (`DC_ORACLE_REPORT`). Each shard is seeded from its index, so a run is reproducible for a given seed and core count (the M4 record run was repeated on this 14-core machine and matched, apart from elapsed time), but not across machines with different core counts.
+- **Scale:** the extended CI profile runs 150,000 pairs and 150,000 `implies`/`unsat` cases per type. Plain `cargo test` runs 4,096 pairs.
+- **Teeth:** before the M4 record run, three bugs were planted one at a time and each was caught: dropping the step-3(b) approval check, an off-by-one in integer implication, and a reversed `under` prefix test.
+Why: SPEC §9.7 fixes the universe and the assertions but not how pairs are generated. Random independent pairs are almost never contained, which would leave soundness under-tested and make completeness meaningless.
+Affects benchmarks: no

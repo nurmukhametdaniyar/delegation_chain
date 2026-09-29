@@ -136,3 +136,33 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
 - **Decisions added:** D-55 (NFC scope text). Sixteen decisions gained a "Paper status" line.
 - **Benchmark impact:** §4.6 no longer claims that the variation with N is small for N ≤ 10. SPEC §13.1 Q3 and §13.11 now check the revised claim, which leaves the dominant term to measurement.
 - **No decision needed the author.** Nothing in the revision weakens soundness relative to the decisions.
+
+## M4 — `dc-policy` (2026-09-29)
+
+- **Paper:** revision 2026-09-29 (reconciled above).
+- **Done:**
+  - The AST, and its canonical CBOR form (D-18, D-33, D-56).
+  - Well-formedness exactly as paper §6.1 states it: every where-path declared (D-28), no path declared twice or as a strict prefix of another (D-19), the operator/type table (D-20), `at` and `approval` kinds. Also the size limits (D-21).
+  - The text parser and printer (D-17, with NFC string literals, and contextual keywords per D-56).
+  - `Evaluate`, closed world, per paper §6.3 (D-22, D-23).
+  - `implies`/`unsat`: exact for int, bool, and strings with a finite set; sound but incomplete otherwise (D-57, P-08).
+  - `Contains`, with the paper's defensive malformed ⇒ false check (§6.4).
+  - Policy-document decoding for line 31 (D-12, D-55, D-56).
+  - `dc-types` gained D-55: non-NFC scope text in a body is a canonical-form violation (L05).
+- **Tests:** 18 fixed tests and 2 property tests (the oracle, and text/CBOR round trips).
+  - The fixed tests cover: the §6.2 example verbatim and its five SPEC decisions; Remark 1; reflexivity, including the recommended order; the D-24 special forms; step-3(b) approval retention; every well-formedness rule and size limit; AST-level rules; strict policy decoding; lexical details; contextual keywords; closed-world evaluation and `under`.
+  - **P-15 regression.** The child scope, the parent-side variant and a bool-tautology variant are all rejected as malformed, from text and from CBOR. With the check off (`test-hooks`), the pre-review procedure returns true on both P-15 pairs, and a concrete invocation shows each is not contained. With the check on, `contains` refuses both.
+- **Differential oracle, M4 record run** (release build; seed 56324; statistics generated into `docs/test-reports/policy-oracle-m4.json`, figures below copied from it):
+  - cases: 150000; well-formed pairs: 108133.
+  - Malformed scopes rejected: 49802, all as independently predicted. The generator produced 54030 undeclared-path atoms and 8385 non-canonical `under` literals.
+  - soundness violations: 0; reflexivity failures: 0 of 250198 checks.
+  - `Contains` completeness overall: 0.921 (47802/51911).
+  - `implies`/`unsat` completeness by type, with zero soundness violations for every type:
+    - int: 1.000 (77688/77688) / 1.000 (60889/60889);
+    - bool: 1.000 (93525/93525) / 1.000 (54941/54941);
+    - string with a finite set: 1.000 (53606/53606) / 1.000 (51565/51565);
+    - string without a finite set: 0.841 (13687/16269) / 0.743 (8739/11763). Against the richer string domain: 0.919 (13687/14891) / 0.855 (8739/10220).
+  - Mutation check: three planted bugs, all caught (D-58).
+- **CI:** the extended profile (150,000 pairs, plus 150,000 cases per type) now runs in `scripts/ci.sh` and in the workflow.
+- **Decisions added:** D-55 (at the reconciliation), D-56, D-57, D-58.
+- **Paper issues found:** none new. P-08's entry now records the measured string completeness.

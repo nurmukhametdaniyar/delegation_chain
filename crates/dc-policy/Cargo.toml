@@ -10,3 +10,17 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+dc-cbor.workspace = true
+dc-types.workspace = true
+thiserror.workspace = true
+unicode-normalization.workspace = true
+
+[features]
+# Unvalidated scopes, and the pre-review containment procedure, for the P-15
+# regression tests (SPEC §9.7). Never enabled outside tests.
+test-hooks = []
+
+[dev-dependencies]
+dc-policy = { path = ".", features = ["test-hooks"] }
+proptest.workspace = true
+serde_json.workspace = true

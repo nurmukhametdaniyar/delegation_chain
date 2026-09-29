@@ -1,0 +1,157 @@
+{
+  "contains": {
+    "cases": 150000,
+    "completeness_by_category": {
+      "bool": {
+        "completeness": 0.9377889869693148,
+        "oracle_true": 4758,
+        "procedure_true": 4462
+      },
+      "int": {
+        "completeness": 0.9295061207260448,
+        "oracle_true": 4738,
+        "procedure_true": 4404
+      },
+      "mixed": {
+        "completeness": 0.8586504494030318,
+        "oracle_true": 22363,
+        "procedure_true": 19202
+      },
+      "no atoms": {
+        "completeness": 0.9996249531191399,
+        "oracle_true": 15998,
+        "procedure_true": 15992
+      },
+      "string, finite set": {
+        "completeness": 0.8800193517174649,
+        "oracle_true": 2067,
+        "procedure_true": 1819
+      },
+      "string, no finite set": {
+        "completeness": 0.9677906391545043,
+        "oracle_true": 1987,
+        "procedure_true": 1923
+      }
+    },
+    "completeness_overall": {
+      "completeness": 0.9208452929051646,
+      "oracle_true": 51911,
+      "procedure_true": 47802
+    },
+    "contains_true": 47802,
+    "malformed_scopes_rejected": 49802,
+    "noncanonical_under_generated": 8385,
+    "reflexivity_checks": 250198,
+    "reflexivity_failures": 0,
+    "soundness_violations": 0,
+    "undeclared_path_atoms_generated": 54030,
+    "wellformed_pairs": 108133
+  },
+  "elapsed_seconds": 5.349676291,
+  "enumeration": {
+    "ints": 17,
+    "invocations_per_audience_tool": 12152,
+    "strings": 224,
+    "strings_extended": 3112
+  },
+  "implies_unsat_by_type": {
+    "bool": {
+      "cases": 150000,
+      "implies": {
+        "completeness": 1.0,
+        "oracle_true": 93525,
+        "procedure_true": 93525
+      },
+      "implies_against_extended_strings": {
+        "completeness": null,
+        "oracle_true": 0,
+        "procedure_true": 0
+      },
+      "soundness_violations": 0,
+      "unsat": {
+        "completeness": 1.0,
+        "oracle_true": 54941,
+        "procedure_true": 54941
+      },
+      "unsat_against_extended_strings": {
+        "completeness": null,
+        "oracle_true": 0,
+        "procedure_true": 0
+      }
+    },
+    "int": {
+      "cases": 150000,
+      "implies": {
+        "completeness": 1.0,
+        "oracle_true": 77688,
+        "procedure_true": 77688
+      },
+      "implies_against_extended_strings": {
+        "completeness": null,
+        "oracle_true": 0,
+        "procedure_true": 0
+      },
+      "soundness_violations": 0,
+      "unsat": {
+        "completeness": 1.0,
+        "oracle_true": 60889,
+        "procedure_true": 60889
+      },
+      "unsat_against_extended_strings": {
+        "completeness": null,
+        "oracle_true": 0,
+        "procedure_true": 0
+      }
+    },
+    "string, finite set": {
+      "cases": 65862,
+      "implies": {
+        "completeness": 1.0,
+        "oracle_true": 53606,
+        "procedure_true": 53606
+      },
+      "implies_against_extended_strings": {
+        "completeness": 1.0,
+        "oracle_true": 53606,
+        "procedure_true": 53606
+      },
+      "soundness_violations": 0,
+      "unsat": {
+        "completeness": 1.0,
+        "oracle_true": 51565,
+        "procedure_true": 51565
+      },
+      "unsat_against_extended_strings": {
+        "completeness": 1.0,
+        "oracle_true": 51565,
+        "procedure_true": 51565
+      }
+    },
+    "string, no finite set": {
+      "cases": 72121,
+      "implies": {
+        "completeness": 0.8412932571147581,
+        "oracle_true": 16269,
+        "procedure_true": 13687
+      },
+      "implies_against_extended_strings": {
+        "completeness": 0.9191457927607279,
+        "oracle_true": 14891,
+        "procedure_true": 13687
+      },
+      "soundness_violations": 0,
+      "unsat": {
+        "completeness": 0.7429227237949503,
+        "oracle_true": 11763,
+        "procedure_true": 8739
+      },
+      "unsat_against_extended_strings": {
+        "completeness": 0.8550880626223092,
+        "oracle_true": 10220,
+        "procedure_true": 8739
+      }
+    }
+  },
+  "label": "dc-policy differential oracle (SPEC §9.7); test statistics, not benchmark results",
+  "seed": 56324
+}

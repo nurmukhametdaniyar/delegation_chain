@@ -1,5 +1,6 @@
 //! Token bodies (paper §4.3; SPEC §7.1–§7.3).
 
+use dc_cbor::nfc::{is_nfc_deep, to_nfc_deep};
 use dc_cbor::schema::Fields;
 use dc_cbor::{CanonViolation, Key, Limits, Value, decode, encode};
 use dc_crypto::SigScheme;
@@ -16,6 +17,24 @@ use crate::util::{arr16, arr32, bytes_n, identifier, principal, u64_of};
 /// scope is a decoding failure at line 2 (D-28).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RawScope(pub Value);
+
+impl RawScope {
+    /// True if all text in the scope is NFC (paper §6.1; D-55).
+    pub fn is_nfc(&self) -> bool {
+        is_nfc_deep(&self.0)
+    }
+
+    /// The scope as `Canon` encodes it: with its text NFC-normalized, so
+    /// that non-NFC input re-encodes differently and is caught at line 5
+    /// (D-55, as for parameters under D-31).
+    pub fn canonical_value(&self) -> Result<Value, BuildError> {
+        if self.is_nfc() {
+            Ok(self.0.clone())
+        } else {
+            Ok(to_nfc_deep(&self.0)?)
+        }
+    }
+}
 
 /// Body kind, key 1 of every body (D-13).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -52,8 +71,8 @@ pub struct SessionBody {
 }
 
 impl SessionBody {
-    pub fn to_value(&self) -> Value {
-        Value::Map(vec![
+    pub fn to_value(&self) -> Result<Value, BuildError> {
+        Ok(Value::Map(vec![
             (Key::Uint(1), Value::uint(BodyKind::Session.code())),
             (Key::Uint(2), Value::text(self.issuer_id.as_str())),
             (Key::Uint(3), Value::bytes(self.issuer_pk.clone())),
@@ -61,11 +80,11 @@ impl SessionBody {
             (Key::Uint(5), Value::bytes(self.subject_pk.clone())),
             (Key::Uint(6), Value::bytes(self.session_id.to_vec())),
             (Key::Uint(7), Value::bytes(self.policy_hash.to_vec())),
-            (Key::Uint(8), self.scope.0.clone()),
+            (Key::Uint(8), self.scope.canonical_value()?),
             (Key::Uint(9), Value::uint(self.iat)),
             (Key::Uint(10), Value::uint(self.exp)),
             (Key::Uint(11), Value::bytes(self.nonce.to_vec())),
-        ])
+        ]))
     }
 
     fn from_value(v: &Value, pk_len: usize) -> Result<Self, Malformed> {
@@ -103,19 +122,19 @@ pub struct DelegationBody {
 }
 
 impl DelegationBody {
-    pub fn to_value(&self) -> Value {
-        Value::Map(vec![
+    pub fn to_value(&self) -> Result<Value, BuildError> {
+        Ok(Value::Map(vec![
             (Key::Uint(1), Value::uint(BodyKind::Delegation.code())),
             (Key::Uint(2), Value::text(self.delegator_id.as_str())),
             (Key::Uint(3), Value::bytes(self.delegator_pk.clone())),
             (Key::Uint(4), Value::text(self.delegatee_id.as_str())),
             (Key::Uint(5), Value::bytes(self.delegatee_pk.clone())),
-            (Key::Uint(6), self.scope.0.clone()),
+            (Key::Uint(6), self.scope.canonical_value()?),
             (Key::Uint(7), Value::uint(self.hop_index)),
             (Key::Uint(8), Value::bytes(self.session_id.to_vec())),
             (Key::Uint(9), Value::uint(self.exp)),
             (Key::Uint(10), Value::bytes(self.nonce.to_vec())),
-        ])
+        ]))
     }
 
     fn from_value(v: &Value, pk_len: usize) -> Result<Self, Malformed> {
@@ -309,8 +328,8 @@ impl<S: SigScheme> Body<S> {
 
     pub fn to_value(&self) -> Result<Value, BuildError> {
         Ok(match self {
-            Body::Session(b) => b.to_value(),
-            Body::Delegation(b) => b.to_value(),
+            Body::Session(b) => b.to_value()?,
+            Body::Delegation(b) => b.to_value()?,
             Body::Invocation(b) => b.to_value()?,
         })
     }
@@ -347,11 +366,15 @@ pub fn decode_body<S: SigScheme>(bytes: &[u8]) -> Result<DecodedBody<S>, Malform
         2 => Body::Invocation(InvocationBody::from_value(&v)?),
         k => return Err(Malformed::UnknownKind(k)),
     };
-    if violation.is_none()
-        && let Body::Invocation(inv) = &body
-        && !inv.params.is_nfc()
-    {
-        violation = Some(CanonViolation::NonNfc);
+    if violation.is_none() {
+        let nfc = match &body {
+            Body::Invocation(inv) => inv.params.is_nfc(),
+            Body::Session(b) => b.scope.is_nfc(),
+            Body::Delegation(b) => b.scope.is_nfc(),
+        };
+        if !nfc {
+            violation = Some(CanonViolation::NonNfc);
+        }
     }
     Ok(DecodedBody { body, violation })
 }

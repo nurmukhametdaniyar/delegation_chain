@@ -58,7 +58,13 @@ Evidence: SPEC §9.5 gives sound but incomplete rules for that case. The M4 diff
 What the implementation does: Sound but incomplete procedures for strings without a finite set; exact for ints, bools, and strings with a finite set (SPEC §9.5).
 Suggested fix to the paper: Say that string implication is decided soundly but incompletely, or give the exact procedure.
 Severity: clarity (soundness is preserved either way)
-Status: open in revision 2026-09-29. §6.4 still calls the per-atom checks "closed-form", and the Proposition 2 cost argument is unchanged. The M4 oracle measures completeness for strings without a finite set.
+Status: open in revision 2026-09-29. §6.4 still calls the per-atom checks "closed-form", and the Proposition 2 cost argument is unchanged.
+Measured at M4 (`docs/test-reports/policy-oracle-m4.json`, 150,000 cases per type, zero soundness violations):
+- `implies` and `unsat` are complete, relative to the oracle, for int, bool, and strings with a finite set.
+- For strings without a finite set they are not.
+  - Against the SPEC enumeration: `implies` 0.841, `unsat` 0.743.
+  - Against a richer enumeration (concatenations of up to three constants): 0.919 and 0.855.
+- Most of the gap between the two is the SPEC enumeration being too small to show that a constraint is satisfiable, not a flaw in the procedure. What remains includes genuine misses, for example `ends_with "/" ∧ under "/a"`, which is unsatisfiable because canonical paths do not end in `/`. The procedure stays conservative there (D-57).
 
 ## P-09 — `allow all` ignores the audience clause
 Paper location: §6.1, §6.3 ("The audience clause")

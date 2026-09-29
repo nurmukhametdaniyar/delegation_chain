@@ -166,6 +166,15 @@ dependencies = [
 [[package]]
 name = "dc-policy"
 version = "0.1.0"
+dependencies = [
+ "dc-cbor",
+ "dc-policy",
+ "dc-types",
+ "proptest",
+ "serde_json",
+ "thiserror",
+ "unicode-normalization",
+]
 
 [[package]]
 name = "dc-registry"

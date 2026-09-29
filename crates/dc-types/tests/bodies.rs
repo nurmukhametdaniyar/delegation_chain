@@ -124,7 +124,7 @@ fn decodes_by_the_bodys_own_kind_field() {
 
 #[test]
 fn rejects_unknown_or_missing_kind() {
-    let v = delegation::<B>().to_value();
+    let v = delegation::<B>().to_value().unwrap();
     assert_eq!(
         malformed(&with_field(&v, 1, Some(Value::uint(3)))),
         Malformed::UnknownKind(3)
@@ -143,7 +143,7 @@ fn rejects_unknown_or_missing_kind() {
 
 #[test]
 fn rejects_unknown_missing_and_mistyped_fields() {
-    let v = session::<B>().to_value();
+    let v = session::<B>().to_value().unwrap();
     assert_eq!(
         malformed(&with_field(&v, 12, Some(Value::uint(0)))),
         Malformed::Schema(SchemaError::Unknown("SessionBody", 12))
@@ -621,4 +621,46 @@ fn manual_clock() {
     assert_eq!(c.now(), 15);
     c.set(3);
     assert_eq!(c.now(), 3);
+}
+
+// ---- NFC in scopes (paper §6.1; D-55) ----
+
+#[test]
+fn non_nfc_scope_text_is_a_canonical_form_violation() {
+    let decomposed = "caf\u{65}\u{301}";
+    let composed = "caf\u{e9}";
+    // A scope-shaped value holding one text operand; dc-types does not
+    // validate the AST, only its NFC form.
+    let scope = |t: &str| {
+        dc_types::RawScope(
+            Value::map(vec![
+                (Key::Uint(1), Value::uint(2)),
+                (Key::Uint(9), Value::text(t)),
+            ])
+            .unwrap(),
+        )
+    };
+    let mut good = delegation::<B>();
+    good.scope = scope(composed);
+    let canonical = Body::<B>::Delegation(good.clone())
+        .canonical_bytes()
+        .unwrap();
+    assert_eq!(decode_body::<B>(&canonical).unwrap().violation, None);
+
+    let v = good.to_value().unwrap();
+    let bytes = with_field(&v, 6, Some(scope(decomposed).0));
+    let d = decode_body::<B>(&bytes).unwrap();
+    assert_eq!(d.violation, Some(CanonViolation::NonNfc));
+    // Canon normalizes, so line 5's re-encoding differs from the input and
+    // equals the composed form.
+    assert_ne!(d.body.canonical_bytes().unwrap(), bytes);
+    assert_eq!(d.body.canonical_bytes().unwrap(), canonical);
+
+    // The same for a session scope.
+    let v = session::<B>().to_value().unwrap();
+    let bytes = with_field(&v, 8, Some(scope(decomposed).0));
+    assert_eq!(
+        decode_body::<B>(&bytes).unwrap().violation,
+        Some(CanonViolation::NonNfc)
+    );
 }
