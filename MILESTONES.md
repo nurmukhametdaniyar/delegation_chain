@@ -87,3 +87,31 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
   - no protocol crate's normal dependency graph enables a `variant-*` feature (SPEC §0 rule 3).
 - **Decisions added:** D-50 (non-canonical nested structures are malformed), D-51 (principal checks at decode), D-52 (trait split).
 - **Paper issues found:** none new.
+
+## M3 — `dc-registry` (2026-09-29)
+
+- **Done:**
+  - `Registry<S, C>`, generic over the arm's scheme and clock:
+    - PoP challenges, with 16-byte single-use nonces from a seeded ChaCha20 generator and a 60 s TTL (D-11);
+    - registration with every §6.4 check, in a fixed order, consuming the nonce on the first attempt (D-53);
+    - issuance with the D-10 lifetimes, or an explicit validity window for scheduled rotation;
+    - serials unique per registry;
+    - revocation assertions under the REVOKE DST.
+  - `Resolver`, whose in-process implementation returns the latest certificate for (id, pk) whether or not it is valid (D-26). `Directory` routes a lookup to the identifier's organization.
+  - `PolicyStore`, with a content-addressed in-memory store. `WithLatency` wraps a resolver or store with a per-call sleep and a call counter (§13.4).
+  - `verify_revocation` and `RevocationSet`, which the verifier's `ingest_revocation` will use at M6.
+  - `test-hooks` feature: a root that signs anything, for T5b and T5d (D-54).
+- **Tests:** 15 tests, with the registry tests run for both BLS and Ed25519.
+  - PoP success;
+  - every failure path: unknown nonce, used nonce, nonce consumed by a failed attempt, the 60/61 s expiry boundary, altered challenge, T5a misattribution, wrong organization, kind mismatch, service kind, identity or weak key;
+  - PoP under the CHAIN DST rejected (BLS). For Ed25519, which has no DSTs, the analogue is a PoP over a chain-tagged digest;
+  - reproducible nonces;
+  - scheduled rotation with two overlapping certificates, each resolved by its key;
+  - D-26 resolution: an expired or revoked certificate is still returned, a newer certificate for the same binding wins, and an unknown binding gives `None`;
+  - directory routing;
+  - revocation ingestion (correct root, wrong root, unknown organization, tampered assertion);
+  - the policy store, injected latency, and the compromised-root hook.
+- **CI:** `scripts/check-deps.sh` now also keeps `test-hooks` out of the protocol crates' normal dependency graphs.
+- **Decisions added:** D-53 (registration procedure), D-54 (test hooks).
+- **Paper issues found:** none new.
+- **Next:** M4 (`dc-policy`) needs the paper revision that fixes P-15. As of this entry, `docs/paper.pdf` is still revision 2026-09-28 (sha256 `bd94cef2…2e81e`), so work stops here, and the question is in `QUESTIONS.md`.

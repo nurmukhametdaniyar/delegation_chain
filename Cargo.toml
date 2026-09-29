@@ -28,6 +28,9 @@ blst = "=0.3.17"
 ed25519-dalek = { version = "=2.2.0", features = ["batch", "rand_core"] }
 sha2 = "=0.10.9"
 serde_json = "1"
+rand_core = "0.9"
+rand_chacha = "0.9"
+dc-registry = { path = "crates/dc-registry" }
 thiserror = "2"
 unicode-normalization = "0.1.25"
 proptest = "1.11"

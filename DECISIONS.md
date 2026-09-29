@@ -431,3 +431,33 @@ Decision:
 - Scheme types are zero-sized markers with the usual derives.
 Why: Certificates, receipts, PoP and revocations need the arm's single-signature scheme without the chain machinery, and SPEC says they use "the same scheme within an arm". The generic verifier stays identical across arms, as §12 requires.
 Affects benchmarks: no. The split does not change what is computed.
+
+## D-53 — Registration procedure details
+Spec section: §6.4, §6.6     Paper section: §5.3, §5.4
+Decision:
+- The registry checks a registration in this order, and reports the first failure:
+  1. the nonce was issued here;
+  2. it is unused;
+  3. it is at most 60 s old;
+  4. the presented challenge equals the one issued, byte for byte;
+  5. the kind is not `service`;
+  6. the identifier's kind component equals the requested kind;
+  7. `org(identifier)` equals the registry id;
+  8. the public key passes validation;
+  9. the PoP signature verifies under the PoP DST.
+- The nonce is consumed by the first registration attempt, whatever its outcome, so a registrant cannot retry against one challenge.
+- A `service` identifier is refused when the challenge is requested, since a challenge cannot encode that kind.
+- The in-process resolver ignores `t`; D-26 leaves validity to line 27.
+- Nonces come from a seeded ChaCha20 generator, so runs are reproducible.
+Why: The paper lists what a PoP challenge contains and says the registry verifies it (§5.3), but not the order of checks or what happens to a nonce after a failure. Consuming it always is the fail-closed choice.
+Affects benchmarks: no. Registration happens outside every timed region.
+
+## D-54 — Test hooks for a compromised or misbehaving registry
+Spec section: §11.2 (T5b, T5d)     Paper section: §3.3.1, §7.1
+Decision:
+- `dc-registry`'s `test-hooks` feature adds two functions:
+  - `root_sign_arbitrary`, which signs any certificate body with the root key, bypassing every registration check;
+  - `publish_arbitrary`, which makes the resolver serve such a certificate.
+- Only dev-dependencies enable the feature. `scripts/check-deps.sh` fails if any protocol crate's normal dependency graph enables it.
+Why: The T5b bounded tests and the T5d `registry_id` test need a root that signs what an honest registry would refuse. That capability must not exist in the default build.
+Affects benchmarks: no

@@ -170,6 +170,15 @@ version = "0.1.0"
 [[package]]
 name = "dc-registry"
 version = "0.1.0"
+dependencies = [
+ "dc-cbor",
+ "dc-crypto",
+ "dc-registry",
+ "dc-types",
+ "rand_chacha",
+ "rand_core 0.9.5",
+ "thiserror",
+]
 
 [[package]]
 name = "dc-types"

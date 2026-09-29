@@ -5,6 +5,8 @@
 # 2. VARIANT code never reaches the default protocol path (SPEC §0 rule 3):
 #    the protocol crates' normal dependency graphs must not enable any
 #    `variant-*` feature of dc-crypto.
+# 3. The registry's `test-hooks` feature (a compromised root, for the T5b
+#    and T5d tests) is never enabled on a normal dependency graph.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 status=0
@@ -19,8 +21,14 @@ done
 
 protocol=(dc-cbor dc-types dc-crypto dc-policy dc-registry dc-chain dc-verifier)
 for crate in "${protocol[@]}"; do
-  if cargo tree -q -p "$crate" -e normal -f '{p} {f}' 2>/dev/null | grep -E '^.*dc-crypto .*variant-' >/dev/null; then
+  graph=$(cargo tree -q -p "$crate" -e normal -f '{p} {f}' 2>/dev/null)
+  if grep -E 'dc-crypto .*variant-' <<<"$graph" >/dev/null; then
     echo "check-deps: $crate's default graph enables a dc-crypto variant feature" >&2
+    status=1
+  fi
+  # 3. Test hooks (a registry that signs anything) stay out of normal graphs.
+  if grep -E 'test-hooks' <<<"$graph" >/dev/null; then
+    echo "check-deps: $crate's default graph enables test-hooks" >&2
     status=1
   fi
 done
