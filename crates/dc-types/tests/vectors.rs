@@ -87,6 +87,8 @@ fn build<S: SigScheme>(sigs: impl Fn(&[S::Signature]) -> WireForm) -> BTreeMap<S
         registry_id: id("orga"),
         serial: 1,
         revoked_at: T0 + 60,
+        identifier: p("orga:agent:payer"),
+        pk: pk_bytes::<S>("payer"),
     }
     .canonical_bytes();
     let rev_msg = digest::revocation_message(&rev);

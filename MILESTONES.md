@@ -240,3 +240,28 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
 - **CI:** `check-deps.sh` now also keeps `count-ops` off every protocol crate's normal dependency graph.
 - **Decisions added:** D-60 to D-64.
 - **Paper issues found:** P-28, P-29.
+
+## M6 follow-up — P-29 resolved ahead of the paper (2026-09-29)
+
+- **Done:** binding revocation, as agreed at the M6 checkpoint (D-65):
+  - the revocation body gains `identifier` and `pk`, and keeps the serial for audit;
+  - `ingest_revocation` checks the namespace and marks (registry, identifier, key) revoked;
+  - lines 27 and 42 reject any certificate of a revoked binding, and eviction is by binding;
+  - the registry refuses to certify a revoked binding and caps lifetimes at 7 days;
+  - verifiers keep revoked bindings for the maximum lifetime;
+  - the regression vectors were regenerated (only the revocation-assertion vector changed).
+- **Tests:**
+  - `renewal_of_the_same_key_then_revocation_diverges` became `renewal_then_revocation_of_the_newer_certificate_rejects_in_both`. Its mirror, `..._of_the_older_certificate_rejects_in_both`, is new; under serial revocation that case accepted even uncached. Both assert L27 from the uncached and the warm verifier, and that the registry refuses to re-certify.
+  - New registry tests: refusal of a revoked binding (and acceptance of a new key), the lifetime cap, the retention boundary, and the namespace check.
+  - `resolution_returns_the_latest_certificate_valid_or_not` now renews before revoking. Re-certifying after revocation is refused, which is the point of D-65.
+- **Cache equivalence, warm state, extended events** (`docs/test-reports/cache-equivalence-d65.json`; the M6 report is kept):
+  - 10000 chains, with no disagreement between the uncached and the warm verifier;
+  - outcomes: L02 769, L08 292, L09 80, L11 851, L13 839, L15 9, L17 77, L18 319, L20 139, L23 58, L27 1061, L30 728, L32 86, L34 423, L37 1210, L40 2, L41 6, L43 9, L44 2, L49 418, accept 2622;
+  - events: clock advance 223, new pin 1, renewal 52, renewal refused (revoked binding) 5, renewal then revocation of the newer certificate 6, renewal then revocation of the older certificate 10, revocation 29, rotation 59.
+- **Finding:** P-30. With revocation out of the picture, a same-key renewal can still make the caches change outcomes, because resolution returns the newest certificate even when it is not yet valid or has already expired.
+  - A future-dated renewal makes the uncached verifier reject at L27 while the warm one accepts under the older, valid certificate.
+  - So does a renewal that expires before the older certificate.
+  - Two probe tests record this. The §11.3 run renews from now with the default lifetime, which cannot shorten or defer validity.
+- **P-28:** two points added: line-24 verifications are cached per binding, and failures are not cached. The §13.11 verdict is split between warm and cold verifiers.
+- **Decisions added:** D-65.
+- **Paper issues:** P-29 resolved ahead of the paper; P-30 found.

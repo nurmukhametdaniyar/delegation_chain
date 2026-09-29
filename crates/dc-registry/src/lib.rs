@@ -9,7 +9,8 @@ mod resolve;
 mod revocation;
 
 pub use registry::{
-    POP_NONCE_TTL, Registry, RegistryError, default_lifetime, enroll, enroll_with_validity,
+    MAX_CERT_LIFETIME, POP_NONCE_TTL, Registry, RegistryError, default_lifetime, enroll,
+    enroll_with_validity,
 };
 pub use resolve::{Directory, MemoryPolicyStore, PolicyStore, Resolver, WithLatency};
-pub use revocation::{RevocationError, RevocationSet, verify_revocation};
+pub use revocation::{RevocationError, RevocationSet, RevokedBinding, verify_revocation};

@@ -8,6 +8,20 @@ Put this file in the repository root as `SPEC.md`.
 
 ## Changelog
 
+**2026-09-29 (M6 checkpoint) — P-29 resolved ahead of the paper (D-65).** Agreed with the author at the M6 checkpoint. The §2 exception is reopened for this one point.
+- **Identity (§6.5).**
+  - A revocation assertion names a binding. Its body gains `4: identifier` and `5: pk`, and keeps the serial for audit.
+  - A registry refuses to certify a revoked binding, and caps certificate lifetime at 7 days.
+  - Verifiers keep a revoked binding for that long after `revoked_at`.
+- **Verifier (§10.1, §10.2).** Lines 27 and 42 reject a certificate whose binding is revoked. Eviction is by binding.
+- **Tests (§11.3).** Same-key renewal, and renewal followed by revocation of either certificate, join the interleaved events. The divergence probe became an equivalence test, and gained its mirror case.
+- **Benchmark (§12.1, §13.11).**
+  - Prefix caches list bindings, and are evicted when a listed binding is revoked.
+  - The phase-ordering verdict is given separately for warm and cold verifiers (P-28).
+- **Paper issues.**
+  - P-28 gains two points on line-24 pairings: they are cached per binding, and failures are not cached.
+  - New: P-30, renewals that do not cover the older certificate's window.
+
 **2026-09-29 — reconciled with paper revision 2026-09-29.** The paper now carries every change that ran ahead of it, so the §2 exception is closed. Algorithm line numbering is unchanged; only lines 18, 20, 27 and 41 differ from revision 2026-09-28.
 - **Resolved:** P-03, P-07, P-09, P-10, P-14 and P-15 to P-25. **Open:** P-05, P-06, P-08, P-12, and the new P-26 (Appendix C).
 - **Adopted by the paper:** D-06, D-08, D-14, D-15, D-17, D-19, D-20, D-22, D-26, D-28, D-34, D-35, D-36 and D-37 now match the paper. The "ahead of the paper" notes are removed from §6.6, §10.2 and Appendix A.
@@ -73,7 +87,9 @@ Production hardening, network transport, MCP integration, a transparency log, pe
 
 If this spec contradicts the paper, the paper wins. Log the contradiction as a `PAPER_ISSUES.md` or `DECISIONS.md` entry, whichever is appropriate. Appendix A reproduces Algorithms 1–2 for convenience; if it differs from the PDF, the PDF wins.
 
-**Exception (agreed 2026-09-28, closed 2026-09-29).** For P-15 (D-28), P-16 (D-36) and P-17 (D-35), this spec ran ahead of paper revision 2026-09-28 and took precedence on those points. Revision 2026-09-29 adopts all three, so no exception remains, and the paper wins everywhere again.
+**Exception (agreed 2026-09-28, closed 2026-09-29).** For P-15 (D-28), P-16 (D-36) and P-17 (D-35), this spec ran ahead of paper revision 2026-09-28 and took precedence on those points. Revision 2026-09-29 adopts all three.
+
+**Exception (agreed 2026-09-29, open).** For P-29 (D-65), this spec runs ahead of paper revision 2026-09-29. Revocation names a binding (an identifier and key), not a certificate (§6.5, §10.2). This spec takes precedence on that point until a paper revision adopts it or the author decides otherwise. Everywhere else, the paper wins.
 
 ---
 
@@ -413,8 +429,16 @@ PoP proves possession, not uniqueness. A registrant may register its own key und
 
 ### 6.5 Revocation (paper §5.6)
 
-- **Revocation assertion:** a CBOR array `[body_bytes, sig]`, with body `{1: registry_id, 2: serial, 3: revoked_at}`, signed by the registry root under the REVOKE DST.
-- **Delivery:** the verifier exposes `ingest_revocation(assertion)`, modelling push delivery. It verifies the assertion under `Root[registry_id]`, marks the serial revoked, and evicts every cache entry that depends on it (certificate cache and prefix caches).
+- **Revocation assertion:** a CBOR array `[body_bytes, sig]`, with body `{1: registry_id, 2: serial, 3: revoked_at, 4: identifier, 5: pk}`, signed by the registry root under the REVOKE DST.
+  - It revokes the _binding_ of `identifier` to `pk`, whichever certificate `serial` names. The serial is kept for audit.
+  - This is ahead of the paper, whose §5.6 revokes by serial (D-65, P-29, §2 exception).
+- **Registry:** refuses to certify a revoked binding. A new key for the same identifier is a new binding: that is emergency rotation. Certificate lifetime is capped at `MAX_CERT_LIFETIME` = 7 days.
+- **Delivery:** the verifier exposes `ingest_revocation(assertion)`, modelling push delivery. It:
+  - verifies the assertion under `Root[registry_id]`;
+  - requires `identifier` to be in that registry's namespace;
+  - marks (registry, identifier, key) revoked;
+  - evicts every cache entry for that binding (certificate cache and prefix caches).
+- **Retention:** a verifier keeps a revoked binding through `revoked_at + MAX_CERT_LIFETIME`. By then every certificate for it has expired. The host drops older records (`forget_revocations`), never `verify`.
 - **Semantics:** revocation applies relative to _verification_ time (paper §5.6).
 
 ### 6.6 Resolution and policy store (paper §5.4)
@@ -807,10 +831,10 @@ pub struct Verifier<S: ChainScheme, R: Resolver, P: PolicyStore, C: Clock> {
     roots: HashMap<Org, S::PublicKey>,         // Root[o]
     pinned: HashMap<Org, HashSet<[u8; 32]>>,   // Pinned[o]
     resolver: R, policy_store: P, clock: C,
-    cert_cache: CertCache,                     // TTL = min(cert.exp, 3600 s) (paper §5.4); evicted on revocation
+    cert_cache: CertCache,                     // TTL = min(cert.exp, 3600 s) (paper §5.4); evicted by binding on revocation
     policy_cache: PolicyCache,                 // keyed by hash; immutable
     nonce_cache: NonceCache,                   // §10.4
-    revoked: HashSet<(Org, Serial)>,
+    revoked: RevocationSet,                    // (registry, identifier, key) bindings (D-65)
     config: VerifierConfig,
 }
 
@@ -843,7 +867,7 @@ Line-level notes:
   - Paper revision 2026-09-29 states lines 18 and 20 this way.
 - **Line 23:** `Resolve(sid(B_k), spk(B_k))`, per D-26.
 - **Line 24:** verify the certificate signature under `Root[org(sid)]`. Once verified, it is cached with its certificate. If no root is configured for `org(sid)`, reject at line 24.
-- **Line 27:** reject unless `t ∈ [cert.nbf, cert.exp]`, closed at both ends, and reject if the serial is revoked (**D-35**). The paper's line 27 says "not yet valid, expired, or revoked at t", without stating the boundary (P-26). Line 42's "phase-5 checks" include the same window.
+- **Line 27:** reject unless `t ∈ [cert.nbf, cert.exp]`, closed at both ends (**D-35**), and reject if the certificate's binding (registry, identifier, key) is revoked (**D-65**, ahead of the paper, which revokes by serial; P-29). The paper's line 27 says "not yet valid, expired, or revoked at t", without stating the boundary (P-26). Line 42's "phase-5 checks" include the same window.
 - **Line 41:** `Resolve(s, R.approver_pk)`; reject if unresolvable (`L41`, **D-27**).
 - **Line 42:** the phase-5 checks (lines 24–27) with kind `approver`: root, namespace, kind, validity window, revocation.
 - **Line 40:** receipts from approvers outside `svcs` are ignored (D-34).
@@ -964,7 +988,14 @@ Unless a row says otherwise, give every body the same `exp`, set every `hop_inde
 ### 11.3 Cache equivalence
 
 - **Setup:** 10,000 randomized chains, valid and mutated.
-- **Interleaved events:** revocations, certificate expiry (by advancing the injected clock), and new pins.
+- **Interleaved events:**
+  - revocations, each followed by emergency rotation to a new key;
+  - certificate expiry, by advancing the injected clock;
+  - new pins;
+  - new-key rotations;
+  - same-key renewals;
+  - renewals followed by revocation of the older or the newer certificate (D-65).
+- **Renewal windows:** renewals start now and use the registry's default lifetime, so they never shorten or defer a binding's validity. Renewals that do diverge under paper §5.4 (P-30). Probe tests record them; they are not in this run.
 - **Assertion:** the uncached verifier and every cached configuration (warm; warm+prefix for arms B and D) return the same accept/reject decision, and the same reject variant.
 
 ### 11.4 Fuzzing (optional; do it if time allows)
@@ -1004,14 +1035,14 @@ A-mt needs a separate build, because Cargo unifies features and `no-threads` can
 - **Key:** `m_{N−1}`. It commits to every prefix body's canonical bytes (§5.4), so a hit means the received prefix is byte-identical to one already processed.
 - **Value:**
   - `m_0 … m_{N−1}`
-  - resolved `pk_0 … pk_{N−1}` and their certificate serials
+  - resolved `pk_0 … pk_{N−1}` and their bindings (identifier and key, D-65)
   - the identifier and key the last prefix body hands on (`B_0.subject_id`/`subject_pk` if N = 1, else `B_{N−1}.delegatee_id`/`delegatee_pk`; D-36), plus `B_{N−1}`'s `scope` and `exp`
   - the containment results for the ceiling and every prefix link (lines 30–35)
   - the prefix's hop and session checks (line 11) and expiry checks (line 15 for k < N)
   - arm B: the Miller-loop product P (§5.7)
   - arm D: the verified prefix signature bytes `σ_0 … σ_{N−1}`. A hit additionally requires the received prefix signatures to be byte-identical to them; otherwise treat it as a miss. Without this, a chain with valid prefix bodies but garbage prefix signatures would be accepted on a hit and rejected on a miss, and §11.3's equivalence test would rightly fail. Arm B needs no such rule, because its full pairing equation covers every signature.
 - **Entry validity:** from the latest prefix-certificate `nbf` to the earliest of every prefix body's `exp` and every prefix certificate's `exp` (D-35). Outside that window, treat a lookup as a miss.
-- **Invalidation:** evict on revocation of any listed serial, and on a change to the pins.
+- **Invalidation:** evict on revocation of any listed binding (D-65), and on a change to the pins.
 
 **Hit path**, in Algorithm order:
 
@@ -1241,7 +1272,7 @@ These figures come from this spec. The implementer has not re-checked them again
 | A chain carries a constant 96-byte signature regardless of N                                  | §2.2, §4.3     | Q2 bytes                                               |
 | Carrying certificates inline costs more per hop than aggregation saves                        | §8.2           | §13.7                                                  |
 | In the steady state, verification touches no registry                                         | §8.2           | `count-ops` in the warm state (§11.2)                  |
-| Cheap checks reject hostile chains before any pairing                                         | §4.6, Figure 2 | `count-ops` ordering tests; latency of rejected chains |
+| Cheap checks reject hostile chains before any pairing                                         | §4.6, Figure 2 | `count-ops` ordering tests; latency of rejected chains. Verdict given separately for warm and cold verifiers (P-28) |
 | The case for aggregation must be settled against a non-aggregating baseline                   | §4.6, §8.3     | Q1: A/B vs C/C-batch/D                                 |
 
 Verdicts are _supported_, _not supported_, or _partially supported_, each with the numbers. If none of the checks contradicts the paper, say explicitly that each one was checked.
@@ -1425,8 +1456,14 @@ Configurations re-run: <list>
 - **P-12. Signing-service enforcement is unspecified.** The signing service "applies policy enforcement before signing" (§3.1), but the checks it performs are not specified.
 - **P-27. Remark 1 understates where containment is incomplete** (found at M4). Beyond unions, dead child rules (unsatisfiable, or fully shadowed) and step 3(b)'s single-rule, whole-clause skip test also cause misses, and in the M4 oracle they account for almost all of them.
 - **P-28. Cold verifiers pair before phase 8** (found at M6). Line 24's certificate verifications are pairings under BLS roots, and phase 5 precedes phase 6, so Figure 2's "no pairing before phase 7" holds only for cached certificates.
-- **P-29. Serial revocation, "most recent certificate" resolution and caching disagree when a key is renewed** (found at M6). The warm verifier can keep accepting a key whose most recent certificate was revoked.
+  - Successful verifications are cached per binding, so real identities force at most one pairing check per distinct binding per cache lifetime, and at most N + 1 per chain.
+  - Failures are not cached, so an adversary on the resolution channel can force a line-24 pairing on every attempt.
+- **P-30. "Most recent certificate" resolution and caching disagree on a renewal that does not cover the older certificate's window** (found while resolving P-29). A future-dated or shortening same-key renewal makes an uncached verifier reject at line 27, while a verifier caching the older, valid certificate accepts.
 - **P-26. Line 27 does not state its boundary.** "Not yet valid, expired" does not say whether validity is closed at `nbf` and `exp`, while lines 13 and 44 use closed intervals. The implementation uses the closed interval (D-35). Found in revision 2026-09-29.
+
+**Resolved ahead of the paper** (this spec takes precedence, §2):
+
+- **P-29. Serial revocation, "most recent certificate" resolution and caching disagree when a key is renewed** (found at M6). Fixed by revoking bindings, not certificates (D-65).
 
 **Resolved in revision 2026-09-29** (logged at M0, then marked resolved):
 
@@ -1449,4 +1486,4 @@ Configurations re-run: <list>
 
 **Resolved before 2026-09-28.** Not logged; listed so the numbering stays stable: P-01 (line 9), P-02 (line 11), P-04 (`issuer_pk`, resolution by key), P-11 (line 41 uses the approver's key), P-13 (containment step 2).
 
-Add new entries (from P-30) as you find them. Finding them is part of the job.
+Add new entries (from P-31) as you find them. Finding them is part of the job.

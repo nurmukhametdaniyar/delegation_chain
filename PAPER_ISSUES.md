@@ -7,10 +7,11 @@ Problems in the paper, _DelegationChain: Aggregatable Capability Chains for Cros
 | 2026-09-28 | 42 | `bd94cef24e50a5bfca09375ef495b54e07aeba986e8c5096a2fc0c329f62e81e` | until 2026-09-29 (commit `e223f05`) |
 | 2026-09-29 | 44 | `51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14` | current |
 
-- **Sources:** P-03 to P-14 come from SPEC Appendix C; P-01, P-02, P-04, P-11 and P-13 were resolved before 2026-09-28 and are not logged. P-15 to P-25 were found in the pre-M0 review (2026-09-28). P-26 was found while reconciling revision 2026-09-29, P-27 during M4, and P-28 and P-29 during M6.
+- **Sources:** P-03 to P-14 come from SPEC Appendix C; P-01, P-02, P-04, P-11 and P-13 were resolved before 2026-09-28 and are not logged. P-15 to P-25 were found in the pre-M0 review (2026-09-28). P-26 was found while reconciling revision 2026-09-29, P-27 during M4, P-28 and P-29 during M6, and P-30 while resolving P-29.
 - **Status after revision 2026-09-29:**
   - resolved: P-03, P-07, P-09, P-10, P-14, and P-15 to P-25;
-  - open: P-05, P-06, P-08, P-12, P-26, P-27, P-28, P-29.
+  - resolved ahead of the paper: P-29 (D-65);
+  - open: P-05, P-06, P-08, P-12, P-26, P-27, P-28, P-30.
 - "Location" and "Evidence" below refer to revision 2026-09-28, where the issue was found. Each `Status` line says where revision 2026-09-29 addresses it.
 
 ---
@@ -278,6 +279,10 @@ Problem:
 - Figure 2 lists pairings only for phase 7 (receipts) and phase 8 (the aggregate).
 - The inputs this needs are public: bodies naming real identities and their certified keys, with any aggregate. So an adversary can make a cold verifier resolve and pair for every such chain.
 - A warm verifier, with the certificates cached, does not pair before phase 7, as Figure 2 says.
+- How much an adversary can force (added at the M6 checkpoint):
+  1. Certificate verifications are cached per binding once line 24 passes, for min(exp, 1 hour). An adversary naming real identities therefore forces at most one line-24 pairing check per distinct certified binding per cache lifetime, and at most N + 1 per chain.
+  2. Failures are not cached. An adversary on the resolution channel, one that can make resolution return a certificate of its choosing for (identifier, key), can feed a certificate for that binding with an invalid signature and force a line-24 pairing on every attempt, up to N + 1 per chain. A certificate for another binding is rejected at line 23 before any pairing (D-60). The implementation does not cache negative results; this is documented, not fixed.
+- SPEC §13.11's verdict on the phase-ordering claim is given separately for warm and cold verifiers.
 Evidence: `tests/security.rs::phase_ordering_count_ops`, with `count-ops`.
 - A cold verifier rejects a line-34 chain with N = 2 after 3 signature verifications, 3 hash-to-G2, 6 Miller loops and 3 final exponentiations, all from line 24.
 - A warm verifier rejects the same chain with 0 pairings and 0 resolver calls.
@@ -296,11 +301,34 @@ Problem:
 - Caching therefore changes outcomes: §4.6 says caches change cost, "not, within the propagation bound of Section 5.6, their outcome", and this can last up to the one-hour TTL.
 - More generally, revoking one certificate does not revoke a compromised key that other certificates still bind.
 Evidence: `tests/cache_equivalence.rs::renewal_of_the_same_key_then_revocation_diverges`. The uncached verifier returns L27; the warm verifier accepts. The SPEC §11.3 equivalence run, whose events are revocations, expiry, new pins and new-key rotations, never renews a key, and found no divergence in 10,000 chains.
-What the implementation does: The paper as written. The divergence is documented by that test.
+What the implementation does: Since D-65, the first option below, ahead of the paper: a revocation assertion names the binding (identifier and key) and keeps the serial for audit. Lines 27 and 42 reject any certificate of a revoked binding, eviction is by binding, and a registry refuses to certify a revoked binding. The probe test became two equivalence tests in which both verifiers reject at L27: `renewal_then_revocation_of_the_newer_certificate_rejects_in_both`, and its mirror `renewal_then_revocation_of_the_older_certificate_rejects_in_both`. Under serial revocation, the mirror case accepted even uncached. The §11.3 run now includes same-key renewal and renewal followed by revocation of either certificate (`docs/test-reports/cache-equivalence-d65.json`: 10,000 chains, no disagreement). Before D-65 the implementation followed the paper and the divergence was recorded by the probe.
 Suggested fix to the paper: Author to decide. Options:
-- revoke by identifier and key rather than by serial;
+- revoke by identifier and key rather than by serial (implemented, D-65);
 - require a registry to revoke every unexpired certificate of a binding when it revokes one;
 - forbid renewing a binding while an unexpired certificate for it exists;
 - have verifiers evict every cached entry for the binding a revoked serial belongs to. This needs the assertion to name the binding.
 Severity: soundness (a revoked renewal can leave the key accepted by caching verifiers; bounded by the cache TTL and the older certificate's expiry)
+Status: resolved ahead of the paper (D-65). Open in revision 2026-09-29, whose §5.6 still revokes by serial.
+
+## P-30 — "Most recent certificate" resolution and caching disagree on a renewal that does not cover the older certificate's window
+Paper location: §5.4 (resolution returns the most recently issued certificate for an identifier and key, "whether or not it is currently valid"; certificate cache TTL min(exp, one hour)); §4.6 (caches change cost, "not, within the propagation bound of Section 5.6, their outcome"); Algorithm 1 line 27 (revision 2026-09-29)
+Problem:
+- A same-key renewal gives one binding two certificates, and resolution returns the newer one even when it is not valid at t (D-26, adopted by the paper).
+- **Future-dated renewal** (nbf after now):
+  - an uncached verifier rejects at line 27 until the renewal's nbf, although the older certificate is valid and unrevoked;
+  - a verifier that cached the older certificate accepts.
+- **Shortening renewal** (exp before the older certificate's exp):
+  - once the renewal expires, the uncached verifier rejects;
+  - a verifier caching the older certificate accepts until its cache entry ends, which is at most one hour and no later than the older certificate's exp.
+- In both cases the caches change outcomes, contrary to §4.6. The problem does not involve revocation, so D-65 does not fix it.
+- Without any cache, a pre-issued renewal shadows the older, valid certificate: the binding cannot be used until the renewal's nbf. Pre-issuing renewals before expiry is common practice.
+Evidence: `tests/cache_equivalence.rs::future_dated_renewal_diverges` and `::shortening_renewal_diverges`. In both, the uncached verifier rejects at L27 and the warm verifier accepts.
+What the implementation does: The paper as written (D-26); the probe tests record the divergence.
+- The §11.3 run renews from the current time with the registry's default lifetime (24 hours). Every earlier certificate was issued earlier with a lifetime of at most 24 hours, so those renewals never shorten or defer a binding's validity, and the caches are transparent for them.
+- Future-dated and shortening renewals are left out of the run, and this entry is the record of why.
+Suggested fix to the paper: Author to decide. Options:
+- resolution returns the most recent certificate valid at t if there is one, and otherwise the most recent certificate, so line 27 still fires for expired or not-yet-valid bindings;
+- require renewals to be monotone: nbf no later than issuance, and exp no earlier than that of every unexpired certificate for the binding. This rules out pre-issued renewals;
+- state the exception in §4.6.
+Severity: liveness and clarity. The warm verifier accepts only under a certificate that is valid and unrevoked. The uncached verifier rejects a binding that has one. The §4.6 claim that caches do not change outcomes is false for these renewals.
 Status: open in revision 2026-09-29.

@@ -589,6 +589,8 @@ fn revocations_and_pop_challenges_round_trip() {
         registry_id: id("orga"),
         serial: 7,
         revoked_at: T0 + 10,
+        identifier: p("orga:agent:payer"),
+        pk: pk_bytes::<B>("payer"),
     };
     let bytes = rb.canonical_bytes();
     let sig = Bls::sign(

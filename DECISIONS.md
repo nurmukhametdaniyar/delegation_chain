@@ -301,7 +301,7 @@ Paper status (revision 2026-09-29): adopted. §4.5: violations of the receipt or
 ## D-35 — Certificate validity is `t ∈ [nbf, exp]`
 Spec section: §6.6, §10.2, §12.1, Appendix A     Paper section: Algorithm 1 line 27, §5.2, §5.5 (P-17)
 Decision:
-- Line 27 rejects unless `t ∈ [cert.nbf, cert.exp]`, and rejects a revoked serial.
+- Line 27 rejects unless `t ∈ [cert.nbf, cert.exp]`, and rejects a revoked certificate: since D-65, one whose binding is revoked.
 - Line 42's "phase-5 checks" include the same window.
 - A prefix-cache entry is valid only from the latest prefix-certificate `nbf` to its earliest expiry.
 Why: Revision 2026-09-28's line 27 said only "expired or revoked", so a certificate that is not yet valid would have been accepted (P-17). The interval is closed at both ends, as in lines 13 and 44.
@@ -323,7 +323,7 @@ Decision:
 - A certificate enters the cache after line 24 verifies its signature; lines 25–27 are then checked on every use.
 - A policy enters the cache after its hash and well-formedness check (D-12).
 - A chain rejected later may leave cache entries behind.
-- Line 50 is the only mutation that can change a later decision. §11.3's equivalence test checks that the caches never change one.
+- Line 50 is the only mutation that can change a later decision. §11.3's equivalence test checks that the caches never change one. The exception found since is P-30: a same-key renewal that does not cover the older certificate's window. It is documented by probe tests and kept out of the §11.3 run.
 Why: §5.4 describes resolution caches that fill on use, which contradicts §4.6's "leaves the verifier exactly as it found it".
 Affects benchmarks: yes. It defines what the warm state has cached.
 Paper status (revision 2026-09-29): adopted. §4.6: "The only decision-relevant state the procedure changes is the nonce cache … Resolution and policy loading may fill caches"; the Figure 2 caption says the same (P-20 resolved).
@@ -595,3 +595,28 @@ Spec section: §3.3     Paper section: not applicable
 Decision: `[profile.dev.package."*"] opt-level = 3`, so that `blst`, `dalek` and the other dependencies are optimized in `cargo test`. Workspace crates stay at the dev profile. Release and bench profiles are unchanged.
 Why: The security suite's 64-thread, 1,000-round replay test and the 10,000-chain equivalence test would otherwise take minutes.
 Affects benchmarks: no
+
+## D-65 — Revocation names a binding, not a certificate (ahead of the paper)
+Spec section: §2, §6.5, §10.1, §10.2, §11.3, §12.1     Paper section: §5.4, §5.5, §5.6, Algorithm 1 lines 27 and 42 (P-29)
+Decision:
+- **The assertion.** Its body is `{1: registry_id, 2: serial, 3: revoked_at, 4: identifier, 5: pk}`. It revokes the binding of `identifier` to `pk`, whichever certificate `serial` names; the serial is kept for audit and does not affect any decision.
+- **Ingestion.** `ingest_revocation`:
+  - verifies the assertion under `Root[registry_id]`;
+  - requires `identifier` to be in that registry's namespace (`RevocationError::Namespace` otherwise);
+  - marks (registry, identifier, key) revoked;
+  - evicts every cached certificate for the binding, whatever its serial, and, from M7, every prefix-cache entry that lists the binding.
+- **Lines 27 and 42.** A certificate is revoked if its binding is revoked. This is checked on every use, cached or not, so the eviction is hygiene, not what makes the decision correct.
+- **Registry.** It refuses to certify a revoked binding (`RegistryError::RevokedBinding`). A new key for the same identifier is a new binding and is certified: that is emergency rotation.
+- **Lifetime cap.** `MAX_CERT_LIFETIME` = 7 days: the registry refuses `exp > now + MAX_CERT_LIFETIME` (`RegistryError::LifetimeTooLong`). The workloads use 24 hours or less, so the cap binds nothing in the benchmark.
+- **Retention.** A verifier keeps a revoked binding through `revoked_at + MAX_CERT_LIFETIME`; `forget_revocations(t)` drops a record only when `t` is later than that.
+  - Every certificate for the binding was issued no later than the revocation, so it has expired by then. The registry never certifies the binding again.
+  - Forgetting is the host's call, never made inside `verify`.
+  - The single injected clock means registry–verifier clock skew is not modelled. A deployment would add the skew bound to the retention.
+- **Regression vectors.** `tests/vectors/*.json` were regenerated for the new body. Only the revocation-assertion vector changed.
+- **One registry test reordered.** `resolution_returns_the_latest_certificate_valid_or_not` used to re-certify a revoked binding, which is now refused. It now renews first and revokes second, and checks the same D-26 properties: an expired or revoked certificate is still returned, and the newer certificate wins.
+Why: P-29, under serial revocation:
+- a warm verifier kept accepting a renewed key whose newer certificate was revoked, while an uncached verifier rejected it; the caches changed outcomes;
+- revoking the older certificate of a renewed binding left the key accepted even by an uncached verifier.
+The author chose binding revocation (option (c) at the M6 checkpoint), to be implemented ahead of the paper under the SPEC §2 exception, as D-35 and D-36 were.
+Affects benchmarks: marginally, and identically for every arm, since all arms share the verifier core. Line 27's revocation lookup is now keyed by identifier rather than by (org, serial). Revocation ingestion is not timed.
+Paper status (revision 2026-09-29): ahead of the paper. §5.6 revokes a certificate by serial. P-29 records the problem and this fix.

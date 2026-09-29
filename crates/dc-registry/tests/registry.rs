@@ -8,12 +8,15 @@ use std::time::{Duration, Instant};
 
 use dc_crypto::{Bls, CryptoError, Dst, Ed25519, SigScheme};
 use dc_registry::{
-    Directory, MemoryPolicyStore, POP_NONCE_TTL, PolicyStore, Registry, RegistryError, Resolver,
-    RevocationError, RevocationSet, WithLatency, default_lifetime, enroll, enroll_with_validity,
+    Directory, MAX_CERT_LIFETIME, MemoryPolicyStore, POP_NONCE_TTL, PolicyStore, Registry,
+    RegistryError, Resolver, RevocationError, RevocationSet, WithLatency, default_lifetime, enroll,
+    enroll_with_validity,
 };
+use dc_types::digest::revocation_message;
 use dc_types::digest::{TAG_SES, sha256};
 use dc_types::{
     CertBody, Certificate, Clock, Identifier, Kind, ManualClock, ParsedCert, Principal,
+    RevocationAssertion, RevocationBody,
 };
 
 const T0: u64 = 1_790_000_000;
@@ -325,18 +328,20 @@ fn resolution_returns_the_latest_certificate_valid_or_not() {
     let id = p("orga:agent:payer");
     let sk = key::<Bls>("payer");
     let first = enroll_with_validity(&f.reg, &id, &sk, T0, T0 + 10).unwrap();
-    // Expired, and later revoked: still returned (D-26); line 27 decides.
+    // Expired: still returned (D-26); line 27 decides.
     f.clock.advance(3600);
     assert_eq!(
         f.reg.resolve(&id, &pk::<Bls>(&sk), f.clock.now() + 1),
         Some(first.clone())
     );
-    f.reg.revoke(1).unwrap();
-    assert_eq!(f.reg.resolve(&id, &pk::<Bls>(&sk), 0), Some(first));
-    // Re-certifying the same binding: the newer certificate wins.
+    // Renewing the same binding: the newer certificate wins.
     let second = enroll(&f.reg, &id, &sk).unwrap();
     assert_eq!(f.reg.resolve(&id, &pk::<Bls>(&sk), 0), Some(second.clone()));
     assert_eq!(parsed::<Bls>(&second).body.serial, 2);
+    // Revoked: still returned; line 27 decides. (Re-certifying after the
+    // revocation is refused, D-65, so this order replaces the pre-D-65 one.)
+    f.reg.revoke(2).unwrap();
+    assert_eq!(f.reg.resolve(&id, &pk::<Bls>(&sk), 0), Some(second));
     // Unknown identifier, or a key not bound to it.
     assert_eq!(
         f.reg.resolve(&p("orga:agent:nobody"), &pk::<Bls>(&sk), 0),
@@ -387,14 +392,19 @@ fn revocation_assertions_are_verified_and_ingested() {
         "orgb" => Some(fb.reg.root_pk()),
         _ => None,
     };
+    let payer = p("orga:agent:payer");
+    let payer_pk = pk::<Bls>(&key::<Bls>("payer"));
     let mut set = RevocationSet::new();
-    assert!(!set.is_revoked("orga", 1));
+    assert!(!set.is_revoked("orga", &payer, &payer_pk));
+    let b = set.ingest::<Bls>(&assertion, roots).unwrap();
+    // The assertion names the binding, and keeps the serial for audit.
     assert_eq!(
-        set.ingest::<Bls>(&assertion, roots).unwrap(),
-        ("orga".into(), 1)
+        (b.registry.as_str(), &b.identifier, &b.pk, b.serial),
+        ("orga", &payer, &payer_pk, 1)
     );
-    assert!(set.is_revoked("orga", 1));
-    assert!(!set.is_revoked("orgb", 1));
+    assert!(set.is_revoked("orga", &payer, &payer_pk));
+    assert!(!set.is_revoked("orgb", &payer, &payer_pk));
+    assert!(!set.is_revoked("orga", &payer, &pk::<Bls>(&key::<Bls>("other"))));
 
     // Checked under the root of the organization it names.
     let wrong_root = |_: &str| Some(fb.reg.root_pk());
@@ -491,4 +501,77 @@ fn compromised_root_can_sign_anything() {
     f.reg
         .publish_arbitrary(&body.identifier, &body.pk, cert.clone());
     assert_eq!(f.reg.resolve(&body.identifier, &body.pk, 0), Some(cert));
+}
+
+// ---- binding revocation (D-65, P-29) ----
+
+#[test]
+fn a_revoked_binding_is_never_certified_again() {
+    let f = fixture::<Bls>("orga");
+    let id = p("orga:agent:payer");
+    let sk = key::<Bls>("payer");
+    enroll(&f.reg, &id, &sk).unwrap();
+    // A renewal for the same key is fine while the binding stands.
+    enroll(&f.reg, &id, &sk).unwrap();
+    assert_eq!(f.reg.serials_of(&id, &pk::<Bls>(&sk)), vec![1, 2]);
+    // Revoking either certificate revokes the binding.
+    f.reg.revoke(1).unwrap();
+    assert_eq!(
+        enroll(&f.reg, &id, &sk).unwrap_err(),
+        RegistryError::RevokedBinding
+    );
+    // The identifier with a new key is a different binding.
+    assert!(enroll(&f.reg, &id, &key::<Bls>("payer-2")).is_ok());
+}
+
+#[test]
+fn lifetimes_are_capped() {
+    let f = fixture::<Bls>("orga");
+    let sk = key::<Bls>("payer");
+    let id = p("orga:agent:payer");
+    assert!(enroll_with_validity(&f.reg, &id, &sk, T0, T0 + MAX_CERT_LIFETIME).is_ok());
+    assert_eq!(
+        enroll_with_validity(&f.reg, &id, &sk, T0, T0 + MAX_CERT_LIFETIME + 1).unwrap_err(),
+        RegistryError::LifetimeTooLong
+    );
+}
+
+#[test]
+fn revocation_records_are_kept_for_the_maximum_lifetime() {
+    let f = fixture::<Bls>("orga");
+    let id = p("orga:agent:payer");
+    let sk = key::<Bls>("payer");
+    enroll(&f.reg, &id, &sk).unwrap();
+    let a = f.reg.revoke(1).unwrap();
+    let mut set = RevocationSet::new();
+    set.ingest::<Bls>(&a, |_| Some(f.reg.root_pk())).unwrap();
+    // A certificate issued at revocation time can be valid through
+    // revoked_at + MAX_CERT_LIFETIME (closed interval), so the record stays.
+    set.forget_before(T0 + MAX_CERT_LIFETIME);
+    assert!(set.is_revoked("orga", &id, &pk::<Bls>(&sk)));
+    set.forget_before(T0 + MAX_CERT_LIFETIME + 1);
+    assert!(set.is_empty());
+}
+
+#[test]
+fn a_root_cannot_revoke_a_binding_outside_its_namespace() {
+    let fa = fixture::<Bls>("orga");
+    // orga's root signs an assertion naming an orgb identifier.
+    let root_sk = Bls::keygen(&sha256(&[b"root", b"orga"]));
+    let body = RevocationBody {
+        registry_id: Identifier::new("orga").unwrap(),
+        serial: 1,
+        revoked_at: T0,
+        identifier: p("orgb:agent:payer"),
+        pk: pk::<Bls>(&key::<Bls>("payer")),
+    }
+    .canonical_bytes();
+    let sig = Bls::sign(&root_sk, &revocation_message(&body), Dst::Revoke);
+    let a = RevocationAssertion::assemble::<Bls>(&body, &sig);
+    assert_eq!(
+        RevocationSet::new()
+            .ingest::<Bls>(&a, |_| Some(fa.reg.root_pk()))
+            .unwrap_err(),
+        RevocationError::Namespace
+    );
 }

@@ -18,6 +18,11 @@ use crate::Resolver;
 /// PoP nonces are single-use and live 60 seconds (D-11).
 pub const POP_NONCE_TTL: u64 = 60;
 
+/// The longest validity window a registry issues, measured from issuance:
+/// the longest default lifetime (D-10). It bounds how long a revoked binding
+/// must be remembered (D-65).
+pub const MAX_CERT_LIFETIME: u64 = 7 * 24 * 3600;
+
 /// Default certificate lifetimes (D-10).
 pub const fn default_lifetime(kind: Kind) -> u64 {
     match kind {
@@ -48,6 +53,10 @@ pub enum RegistryError {
     BadPop,
     #[error("unknown certificate serial {0}")]
     UnknownSerial(u64),
+    #[error("the identifier and key binding has been revoked (D-65)")]
+    RevokedBinding,
+    #[error("the validity window ends more than the maximum lifetime after issuance (D-65)")]
+    LifetimeTooLong,
     #[error("could not encode: {0}")]
     Build(#[from] dc_types::BuildError),
 }
@@ -66,6 +75,8 @@ struct State {
     latest: HashMap<(String, Vec<u8>), Certificate>,
     /// Every issued certificate body, by serial.
     issued: HashMap<u64, CertBody>,
+    /// Revoked bindings, which are never certified again (D-65).
+    revoked: std::collections::HashSet<(String, Vec<u8>)>,
 }
 
 /// A registry: a root key pair, PoP-checked registration, issuance and
@@ -191,6 +202,15 @@ impl<S: SigScheme, C: Clock> Registry<S, C> {
             ));
         }
         let pk = S::pk_from_bytes(&challenge.pk).map_err(RegistryError::InvalidKey)?;
+        if self.state.read().unwrap().revoked.contains(&(
+            challenge.identifier.as_str().to_owned(),
+            challenge.pk.clone(),
+        )) {
+            return Err(RegistryError::RevokedBinding);
+        }
+        if exp > now.saturating_add(MAX_CERT_LIFETIME) {
+            return Err(RegistryError::LifetimeTooLong);
+        }
         let msg = pop_message(&challenge.canonical_bytes()?);
         if !S::verify(&pk, &msg, Dst::Pop, pop) {
             return Err(RegistryError::BadPop);
@@ -224,21 +244,49 @@ impl<S: SigScheme, C: Clock> Registry<S, C> {
         Ok(Certificate::assemble::<S>(&bytes, &sig))
     }
 
-    /// Issues a revocation assertion for `serial`, timestamped now (paper
-    /// §5.6). Resolution keeps returning the certificate (D-26); verifiers
-    /// reject it once they have ingested the assertion.
+    /// Revokes the binding (identifier and key) of the certificate with
+    /// `serial`, timestamped now. The assertion names the binding and keeps
+    /// the serial for audit. Every certificate for that binding, earlier or
+    /// later, is thereby revoked, and the registry will not certify the
+    /// binding again (D-65, P-29). Resolution keeps returning certificates
+    /// (D-26); verifiers reject them once they have ingested the assertion.
     pub fn revoke(&self, serial: u64) -> Result<RevocationAssertion, RegistryError> {
-        if !self.state.read().unwrap().issued.contains_key(&serial) {
-            return Err(RegistryError::UnknownSerial(serial));
-        }
+        let (identifier, pk) = {
+            let st = self.state.read().unwrap();
+            let c = st
+                .issued
+                .get(&serial)
+                .ok_or(RegistryError::UnknownSerial(serial))?;
+            (c.identifier.clone(), c.pk.clone())
+        };
+        self.state
+            .write()
+            .unwrap()
+            .revoked
+            .insert((identifier.as_str().to_owned(), pk.clone()));
         let body = RevocationBody {
             registry_id: self.id.clone(),
             serial,
             revoked_at: self.clock.now(),
+            identifier,
+            pk,
         }
         .canonical_bytes();
         let sig = S::sign(&self.root_sk, &revocation_message(&body), Dst::Revoke);
         Ok(RevocationAssertion::assemble::<S>(&body, &sig))
+    }
+
+    /// The serials of every certificate issued for a binding, oldest first.
+    pub fn serials_of(&self, id: &Principal, pk: &[u8]) -> Vec<u64> {
+        let st = self.state.read().unwrap();
+        let mut v: Vec<u64> = st
+            .issued
+            .iter()
+            .filter(|(_, c)| &c.identifier == id && c.pk == pk)
+            .map(|(s, _)| *s)
+            .collect();
+        v.sort_unstable();
+        v
     }
 
     /// Models a compromised registry root (T5b) or a misbehaving registry

@@ -139,12 +139,17 @@ impl<S: SigScheme> ParsedCert<S> {
     }
 }
 
-/// A revocation assertion body (SPEC §6.5).
+/// A revocation assertion body (SPEC §6.5). It revokes a binding, meaning an
+/// identifier and a key in the registry's namespace, not a single
+/// certificate. The serial of the certificate that prompted it is kept for
+/// audit (D-65, P-29).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RevocationBody {
     pub registry_id: Identifier,
     pub serial: u64,
     pub revoked_at: u64,
+    pub identifier: Principal,
+    pub pk: Vec<u8>,
 }
 
 impl RevocationBody {
@@ -153,6 +158,8 @@ impl RevocationBody {
             (Key::Uint(1), Value::text(self.registry_id.as_str())),
             (Key::Uint(2), Value::uint(self.serial)),
             (Key::Uint(3), Value::uint(self.revoked_at)),
+            (Key::Uint(4), Value::text(self.identifier.as_str())),
+            (Key::Uint(5), Value::bytes(self.pk.clone())),
         ])
     }
 
@@ -160,12 +167,14 @@ impl RevocationBody {
         encode(&self.to_value()).expect("revocation bodies always encode")
     }
 
-    fn from_value(v: &Value) -> Result<Self, Malformed> {
+    fn from_value(v: &Value, pk_len: usize) -> Result<Self, Malformed> {
         let mut f = Fields::new("RevocationBody", v)?;
         let body = RevocationBody {
             registry_id: f.get(1, identifier)?,
             serial: f.get(2, u64_of)?,
             revoked_at: f.get(3, u64_of)?,
+            identifier: f.get(4, principal)?,
+            pk: f.get(5, |v| bytes_n(v, pk_len))?,
         };
         f.finish()?;
         Ok(body)
@@ -193,7 +202,8 @@ impl<S: SigScheme> ParsedRevocation<S> {
     pub fn decode(a: &RevocationAssertion) -> Result<Self, Malformed> {
         let outer = decode_strict(&a.0, Limits::BODY)?;
         let (body_bytes, sig) = signed_pair("RevocationAssertion", &outer)?;
-        let body = RevocationBody::from_value(&decode_strict(body_bytes, Limits::BODY)?)?;
+        let body =
+            RevocationBody::from_value(&decode_strict(body_bytes, Limits::BODY)?, S::PK_LEN)?;
         Ok(ParsedRevocation {
             body,
             body_bytes: body_bytes.to_vec(),

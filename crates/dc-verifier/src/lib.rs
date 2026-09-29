@@ -19,7 +19,9 @@ use std::sync::{Arc, RwLock};
 use dc_crypto::ops;
 use dc_crypto::{ChainScheme, Dst, SigScheme};
 use dc_policy::{Decision, Invocation, Scope, contains, evaluate};
-use dc_registry::{PolicyStore, Resolver, RevocationError, verify_revocation};
+use dc_registry::{
+    PolicyStore, Resolver, RevocationError, RevocationSet, RevokedBinding, verify_revocation,
+};
 use dc_types::digest::{Digest32, chain_digests, sha256};
 use dc_types::{
     Body, BodyKind, CertBody, Clock, Envelope, Kind, ParsedCert, Principal, RevocationAssertion,
@@ -126,7 +128,7 @@ pub struct Verifier<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> {
     cert_cache: RwLock<CertMap<Pk<C>>>,
     policy_cache: RwLock<HashMap<Digest32, Arc<Scope>>>,
     nonces: NonceCache,
-    revoked: RwLock<HashSet<(String, u64)>>,
+    revoked: RwLock<RevocationSet>,
     config: VerifierConfig,
 }
 
@@ -190,7 +192,7 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
             cert_cache: RwLock::new(HashMap::new()),
             policy_cache: RwLock::new(HashMap::new()),
             nonces: NonceCache::new(),
-            revoked: RwLock::new(HashSet::new()),
+            revoked: RwLock::new(RevocationSet::new()),
             config,
         }
     }
@@ -217,21 +219,29 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
     }
 
     /// Push delivery of a revocation assertion (SPEC §6.5): verify it under
-    /// `Root[registry_id]`, record the serial, and evict the cache entries
-    /// that depend on it.
+    /// `Root[registry_id]`, record the revoked binding (identifier and key),
+    /// and evict every cached certificate for that binding, whatever its
+    /// serial (D-65, P-29).
     pub fn ingest_revocation(
         &self,
         a: &RevocationAssertion,
-    ) -> Result<(String, u64), RevocationError> {
-        let (org, serial) = verify_revocation::<C::Base>(a, |o| self.roots.get(o))?;
-        self.revoked.write().unwrap().insert((org.clone(), serial));
+    ) -> Result<RevokedBinding, RevocationError> {
+        let b = verify_revocation::<C::Base>(a, |o| self.roots.get(o))?;
+        self.revoked.write().unwrap().insert(&b);
         let mut cache = self.cert_cache.write().unwrap();
-        for entries in cache.values_mut() {
-            entries
-                .retain(|(_, c)| !(c.body.registry_id.as_str() == org && c.body.serial == serial));
+        if let Some(entries) = cache.get_mut(b.identifier.as_str()) {
+            entries.retain(|(pk, _)| *pk != b.pk);
+            if entries.is_empty() {
+                cache.remove(b.identifier.as_str());
+            }
         }
-        cache.retain(|_, v| !v.is_empty());
-        Ok((org, serial))
+        Ok(b)
+    }
+
+    /// Drops revocation records older than the maximum certificate lifetime
+    /// (D-65). Called by the host, never inside `verify`.
+    pub fn forget_revocations(&self, t: u64) {
+        self.revoked.write().unwrap().forget_before(t);
     }
 
     pub fn nonce_cache(&self) -> &NonceCache {
@@ -324,11 +334,13 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
         if c.body.kind != kind {
             return Err(26);
         }
-        let revoked = self
-            .revoked
-            .read()
-            .unwrap()
-            .contains(&(c.body.registry_id.as_str().to_owned(), c.body.serial));
+        // Revocation is by binding (D-65): any certificate for a revoked
+        // identifier and key is revoked.
+        let revoked = self.revoked.read().unwrap().is_revoked(
+            c.body.registry_id.as_str(),
+            &c.body.identifier,
+            &c.body.pk,
+        );
         // Closed interval, as lines 13 and 44 (D-35, P-26).
         if t < c.body.nbf || t > c.body.exp || revoked {
             return Err(27);
