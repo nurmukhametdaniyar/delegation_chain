@@ -15,6 +15,9 @@ default = ["blst-no-threads"]
 blst-no-threads = ["blst/no-threads"]
 # VARIANT (SPEC §0 rule 3): Ed25519, for arms C, C-batch and D only.
 variant-ed25519 = ["dep:ed25519-dalek"]
+# VARIANT (SPEC §0 rule 3): the prefix-cache trait and arm B's pairing cache
+# (SPEC §5.7, §12.1).
+variant-prefix = []
 # Per-verification operation counts (SPEC §10.3). Never in headline runs.
 count-ops = []
 

@@ -14,6 +14,19 @@ use crate::{CryptoError, Dst, SigScheme};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Ed25519;
 
+impl Ed25519 {
+    /// `ed25519_dalek::verify_batch` over the triples (SPEC §5.8; arm C-batch
+    /// only). Its semantics differ from [`SigScheme::verify`]'s
+    /// `verify_strict` at the edges (D-66). The keys are copied, because the
+    /// library takes them by value.
+    pub fn verify_batch(pks: &[&VerifyingKey], msgs: &[[u8; 32]], sigs: &[Signature]) -> bool {
+        crate::ops::add(|c| c.sig_verifications += msgs.len() as u64);
+        let keys: Vec<VerifyingKey> = pks.iter().map(|k| **k).collect();
+        let msgs: Vec<&[u8]> = msgs.iter().map(|m| &m[..]).collect();
+        ed25519_dalek::verify_batch(&msgs, sigs, &keys).is_ok()
+    }
+}
+
 impl SigScheme for Ed25519 {
     const NAME: &'static str = "Ed25519";
     const PK_LEN: usize = 32;

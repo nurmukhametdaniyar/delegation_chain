@@ -1,6 +1,7 @@
 //! Shared fixtures for the workspace-level suites (SPEC §11.2, §11.3).
 #![allow(dead_code)]
 
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use dc_cbor::{Key, Value};
@@ -16,8 +17,11 @@ use dc_verifier::{Verifier, VerifierConfig};
 
 pub type A = BlsAggregate;
 pub type S = Bls;
-pub type V = Verifier<A, Directory, Arc<MemoryPolicyStore>, Arc<ManualClock>>;
+/// The verifier of an arm, over the test world's resolver, store and clock.
+pub type VOf<C> = Verifier<C, Directory, Arc<MemoryPolicyStore>, Arc<ManualClock>>;
+pub type V = VOf<A>;
 pub type Sk = <S as SigScheme>::SecretKey;
+pub type SkOf<C> = <<C as ChainScheme>::Base as SigScheme>::SecretKey;
 
 pub const T0: u64 = 1_790_000_000;
 pub const PAYMENTS: &str = "orgb:service:payments";
@@ -75,14 +79,19 @@ pub fn policy_with_bound(bound: u64) -> Scope {
 
 /// A world with organizations `orga` (issuer, agents a1–a6, approvers
 /// finance and audit) and `orgb` (the verifiers), and the §6.2 policy
-/// published.
-pub struct Suite {
-    pub w: World<S>,
+/// published, for the arm whose chain scheme is `C`. Registries use the
+/// arm's base scheme (SPEC §12).
+pub struct ArmSuite<C: ChainScheme> {
+    pub w: World<C::Base>,
     pub policy: Scope,
     pub hash: Digest32,
+    arm: PhantomData<C>,
 }
 
-impl Suite {
+/// The suite for arm A, the protocol.
+pub type Suite = ArmSuite<A>;
+
+impl<C: ChainScheme> ArmSuite<C> {
     pub fn new() -> Self {
         let mut w = World::new(0x5ec, T0);
         w.org("orgb");
@@ -94,14 +103,19 @@ impl Suite {
         w.enroll(AUDIT, AUDIT).unwrap();
         let policy = Scope::parse(POLICY).unwrap();
         let hash = w.publish(&policy);
-        Suite { w, policy, hash }
+        ArmSuite {
+            w,
+            policy,
+            hash,
+            arm: PhantomData,
+        }
     }
 
     pub fn now(&self) -> u64 {
         self.w.now()
     }
 
-    pub fn sk(&self, label: &str) -> Sk {
+    pub fn sk(&self, label: &str) -> SkOf<C> {
         self.w.secret(label)
     }
 
@@ -110,7 +124,17 @@ impl Suite {
     }
 
     /// A verifier for `self_id`, with `orga`'s policy pinned.
-    pub fn verifier_as(&self, self_id: &str, config: VerifierConfig) -> V {
+    pub fn verifier_as(&self, self_id: &str, config: VerifierConfig) -> VOf<C> {
+        self.verifier_for::<C>(self_id, config)
+    }
+
+    /// A verifier for arm `D`, which shares this arm's base scheme and wire
+    /// format (C-batch on arm C's chains), with `orga`'s policy pinned.
+    pub fn verifier_for<D: ChainScheme<Base = C::Base>>(
+        &self,
+        self_id: &str,
+        config: VerifierConfig,
+    ) -> VOf<D> {
         let v = Verifier::new(
             p(self_id),
             self.w.roots(),
@@ -123,7 +147,7 @@ impl Suite {
         v
     }
 
-    pub fn verifier(&self) -> V {
+    pub fn verifier(&self) -> VOf<C> {
         self.verifier_as(PAYMENTS, VerifierConfig::default())
     }
 
@@ -145,11 +169,34 @@ impl Suite {
         action: &str,
         params: Params,
         approvers: &[(&str, &str)],
-    ) -> Chain<A> {
+    ) -> Chain<C> {
+        let b = self.prefix(issuer, agents, scopes);
+        let now = self.now();
+        self.invoke_on(
+            b,
+            *agents.last().unwrap(),
+            aud,
+            tool,
+            action,
+            params,
+            (now, now + 3600),
+            approvers,
+        )
+    }
+
+    /// The session and delegations of an honest chain (see [`Self::build`]),
+    /// as a builder the last agent can invoke on. Clone it to invoke on the
+    /// same prefix many times. Every body expires at now + 3600.
+    pub fn prefix(
+        &mut self,
+        issuer: (&str, &str),
+        agents: &[(&str, &str)],
+        scopes: &[Scope],
+    ) -> ChainBuilder<C> {
         assert_eq!(agents.len(), scopes.len());
         let now = self.now();
         let exp = now + 3600;
-        let iss = dc_chain::IssuanceService::<S>::new(p(issuer.0), self.sk(issuer.1));
+        let iss = dc_chain::IssuanceService::<C::Base>::new(p(issuer.0), self.sk(issuer.1));
         let svc = |s: &Self, (id, key): (&str, &str)| s.w.agent_service(id, key);
         let first = svc(self, agents[0]);
         let issued = iss
@@ -163,7 +210,7 @@ impl Suite {
                 self.w.rng(),
             )
             .unwrap();
-        let mut b = ChainBuilder::<A>::start(issued, scopes[0].clone());
+        let mut b = ChainBuilder::<C>::start(issued, scopes[0].clone());
         for i in 1..agents.len() {
             let from = svc(self, agents[i - 1]);
             let to = svc(self, agents[i]);
@@ -177,15 +224,34 @@ impl Suite {
             )
             .unwrap();
         }
-        let signer = svc(self, *agents.last().unwrap());
+        b
+    }
+
+    /// The invocation step on a prefix: `signer` (identifier, key label)
+    /// invokes with validity `window`, with a receipt from each required
+    /// approver found in `approvers`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn invoke_on(
+        &mut self,
+        b: ChainBuilder<C>,
+        signer: (&str, &str),
+        aud: &str,
+        tool: &str,
+        action: &str,
+        params: Params,
+        window: (u64, u64),
+        approvers: &[(&str, &str)],
+    ) -> Chain<C> {
+        let now = self.now();
+        let signer = self.w.agent_service(signer.0, signer.1);
         let inv = b
             .invocation_body(
                 &p(aud),
                 &id(tool),
                 &id(action),
                 params,
-                now,
-                exp,
+                window.0,
+                window.1,
                 self.w.rng(),
             )
             .unwrap();
@@ -193,7 +259,7 @@ impl Suite {
         if let Ok(needed) = b.required_approvals(&inv) {
             for n in needed {
                 if let Some((aid, key)) = approvers.iter().find(|(aid, _)| p(aid) == n) {
-                    let svc = dc_chain::ApprovalService::<S>::new(p(aid), self.sk(key));
+                    let svc = dc_chain::ApprovalService::<C::Base>::new(p(aid), self.sk(key));
                     receipts.push(svc.approve(&inv, now).unwrap());
                 }
             }
@@ -210,7 +276,7 @@ impl Suite {
         tool: &str,
         action: &str,
         params: Params,
-    ) -> Chain<A> {
+    ) -> Chain<C> {
         let names: Vec<String> = (1..=scopes.len()).map(agent).collect();
         let agents: Vec<(&str, &str)> = names.iter().map(|n| (n.as_str(), n.as_str())).collect();
         self.build(
@@ -227,7 +293,7 @@ impl Suite {
 
     /// An honest chain of N bodies after the session (N − 1 delegations),
     /// every scope the policy, invoking a 500-unit transfer at payments.
-    pub fn chain(&mut self, n: usize) -> Chain<A> {
+    pub fn chain(&mut self, n: usize) -> Chain<C> {
         let scopes = vec![self.policy.clone(); n];
         self.chain_with(
             &scopes,
@@ -239,7 +305,7 @@ impl Suite {
     }
 
     /// A chain whose invocation needs the finance approval.
-    pub fn approval_chain(&mut self, n: usize) -> Chain<A> {
+    pub fn approval_chain(&mut self, n: usize) -> Chain<C> {
         let scopes = vec![self.policy.clone(); n];
         self.chain_with(
             &scopes,
@@ -252,7 +318,7 @@ impl Suite {
 
     /// The secret key of each body's signer, by the default label (the
     /// signer's identifier).
-    pub fn keys_for(&self, bodies: &[Body<S>]) -> Vec<Sk> {
+    pub fn keys_for(&self, bodies: &[Body<C::Base>]) -> Vec<SkOf<C>> {
         bodies
             .iter()
             .map(|b| self.sk(b.signer_id().as_str()))
@@ -260,19 +326,19 @@ impl Suite {
     }
 
     /// Re-signs altered bodies as an attacker holding the keys would.
-    pub fn resign(&self, bodies: Vec<Body<S>>, keys: &[Sk]) -> Chain<A> {
-        let refs: Vec<&Sk> = keys.iter().collect();
-        assemble::<A>(bodies, &refs).unwrap()
+    pub fn resign(&self, bodies: Vec<Body<C::Base>>, keys: &[SkOf<C>]) -> Chain<C> {
+        let refs: Vec<&SkOf<C>> = keys.iter().collect();
+        assemble::<C>(bodies, &refs).unwrap()
     }
 
     /// Re-signs altered bodies with each signer's own key.
-    pub fn resign_default(&self, bodies: Vec<Body<S>>) -> Chain<A> {
+    pub fn resign_default(&self, bodies: Vec<Body<C::Base>>) -> Chain<C> {
         let keys = self.keys_for(&bodies);
         self.resign(bodies, &keys)
     }
 
     /// A fresh invocation nonce, so that a rebuilt chain is not a replay.
-    pub fn fresh(&mut self, inv: &mut InvocationBody<S>) {
+    pub fn fresh(&mut self, inv: &mut InvocationBody<C::Base>) {
         use rand_core_shim::fill;
         fill(self.w.rng(), &mut inv.nonce);
     }

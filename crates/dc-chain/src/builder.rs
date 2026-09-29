@@ -56,6 +56,10 @@ impl<C: ChainScheme> Chain<C> {
 /// (hop index, session id, the chaining of identifiers and keys), but it
 /// does not check containment or expiry. That is the verifier's job, and the
 /// security suite needs to build chains that fail those checks.
+///
+/// A builder can be cloned before `invoke`, so that one prefix carries many
+/// invocations, the pattern arms B and D cache for (SPEC §12.1).
+#[derive(Clone)]
 pub struct ChainBuilder<C: ChainScheme> {
     chain: Chain<C>,
     session_id: [u8; 16],

@@ -24,6 +24,9 @@ count-ops = ["dc-crypto/count-ops"]
 # Hooks for the security suite: ignore recorded canonical-form violations
 # (D-31) and inject duplicate digests (line 48). Never outside tests.
 test-hooks = []
+# VARIANT (SPEC §0 rule 3): the prefix-cache verifier of arms B and D (SPEC
+# §12.1). It wraps the default verifier and never changes its path (D-67).
+variant-prefix-cache = ["dc-crypto/variant-prefix"]
 
 [dev-dependencies]
 dc-chain = { workspace = true, features = ["test-hooks"] }

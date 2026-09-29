@@ -10,4 +10,26 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-dc-crypto = { workspace = true, features = ["variant-ed25519"] }
+dc-cbor.workspace = true
+dc-policy.workspace = true
+# Arm E (SPEC §12.3). The library's default features minus `pem`: its
+# ed25519-dalek features (rand_core, zeroize) are already on for dc-crypto,
+# so arm C's build is unchanged (D-68).
+biscuit-auth = { version = "=6.0.0", default-features = false, features = ["datalog-macro", "regex-full"] }
+dc-crypto = { workspace = true, features = ["variant-ed25519", "variant-prefix"] }
+dc-registry.workspace = true
+dc-types.workspace = true
+dc-verifier = { workspace = true, features = ["variant-prefix-cache"] }
+
+[dev-dependencies]
+dc-cbor.workspace = true
+dc-policy.workspace = true
+# Pinned to the version ed25519-dalek already uses, for the D-66 edge cases.
+curve25519-dalek = "=4.1.3"
+ed25519-dalek.workspace = true
+dc-crypto = { workspace = true, features = ["blst-no-threads", "variant-ed25519", "variant-prefix", "count-ops"] }
+dc-types.workspace = true
+rand_chacha.workspace = true
+rand_core.workspace = true
+serde_json.workspace = true
+sha2.workspace = true

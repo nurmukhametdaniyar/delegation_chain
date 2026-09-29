@@ -620,3 +620,108 @@ Why: P-29, under serial revocation:
 The author chose binding revocation (option (c) at the M6 checkpoint), to be implemented ahead of the paper under the SPEC §2 exception, as D-35 and D-36 were.
 Affects benchmarks: marginally, and identically for every arm, since all arms share the verifier core. Line 27's revocation lookup is now keyed by identifier rather than by (org, serial). Revocation ingestion is not timed.
 Paper status (revision 2026-09-29): ahead of the paper. §5.6 revokes a certificate by serial. P-29 records the problem and this fix.
+
+## D-66 — C-batch uses `verify_batch`, whose semantics differ from `verify_strict`
+Spec section: §5.8, §12     Paper section: not applicable (VARIANT)
+Decision:
+- **What each arm calls.** Arm C checks each chain signature with `verify_strict`; arm C-batch makes one `ed25519_dalek::verify_batch` call over the N + 1 triples (`Ed25519::verify_batch` in dc-crypto). The keys are copied into a vector, because the library takes them by value.
+- **Where they differ** (ed25519-dalek 2.2.0, read from its source):
+  - `verify_batch` checks the cofactorless equation over a random linear combination. Its 128-bit coefficients come from a Merlin transcript of the inputs, finalized with a zero RNG, so a batch decides deterministically.
+  - It does not reject a small-order R. It compares points, where `verify_strict` compares R's encoding with the recomputed one.
+- **Consequences, shown by `crates/dc-baselines/tests/ed25519_batch.rs`:**
+  - A signer can make σ with R the identity, which C rejects and C-batch accepts.
+  - A signer can make σ with a mixed-order R, which C always rejects. C-batch accepted it in 37 of 64 chains that differed only in their other signatures.
+  - These signatures need the signer's own secret key, so they are not third-party forgeries.
+  - Weak (small-order) public keys are rejected at decode in both arms (D-30). Mixed-order keys are not.
+- **Scope.** C-batch appears only as its own arm (SPEC §5.8). On the §11.3 run it agrees with C on all 10,000 chains (D-70), none of which carries such a signature.
+- **Short-circuiting.** C and A-ind stop at the first failing signature. Valid chains, the ones timed, verify every signature.
+- **Counting.** `count-ops` counts C-batch as N + 1 signature verifications.
+Why: SPEC §5.8 asks for the difference to be logged. The tests show it is not only theoretical.
+Affects benchmarks: C-batch's latency is for different semantics, and every report that shows it says so.
+
+## D-67 — Prefix caches (arms B and D): what is cached, when, and for how long
+Spec section: §5.7, §12.1, §11.3     Paper section: §5.4 (certificate cache TTL), §8.3
+Decision:
+- **Structure.**
+  - `dc_verifier::PrefixVerifier<C: PrefixScheme, …>` wraps the default verifier. It lives behind dc-verifier's `variant-prefix-cache` feature, which only dc-baselines enables.
+  - Arm B is `PrefixVerifier<BlsAggregate>`: arm A's wire format and full path, with the pairing cache of §5.7 on a hit.
+  - Arm D is `PrefixVerifier<Ed25519List>`: arm C's, with σ_N alone checked on a hit.
+- **The full path.** It is the default verifier's `verify_envelope`, which takes a hook it calls once after line 50. Arms A, A-ind, C and C-batch pass `()`, whose hook is an empty inline function, so their path does no extra work.
+  - The per-line checks the hit path needs (5, 8–9, 13, 17, 23–27, 36–37, phase 7, 50) are functions that both paths call. The two paths therefore share code line by line, rather than keeping two copies.
+  - The refactor left all 51 §11.2 rows and Theorem 5's test unchanged.
+- **Key.** The key is `m_{N−1}`, computed with the session tag and then the delegation tag. `chain_digests` over the prefix alone would give its last body the invocation tag, which is not the digest the chain signs.
+- **Filling.** An entry is filled only when the full path accepts. The SPEC's "run the full algorithm, then populate the cache" is read as populating on acceptance.
+  - A chain rejected for its invocation (for example denied at line 37) fills nothing, though its prefix may be sound.
+  - Everything an entry holds was then checked by an accepting run. For arm D, that includes every prefix signature.
+- **Validity window.** From the latest prefix certificate's `nbf` to the earliest of:
+  - every prefix body's `exp`;
+  - every prefix certificate's `exp`;
+  - each prefix certificate's certificate-cache lifetime, which is the time it was resolved plus the TTL (one hour by default).
+
+  The last bound is not in SPEC §12.1. It keeps a prefix entry from holding a resolution result longer than the certificate cache itself may (paper §5.4). Without it, warm+prefix could keep using a certificate that warm would have re-resolved. It binds nothing in the benchmark, whose runs are much shorter than an hour of verifier-clock time.
+- **Invalidation.**
+  - Revocation evicts every entry that lists the binding (D-65). Any pin or unpin clears the cache.
+  - Ordering: revocation and pin changes update their own state, then take the entries' lock. An insert checks the revocation set and the pins while holding that lock. So a verification that began before a revocation or unpin cannot leave a stale entry behind.
+  - Expired entries are dropped when a lookup finds them.
+- **Hit path.** It is the path of SPEC §12.1, in Algorithm order.
+  - Line 2 decodes B_N and the signature container in the full path's order, so a decode failure yields the same L02 message.
+  - The last key link is line 18 when N = 1, and line 20 at k = N − 1 otherwise.
+  - Line 48 compares m_N with the cached digests.
+- **Arm D matching.** A hit requires the received prefix signatures to be byte-identical to the cached ones; any difference is a miss. Arm B accepts any aggregate on a hit, since the full equation covers every signature.
+- **Pairing cache (§5.7).** `dc_crypto::pairing_cache` uses only safe `blst` APIs; there is no `unsafe`. `P` is `Pairing::aggregate` with no signature, then `as_fp12`.
+  - The hit check is `blst_fp12::finalverify(ML(σ, g1), P · ML(H(m_N), pk_N))`. `finalverify` conjugates its first argument, and after the final exponentiation that is inversion, so this is SPEC §5.7's equation, exactly as `aggregate_verify` evaluates it.
+  - The §5.7 test compares the two on 10,000 randomized chains (`docs/test-reports/pairing-cache-equivalence-m7.json`).
+Why: SPEC §12.1 leaves open when to fill, how the hit path shares code, how to handle the certificate cache TTL, and how invalidation races with verification.
+Affects benchmarks: yes. This defines arms B and D. The warm+prefix schedule (D-39) fills each entry during warm-up.
+
+## D-68 — Arm E: the Biscuit mapping
+Spec section: §12.3     Paper section: Table 1 (positioning only)
+Decision:
+- **Library.** biscuit-auth 6.0.0, pinned exactly. Its default features minus `pem` (so `datalog-macro` and `regex-full`).
+  - Its ed25519-dalek features (`rand_core`, `zeroize`) are already enabled by dc-crypto, so adding arm E changes nothing in arm C's build.
+  - It uses sha2 0.9, a different crate from our sha2 0.10.9.
+  - It pulls in `proc-macro-error2`, which draws a future-incompatibility warning from rustc 1.97.1. The warning concerns that crate, not ours.
+- **Mapping** (`crates/dc-baselines/src/biscuit.rs`, module documentation):
+  - the authority block holds a `right(aud, tool, action)` fact per session rule, an expiry check, and the session scope as one check (`check if body_1 or … or body_k`);
+  - each delegation is an appended block with an expiry check and its scope as a check;
+  - DC's N is Biscuit depth N − 1;
+  - the authorizer holds `aud`, `tool`, `action`, `now`, `param_count` and one `param(path, value)` fact per flattened leaf. Its policies allow if the authority block grants the right, or `allow_all`.
+- **Faithful parts.** Rule heads, closed-world parameter sets with their types (`param_count`, `.type()`), and integer, equality, `starts_with`, `ends_with`, `contains` and `in` atoms all map exactly.
+- **Differences from Evaluate:**
+  - `under` does not check that the value is a canonical absolute path;
+  - a check passes if any body matches, while DC's first matching rule decides;
+  - a rule that requires approval also requires an `approved` fact that the authorizer never holds, because Biscuit carries no receipts.
+  - On the §6.2 policy family, arm E allows exactly what DC allows without approval: 204 invocations at depths 0–3 (`crates/dc-baselines/tests/biscuit.rs`).
+- **Keys.** Deterministic: the root and per-block keys are derived from a seed. Tokens are therefore byte-reproducible.
+- **Limits.** The authorizer's time budget is one second instead of the default one millisecond, so that load (Q6) cannot turn into spurious rejections. Fact and iteration limits keep the library's defaults.
+- **The timed operation.** `Biscuit::from` (deserialize, verify every block), authorizer construction and `authorize`, as SPEC §12.3 specifies. Facts are built programmatically, and the policies are parsed once, outside the timed region.
+Why: SPEC §12.3 asks for the mapping to be recorded.
+Affects benchmarks: yes, for Q9 and every table that shows arm E, together with its functional gaps (SPEC §12.3).
+
+## D-69 — A-ind, C and C-batch wire formats
+Spec section: §5.1, §7.5, §12     Paper section: not applicable (VARIANT)
+Decision:
+- **Wire format.** A-ind carries N + 1 BLS signatures (96 bytes each) as a list; C, C-batch and D carry N + 1 Ed25519 signatures (64 bytes each).
+- **Decoding.** Anything but a list of exactly N + 1 well-formed signatures is line 2: `WireShape` or `SignatureCount`. Each signature is validated once, at decode (D-30).
+- **Registries.** A-ind's use BLS roots. C's, C-batch's and D's use Ed25519 roots (SPEC §12).
+- **Code.** The schemes are in `dc-baselines`, and run the same generic verifier as arm A.
+Why: SPEC §12 names the arms but not their envelope forms.
+Affects benchmarks: yes, for Q2's bytes.
+
+## D-70 — The §11.3 run for every arm, and how it exercises the prefix caches
+Spec section: §11.3, §12.1     Paper section: §4.6
+Decision:
+- **Families.** `tests/prefix_equivalence.rs` runs one family per wire format, 10,000 chains each, and requires identical decisions and reject variants across all configurations:
+  - BLS aggregate: A uncached, A warm, B warm+prefix;
+  - Ed25519 list: C uncached and warm, C-batch uncached and warm, D warm+prefix;
+  - BLS list: A-ind uncached and warm.
+- **Prefix reuse.** A prefix cache only matters when prefixes repeat. So three chains in four are new invocations on one of 12 stored prefixes (one delegation, many invocations), and the rest start a new prefix.
+  - Invocation-level mutations reach the hit path's rejections: another holder, an expiry beyond the prefix's, a future `nbf`, a missing approval.
+  - Whole-chain mutations reach its misses.
+- **Events.** As `cache_equivalence.rs` (D-65), plus pin changes: P2 is pinned at 1/2 of the run, unpinned at 3/4, and pinned again at 7/8.
+- **Coverage floor.** Each prefix configuration must hit on more than one chain in five.
+  - A first draft reused a prefix only about 1.5 times on average and fell short: 289 hits in 1,500 chains. The generator was then changed to reuse more, with the same threshold.
+  - This changes only the test workload, not any arm.
+- **The arm-A-only test stays.** `cache_equivalence.rs` remains, as the M6 record extended by D-65.
+Why: SPEC §11.3 names the configurations, not how to make a prefix cache hit often enough for the test to mean something.
+Affects benchmarks: no

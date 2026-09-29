@@ -265,3 +265,39 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
 - **P-28:** two points added: line-24 verifications are cached per binding, and failures are not cached. The §13.11 verdict is split between warm and cold verifiers.
 - **Decisions added:** D-65.
 - **Paper issues:** P-29 resolved ahead of the paper; P-30 found.
+
+## M7 — `dc-baselines` (2026-09-29)
+
+- **Done:**
+  - Chain schemes A-ind (`BlsIndividual`), C (`Ed25519List`) and C-batch (`Ed25519Batch`), run by the same generic verifier as arm A (D-69). C-batch uses `verify_batch`, whose semantics differ from `verify_strict` (D-66).
+  - Arm B's pairing cache, `dc_crypto::pairing_cache` (SPEC §5.7), using only safe `blst` APIs; no `unsafe` anywhere.
+  - `PrefixVerifier` (arms B and D, SPEC §12.1), behind dc-verifier's `variant-prefix-cache` (D-67).
+    - The default verifier's full path now takes an accept hook (`()` for arms A, A-ind, C and C-batch). Its per-line checks are functions that the hit path shares.
+    - Entries are filled only on acceptance, live no longer than the certificate cache's TTL, are evicted when a listed binding is revoked, and are cleared on any pin change.
+  - Arm E: biscuit-auth 6.0.0, with the mapping in D-68.
+  - The shared test suite is generic over the chain scheme (`ArmSuite<C>`, `Suite` = arm A). `ChainBuilder` is `Clone`, so that one prefix can carry many invocations.
+- **§5.7 pairing-cache equivalence** (`docs/test-reports/pairing-cache-equivalence-m7.json`):
+  - 10000 randomized chains, 10000 agreeing with `aggregate_verify`, 0 disagreeing;
+  - 3345 distinct prefixes, with 4899 checks reusing a cached prefix product;
+  - by mutation (accepted/rejected): bit flip in a prefix body 0/934; bit flip in the last body 0/994; extra signature in the aggregate 0/1008; last key replaced 0/1018; last signature by another key 0/1012; last signature over another message 0/1060; prefix key replaced 0/1000; prefix signature by another key 0/1009; signature missing from the aggregate 0/989; valid 976/0;
+  - 64 fixed shards; identical counts on 3 and 14 threads.
+- **§11.3 equivalence, every configuration** (`docs/test-reports/cache-equivalence-m7-*.json`; D-70): 10,000 chains per family, with no disagreement in any family.
+  - **BLS aggregate** (A uncached, A warm, B warm+prefix):
+    - outcomes: L02 611, L08 275, L09 46, L11 656, L13 660, L15 653, L17 72, L18 369, L20 550, L23 41, L27 1895, L30 775, L32 70, L34 265, L37 797, L40 17, L41 3, L43 3, L49 259, accept 1983;
+    - B warm+prefix: 2346 hits, by outcome: L02 35, L08 59, L09 16, L13 169, L15 196, L17 72, L18 78, L20 104, L27 16, L37 434, L40 8, L41 2, L43 2, L49 128, accept 1027;
+    - events: clock advance 187, invocation on a stored prefix 7329, new prefix 2379, pin P2 1, pin P2 again 1, renewal 45, renewal refused (revoked binding) 6, renewal then revocation of the newer certificate 13, renewal then revocation of the older certificate 14, replay 292, revocation 27, rotation 52, unpin P2 1.
+  - **Ed25519 list** (C uncached, C warm, C-batch uncached, C-batch warm, D warm+prefix):
+    - outcomes: L02 949, L08 269, L09 54, L11 301, L13 633, L15 625, L17 65, L18 208, L20 518, L23 29, L27 1161, L30 904, L32 78, L34 357, L37 1044, L40 22, L43 11, L49 406, accept 2366;
+    - D warm+prefix: 2699 hits, by outcome: L02 19, L08 77, L09 19, L13 222, L15 208, L17 63, L18 67, L20 151, L27 17, L37 515, L40 16, L43 4, L49 75, accept 1246;
+    - events: clock advance 209, invocation on a stored prefix 7319, new prefix 2389, pin P2 1, pin P2 again 1, renewal 52, renewal refused (revoked binding) 4, renewal then revocation of the newer certificate 12, renewal then revocation of the older certificate 19, replay 292, revocation 28, rotation 66, unpin P2 1.
+  - **BLS list** (A-ind uncached, A-ind warm):
+    - outcomes: L02 1138, L08 296, L09 40, L11 324, L13 619, L15 583, L17 84, L18 240, L20 494, L23 37, L27 1146, L30 838, L32 44, L34 284, L37 1090, L40 28, L41 5, L43 6, L49 285, accept 2419;
+    - events: clock advance 181, invocation on a stored prefix 7316, new prefix 2368, pin P2 1, pin P2 again 1, renewal 48, renewal refused (revoked binding) 1, renewal then revocation of the newer certificate 13, renewal then revocation of the older certificate 12, replay 316, revocation 32, rotation 51, unpin P2 1.
+- **Other tests:**
+  - `tests/arms.rs` covers warm operation counts per arm at N = 3, arm B's hit (one hash to G2, two Miller loops, one final exponentiation, no resolution, no containment) and arm D's (one Ed25519 verification).
+  - It also covers arm D's byte-identical prefix rule, eviction on revocation, clearing on a pin change, the TTL cap, and nothing being cached on a rejection.
+  - `crates/dc-baselines/tests/ed25519_batch.rs` covers the C vs C-batch edge cases (D-66).
+  - `crates/dc-baselines/tests/biscuit.rs`: arm E runs at depths 0–5, attenuates, fails on expiry, a wrong root, tampering, a wrong type and an undeclared parameter, and agrees with `Evaluate`'s plain Allow on 204 invocations.
+- **Departure from SPEC text, for the checkpoint:** a prefix-cache entry's window is also capped at the certificate cache's TTL (D-67). SPEC §12.1 lists only the certificates' and bodies' windows.
+- **Decisions added:** D-66 to D-70.
+- **Paper issues found:** none new in M7. (P-30 was found while resolving P-29.)

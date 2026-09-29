@@ -1,0 +1,52 @@
+{
+  "agreeing_with_aggregate_verify": 10000,
+  "by_mutation": {
+    "bit flip in a prefix body": {
+      "accepted": 0,
+      "rejected": 934
+    },
+    "bit flip in the last body": {
+      "accepted": 0,
+      "rejected": 994
+    },
+    "extra signature in the aggregate": {
+      "accepted": 0,
+      "rejected": 1008
+    },
+    "last key replaced": {
+      "accepted": 0,
+      "rejected": 1018
+    },
+    "last signature by another key": {
+      "accepted": 0,
+      "rejected": 1012
+    },
+    "last signature over another message": {
+      "accepted": 0,
+      "rejected": 1060
+    },
+    "prefix key replaced": {
+      "accepted": 0,
+      "rejected": 1000
+    },
+    "prefix signature by another key": {
+      "accepted": 0,
+      "rejected": 1009
+    },
+    "signature missing from the aggregate": {
+      "accepted": 0,
+      "rejected": 989
+    },
+    "valid": {
+      "accepted": 976,
+      "rejected": 0
+    }
+  },
+  "chains": 10000,
+  "checks_reusing_a_cached_prefix_product": 4899,
+  "disagreeing": 0,
+  "distinct_prefixes": 3345,
+  "label": "SPEC §5.7 pairing-cache equivalence (arm B); test statistics",
+  "shards": 64,
+  "threads": 14
+}

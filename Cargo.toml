@@ -34,6 +34,7 @@ dc-registry = { path = "crates/dc-registry" }
 dc-policy = { path = "crates/dc-policy" }
 dc-chain = { path = "crates/dc-chain" }
 dc-verifier = { path = "crates/dc-verifier" }
+dc-baselines = { path = "crates/dc-baselines" }
 dashmap = "6"
 thiserror = "2"
 unicode-normalization = "0.1.25"
@@ -53,6 +54,7 @@ workspace = true
 dc-crypto = { workspace = true, features = ["blst-no-threads"] }
 
 [dev-dependencies]
+dc-baselines.workspace = true
 dc-cbor.workspace = true
 dc-chain = { workspace = true, features = ["test-hooks"] }
 dc-crypto = { workspace = true, features = ["blst-no-threads", "count-ops"] }

@@ -3,8 +3,9 @@
 //! reject variant, on 10,000 randomized chains, valid and mutated. Interleaved
 //! events: revocations, certificate expiry (by advancing the clock), new pins,
 //! new-key rotations, same-key renewals, and renewals followed by revocation
-//! of either the older or the newer certificate (D-65). The warm+prefix
-//! configurations join at M7.
+//! of either the older or the newer certificate (D-65). The other arms, and
+//! the warm+prefix configurations of arms B and D, are in
+//! `prefix_equivalence.rs`.
 //!
 //! `DC_EQUIV_CHAINS` sets the number of chains (default 10,000);
 //! `DC_EQUIV_REPORT` names a JSON file for the outcome counts.

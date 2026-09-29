@@ -8,7 +8,9 @@
 //!
 //! The protocol is [`Bls`] with [`BlsAggregate`]. Ed25519 is a VARIANT,
 //! compiled only with the `variant-ed25519` feature (SPEC §0 rule 3). The
-//! other chain schemes (A-ind, C, C-batch) live in `dc-baselines`.
+//! other chain schemes (A-ind, C, C-batch) live in `dc-baselines`. The
+//! prefix-cache trait and arm B's pairing cache (SPEC §5.7, §12.1) are
+//! VARIANTs too, behind `variant-prefix`.
 
 mod bls;
 mod dst;
@@ -16,6 +18,10 @@ mod dst;
 mod ed25519;
 mod error;
 pub mod ops;
+#[cfg(feature = "variant-prefix")]
+pub mod pairing_cache;
+#[cfg(feature = "variant-prefix")]
+mod prefix;
 mod scheme;
 
 pub use bls::{Bls, BlsAggregate};
@@ -23,6 +29,8 @@ pub use dst::Dst;
 #[cfg(feature = "variant-ed25519")]
 pub use ed25519::Ed25519;
 pub use error::CryptoError;
+#[cfg(feature = "variant-prefix")]
+pub use prefix::PrefixScheme;
 pub use scheme::{ChainScheme, SigScheme, WireForm};
 
 /// Re-export for the pairing cache of arm B (SPEC §5.7), so that no other

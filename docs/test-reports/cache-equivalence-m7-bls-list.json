@@ -1,0 +1,47 @@
+{
+  "chains": 10000,
+  "configurations": [
+    "A-ind uncached",
+    "A-ind warm"
+  ],
+  "events": {
+    "clock advance": 181,
+    "invocation on a stored prefix": 7316,
+    "new prefix": 2368,
+    "pin P2": 1,
+    "pin P2 again": 1,
+    "renewal": 48,
+    "renewal refused (revoked binding)": 1,
+    "renewal then revocation of the newer certificate": 13,
+    "renewal then revocation of the older certificate": 12,
+    "replay": 316,
+    "revocation": 32,
+    "rotation": 51,
+    "unpin P2": 1
+  },
+  "label": "SPEC §11.3 cache equivalence, BLS list; test statistics",
+  "outcomes": {
+    "L02": 1138,
+    "L08": 296,
+    "L09": 40,
+    "L11": 324,
+    "L13": 619,
+    "L15": 583,
+    "L17": 84,
+    "L18": 240,
+    "L20": 494,
+    "L23": 37,
+    "L27": 1146,
+    "L30": 838,
+    "L32": 44,
+    "L34": 284,
+    "L37": 1090,
+    "L40": 28,
+    "L41": 5,
+    "L43": 6,
+    "L49": 285,
+    "accept": 2419
+  },
+  "prefix_cache_hits": {},
+  "prefix_cache_paths": {}
+}
