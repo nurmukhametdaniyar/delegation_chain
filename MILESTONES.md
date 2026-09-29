@@ -189,3 +189,21 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
   Step 3(b) is a measurable share (11 of the 38 misses that remain once unsatisfiable child rules are excluded), so it is logged as P-27, together with dead child rules.
 - **String rules:** each sound rule in `logic.rs` (`StrC::unsat`, `StrC::implies`) now carries its one-line soundness argument.
 - **Paper issues found:** P-27.
+
+## M5 — `dc-chain` (2026-09-29)
+
+- **Done:** the §8 roles, generic over the arm's scheme:
+  - `IssuanceService`;
+  - `SigningService`, which checks identifier and key, runs the enforcement hook (P-12) and computes m_k itself;
+  - `ApprovalService`, which signs over InvocationDigest with a 300 s window.
+  - `ChainBuilder<C: ChainScheme>` follows SPEC §8.3, including evaluating the holder's own scope to find the required approvals, and sorting receipts (D-15). Receipts are the aggregate for arm A, a list for the others.
+  - `assemble`/`combine`: attacker-style signing for the security suite (D-59).
+  - `World`: a deterministic fixture of organizations, registries (one `Directory`), keys and a policy store.
+- **Smoke test ("chains verify end-to-end"):** the verifier arrives at M6, so the test performs its core by hand, for a three-hop chain built from the paper's §6.2 policy with each hop tightening rule 1. It checks:
+  - canonical decode and round trip of every body, and the recomputed digests;
+  - every signer's certificate, resolved through the registries and verified under its root;
+  - the BLS aggregate, every containment link (policy ⊇ session ⊇ delegations), and `Evaluate`: allow for 500, allow-with-approval for 5,000, with the finance receipt verifying over InvocationDigest.
+  - Also: tampering breaks the aggregate, the builder refuses a denied invocation, the signing service refuses foreign or session bodies, an enforcement policy can refuse, and one seed gives byte-identical chains.
+  - 6 tests.
+- **Decisions added:** D-59.
+- **Paper issues found:** none.

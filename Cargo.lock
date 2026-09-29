@@ -153,6 +153,17 @@ dependencies = [
 [[package]]
 name = "dc-chain"
 version = "0.1.0"
+dependencies = [
+ "dc-cbor",
+ "dc-crypto",
+ "dc-policy",
+ "dc-registry",
+ "dc-types",
+ "rand_chacha",
+ "rand_core 0.9.5",
+ "sha2",
+ "thiserror",
+]
 
 [[package]]
 name = "dc-crypto"

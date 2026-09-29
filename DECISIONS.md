@@ -532,3 +532,14 @@ Decision:
 - **Teeth:** before the M4 record run, three bugs were planted one at a time and each was caught: dropping the step-3(b) approval check, an off-by-one in integer implication, and a reversed `under` prefix test.
 Why: SPEC §9.7 fixes the universe and the assertions but not how pairs are generated. Random independent pairs are almost never contained, which would leave soundness under-tested and make completeness meaningless.
 Affects benchmarks: no
+
+## D-59 — Chain construction details
+Spec section: §8     Paper section: §3.1, §4.1, §4.5 (P-12)
+Decision:
+- **Signing service.** It signs delegation and invocation bodies only, and only when the body names its own agent identifier and key as signer. Both are checked, consistent with D-36. It then runs the pluggable `EnforcementPolicy` (default: accept all; P-12) and computes m_k itself from the body and m_{k−1}.
+- **`ChainBuilder`.** It sets what an honest participant sets: hop index, session id, and the chaining of identifier and key to the next signer. It does **not** check containment or expiry: those are the verifier's job, and the security suite needs chains that fail them. Invocation follows SPEC §8.3's five steps, and a scope that denies the invocation is an error (`Denied`).
+- **`assemble`.** It signs arbitrary bodies with arbitrary keys, using position-determined tags. It stands for an attacker who holds keys, and is how the security suite builds altered but correctly signed chains. `Chain::parts` keeps σ_0 … σ_N, which an observer can recover from the running sums (paper §4.3). The Theorem 3 tests use them.
+- **Approval service.** It signs over InvocationDigest (D-06), with iat = now and exp = now + 300 s (SPEC §8.4), and fixed attestation bytes.
+- **`World`.** Keys, registry roots and registry nonce streams are derived from the world seed and a label, so a seed reproduces the whole world, including the envelope bytes (tested).
+Why: SPEC §8 fixes the roles, not these mechanics.
+Affects benchmarks: no. Chains are built outside every timed region. Q7's signing-side costs time the services' `sign`, `approve` and `issue`.

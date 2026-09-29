@@ -10,3 +10,16 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+dc-cbor.workspace = true
+dc-crypto.workspace = true
+dc-policy.workspace = true
+dc-registry.workspace = true
+dc-types.workspace = true
+rand_chacha.workspace = true
+rand_core.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[features]
+# A registry root that signs anything (T5b, T5d), passed through to dc-registry.
+test-hooks = ["dc-registry/test-hooks"]

@@ -32,6 +32,9 @@ rand_core = "0.9"
 rand_chacha = "0.9"
 dc-registry = { path = "crates/dc-registry" }
 dc-policy = { path = "crates/dc-policy" }
+dc-chain = { path = "crates/dc-chain" }
+dc-verifier = { path = "crates/dc-verifier" }
+dashmap = "6"
 thiserror = "2"
 unicode-normalization = "0.1.25"
 proptest = "1.11"
