@@ -404,3 +404,30 @@ Spec section: §4.1, §4.3     Paper section: §4.4, §4.7
 Decision: The CBOR layer rejects any map key that is not an unsigned integer or a text string, as malformed (`L02`). Which of the two a given map needs is checked by the structure that owns it: uint keys in protocol structures (D-01), text keys in parameter and declaration maps (D-33).
 Why: The paper uses no other key type. Rejecting the rest at the lowest layer fails closed (SPEC §0 rule 8), and gives keys a simple canonical order: uints numerically, then texts by length and then bytes. A property test checks that order against the encoded bytes.
 Affects benchmarks: no
+
+## D-50 — Non-canonical nested structures are malformed
+Spec section: §4.4, §7.4     Paper section: §4.7 ("Verifiers reject any structure whose received encoding differs from the canonical re-encoding")
+Decision:
+- Structures carried as byte strings inside another structure are decoded strictly. That covers a receipt's approval body inside `InvocationBody` key 9, and the body inside a certificate or revocation assertion. A canonical-form violation in them is malformed input, not an `L05`:
+  - inside a chain body: `L02`;
+  - in a certificate: a certificate rejection;
+  - in a revocation assertion: the assertion is refused.
+- Their digests are taken over the received bytes, which strict decoding guarantees are canonical.
+Why: Paper §4.7 requires canonical encoding of every structure, but Algorithm 1 line 5 covers only the chain bodies. The nearest reject line for a nested structure is decoding.
+Affects benchmarks: no
+
+## D-51 — Principals in bodies are checked for grammar, not position
+Spec section: §6.1, §7     Paper section: §5.2; Algorithm 1 lines 8, 26; Algorithm 2 line 42
+Decision: Decoding a body checks every principal against the grammar, and requires the kind component to be one of the five kinds of §5.2; any other kind is malformed. Decoding does **not** check that the kind suits the field. For example, a `delegator_id` of kind `issuer`, or an `aud` that is not a service, decodes. Kind is enforced by the certificate checks of lines 26 and 42, and by line 8 for `aud`.
+Why: If decoding checked kind by position, the role-confusion tests of §11.2 (T4a, T5e: "issuer-kind cert as a delegator → L26") would be rejected at `L02` instead, and would prove nothing about line 26.
+Affects benchmarks: no
+
+## D-52 — SPEC §5.1's scheme trait is split in two
+Spec section: §5.1     Paper section: not applicable
+Decision:
+- `SigScheme` is the single-signature scheme: key generation, sign and verify under a `Dst`, and validated key and signature parsing.
+- `ChainScheme` is how the N+1 chain signatures are carried (`start`, `accumulate`, `to_wire`, `from_wire`) and checked at line 49 (`verify_chain`).
+- Arm A is `BlsAggregate` over `Bls`. The other chain schemes are built on the same `SigScheme` implementations in `dc-baselines`.
+- Scheme types are zero-sized markers with the usual derives.
+Why: Certificates, receipts, PoP and revocations need the arm's single-signature scheme without the chain machinery, and SPEC says they use "the same scheme within an arm". The generic verifier stays identical across arms, as §12 requires.
+Affects benchmarks: no. The split does not change what is computed.

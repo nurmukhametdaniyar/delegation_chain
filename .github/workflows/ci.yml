@@ -26,3 +26,5 @@ jobs:
         run: cargo test --workspace
       - name: Unsafe policy (SPEC §0 rule 9)
         run: scripts/check-unsafe.sh
+      - name: Dependency policy (D-29, SPEC §0 rule 3)
+        run: scripts/check-deps.sh

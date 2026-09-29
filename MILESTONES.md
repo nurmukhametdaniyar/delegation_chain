@@ -52,3 +52,38 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
 - **Not done:** the optional `cargo-fuzz` target (§4.5, §11.4). It is deferred to §11.4's "if time allows".
 - **Decisions added:** D-49 (map key types). D-02 was made precise: containers are counted, and the top-level container is depth 1.
 - **Paper issues found:** none.
+
+## M2 — `dc-crypto` and `dc-types` (2026-09-29)
+
+- **Done:**
+  - `dc-crypto`:
+    - `SigScheme`/`ChainScheme` (D-52), and BLS via `blst::min_pk`, with validated parsing (length first, compressed only, subgroup and identity checks via library calls).
+    - Arm A's `BlsAggregate`: `aggregate_verify(false, …, pks_validate = false)` (D-05, D-30).
+    - Ed25519 behind the `variant-ed25519` feature, with weak-key rejection.
+    - The `blst-no-threads` default feature, and the `BLST_THREADED` constant (D-29). `blst` is re-exported, so that no other crate depends on it.
+  - `dc-types`:
+    - principals and identifiers (D-08, D-51);
+    - every digest of §5.4, with position-determined chain tags;
+    - the three bodies, decoded by their own kind field (D-32), with canonical-form violations recorded (D-31);
+    - parameters with NFC (`Canon` normalizes);
+    - receipts (D-14, D-15, D-34, D-50);
+    - certificates, which also reject a kind that does not match the identifier (SPEC §6.3);
+    - revocation assertions, PoP challenges, the envelope (D-16), and the clock.
+  - Scopes are carried as raw CBOR until `dc-policy` exists (M4).
+- **Tests:**
+  - `dc-crypto`, 17 tests:
+    - round trips and DST separation (5×5);
+    - rejection of the identity, off-subgroup points (found by searching small x-coordinates), off-curve points, uncompressed forms and wrong lengths;
+    - aggregate negatives: wrong message, key, missing or extra pair, and permuted messages;
+    - a test pinning that `blst` accepts duplicate messages, so line 48 is the only distinctness check;
+    - Ed25519 weak keys and non-canonical `s`.
+  - `dc-types`, 27 tests:
+    - 23 structure tests, including every malformed-field class, non-NFC parameters recorded as a violation, receipt-list rules, and the invocation digest excluding receipts;
+    - 2 property tests (1,024 cases): round trip with random parameters, and consistent classification of mutated bodies;
+    - 2 regression-vector tests.
+- **Regression vectors:** `tests/vectors/bls.json` and `tests/vectors/ed25519.json`, labelled "regression, not normative". They were generated once and are compared on every run. The BLS test also decodes the committed envelope and verifies its aggregate.
+- **CI:** added `scripts/check-deps.sh`:
+  - only `dc-crypto` depends on `blst` (D-29);
+  - no protocol crate's normal dependency graph enables a `variant-*` feature (SPEC §0 rule 3).
+- **Decisions added:** D-50 (non-canonical nested structures are malformed), D-51 (principal checks at decode), D-52 (trait split).
+- **Paper issues found:** none new.

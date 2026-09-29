@@ -10,3 +10,4 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+dc-crypto = { workspace = true, features = ["variant-ed25519"] }

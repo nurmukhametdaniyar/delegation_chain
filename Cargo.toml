@@ -19,6 +19,15 @@ unsafe_code = "deny"
 
 [workspace.dependencies]
 dc-cbor = { path = "crates/dc-cbor" }
+# Internal crates take dc-crypto without its default `blst-no-threads`; leaf
+# packages switch it on, so that A-mt can be built without it (D-29).
+dc-crypto = { path = "crates/dc-crypto", default-features = false }
+dc-types = { path = "crates/dc-types" }
+# Measurement-affecting crates are pinned exactly (D-47).
+blst = "=0.3.17"
+ed25519-dalek = { version = "=2.2.0", features = ["batch", "rand_core"] }
+sha2 = "=0.10.9"
+serde_json = "1"
 thiserror = "2"
 unicode-normalization = "0.1.25"
 proptest = "1.11"
@@ -32,6 +41,9 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+dc-crypto = { workspace = true, features = ["blst-no-threads"] }
 
 [profile.release]
 opt-level = 3

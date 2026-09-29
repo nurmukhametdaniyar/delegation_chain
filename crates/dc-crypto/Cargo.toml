@@ -9,4 +9,21 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = ["blst-no-threads"]
+# One verification runs on one thread in every arm (D-29).
+blst-no-threads = ["blst/no-threads"]
+# VARIANT (SPEC §0 rule 3): Ed25519, for arms C, C-batch and D only.
+variant-ed25519 = ["dep:ed25519-dalek"]
+
 [dependencies]
+blst.workspace = true
+ed25519-dalek = { workspace = true, optional = true }
+thiserror.workspace = true
+
+[dev-dependencies]
+ed25519-dalek.workspace = true
+
+[[test]]
+name = "ed25519"
+required-features = ["variant-ed25519"]

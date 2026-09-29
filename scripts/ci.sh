@@ -12,4 +12,6 @@ echo "== cargo test --workspace"
 cargo test --workspace
 echo "== scripts/check-unsafe.sh"
 scripts/check-unsafe.sh
+echo "== scripts/check-deps.sh"
+scripts/check-deps.sh
 echo "CI: all checks passed"
