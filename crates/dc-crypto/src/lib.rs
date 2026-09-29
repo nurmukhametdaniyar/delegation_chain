@@ -15,6 +15,7 @@ mod dst;
 #[cfg(feature = "variant-ed25519")]
 mod ed25519;
 mod error;
+pub mod ops;
 mod scheme;
 
 pub use bls::{Bls, BlsAggregate};

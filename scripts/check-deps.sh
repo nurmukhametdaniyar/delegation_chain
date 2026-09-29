@@ -26,9 +26,11 @@ for crate in "${protocol[@]}"; do
     echo "check-deps: $crate's default graph enables a dc-crypto variant feature" >&2
     status=1
   fi
-  # 3. Test hooks (a registry that signs anything) stay out of normal graphs.
-  if grep -E 'test-hooks' <<<"$graph" >/dev/null; then
-    echo "check-deps: $crate's default graph enables test-hooks" >&2
+  # 3. Test hooks stay out of normal graphs, and so does operation counting
+  #    (SPEC §10.3), so that no protocol crate's default build is
+  #    instrumented.
+  if grep -E 'test-hooks|count-ops' <<<"$graph" >/dev/null; then
+    echo "check-deps: $crate's default graph enables test-hooks or count-ops" >&2
     status=1
   fi
 done

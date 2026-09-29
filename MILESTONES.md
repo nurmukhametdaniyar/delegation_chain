@@ -207,3 +207,36 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
   - 6 tests.
 - **Decisions added:** D-59.
 - **Paper issues found:** none.
+
+## M6 — `dc-verifier` and the security suite (2026-09-29)
+
+- **Done:**
+  - `Verifier<C: ChainScheme, R, P, K>` implements Algorithms 1–2 line by line.
+    - One `Reject` variant per rejecting line.
+    - Bodies are decoded by kind, and scopes and signature points are validated at line 2 (D-28, D-30, D-32). Canonical-form violations are recorded and rejected at line 5, with a re-encoding comparison too (D-31).
+    - Identifier-and-key links at lines 18 and 20 (D-36). A closed validity window at line 27 (D-35).
+    - The approver's own reject clause at line 41 (D-27). Distinct digests at line 48. The aggregate at line 49.
+    - An atomic insert at line 50, with TTL = (exp − t) + 60 s (D-25).
+  - Certificate and policy caches, filled during verification (D-37, D-60), plus `VerifierConfig::uncached()`.
+  - Revocation ingestion with eviction; pins; the `count-ops` instrumentation (D-63); test hooks for D-31 and line 48.
+  - `check_phase8` is public, for Theorem 3.
+- **Tests:**
+  - `tests/security.rs`: 51 tests covering every SPEC §11.2 row.
+  - `tests/concurrency.rs`: Theorem 5.
+  - `tests/cache_equivalence.rs`: SPEC §11.3 for the warm state, plus the P-29 probe.
+  - `crates/dc-verifier/tests/caches.rs`: nonce-cache semantics.
+- **Concurrent replay** (`docs/test-reports/concurrent-replay-m6.json`):
+  - 64 threads × 1000 rounds, 64000 verifications;
+  - rounds by number of accepts: {'1': 1000};
+  - rejected at line 17: 49638; at line 50: 13362; other rejections: 0.
+- **Cache equivalence, warm state** (`docs/test-reports/cache-equivalence-m6.json`):
+  - 10000 chains, with no disagreement between the uncached and the warm verifier;
+  - outcomes: L02 764, L08 267, L09 84, L11 864, L13 780, L15 8, L17 82, L18 319, L20 132, L23 67, L27 1134, L30 723, L32 93, L34 402, L37 1201, L41 7, L43 7, L49 453, accept 2613;
+  - events: clock advance 217, new pin 1, revocation 34, rotation 49.
+- **Rows not constructible as specified:** one. For the phase-ordering row, SPEC expects 0 pairings for a line-34 rejection. That holds warm; cold, line 24's N+1 certificate verifications are pairings. The test asserts the actual counts (D-61), and the paper's claim is logged as P-28.
+- **Findings:**
+  - P-28 (above).
+  - P-29: renewing a certificate for the same key, then revoking the renewal, makes the warm verifier accept what the uncached one rejects at L27. §11.3's events never renew a key, so the equivalence run passes. A dedicated test records the divergence.
+- **CI:** `check-deps.sh` now also keeps `count-ops` off every protocol crate's normal dependency graph.
+- **Decisions added:** D-60 to D-64.
+- **Paper issues found:** P-28, P-29.

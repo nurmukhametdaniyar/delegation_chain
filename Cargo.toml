@@ -52,6 +52,24 @@ workspace = true
 [dependencies]
 dc-crypto = { workspace = true, features = ["blst-no-threads"] }
 
+[dev-dependencies]
+dc-cbor.workspace = true
+dc-chain = { workspace = true, features = ["test-hooks"] }
+dc-crypto = { workspace = true, features = ["blst-no-threads", "count-ops"] }
+dc-policy = { workspace = true, features = ["test-hooks"] }
+dc-registry = { workspace = true, features = ["test-hooks"] }
+dc-types.workspace = true
+dc-verifier = { workspace = true, features = ["count-ops", "test-hooks"] }
+rand_chacha.workspace = true
+rand_core.workspace = true
+serde_json.workspace = true
+
+# Dependencies (blst, dalek, …) are compiled optimized in dev and test builds,
+# so that the security suite's concurrency test runs in reasonable time.
+# Release and bench builds are unaffected.
+[profile.dev.package."*"]
+opt-level = 3
+
 [profile.release]
 opt-level = 3
 lto = "fat"

@@ -1,0 +1,32 @@
+{
+  "chains": 10000,
+  "events": {
+    "clock advance": 217,
+    "new pin": 1,
+    "revocation": 34,
+    "rotation": 49
+  },
+  "label": "SPEC §11.3 cache equivalence, warm state; test statistics",
+  "outcomes": {
+    "L02": 764,
+    "L08": 267,
+    "L09": 84,
+    "L11": 864,
+    "L13": 780,
+    "L15": 8,
+    "L17": 82,
+    "L18": 319,
+    "L20": 132,
+    "L23": 67,
+    "L27": 1134,
+    "L30": 723,
+    "L32": 93,
+    "L34": 402,
+    "L37": 1201,
+    "L41": 7,
+    "L43": 7,
+    "L49": 453,
+    "accept": 2613
+  },
+  "warm_cached_certificates_at_end": 66
+}

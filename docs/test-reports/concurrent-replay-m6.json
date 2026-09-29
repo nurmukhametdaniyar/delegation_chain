@@ -1,0 +1,12 @@
+{
+  "label": "SPEC §11.2 T3b concurrent replay (Theorem 5); test statistics",
+  "other_rejections": 0,
+  "rejected_at_line_17": 49638,
+  "rejected_at_line_50": 13362,
+  "rounds": 1000,
+  "rounds_by_accept_count": {
+    "1": 1000
+  },
+  "threads": 64,
+  "verifications": 64000
+}

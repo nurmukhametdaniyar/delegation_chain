@@ -7,10 +7,10 @@ Problems in the paper, _DelegationChain: Aggregatable Capability Chains for Cros
 | 2026-09-28 | 42 | `bd94cef24e50a5bfca09375ef495b54e07aeba986e8c5096a2fc0c329f62e81e` | until 2026-09-29 (commit `e223f05`) |
 | 2026-09-29 | 44 | `51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14` | current |
 
-- **Sources:** P-03 to P-14 come from SPEC Appendix C; P-01, P-02, P-04, P-11 and P-13 were resolved before 2026-09-28 and are not logged. P-15 to P-25 were found in the pre-M0 review (2026-09-28). P-26 was found while reconciling revision 2026-09-29, and P-27 during M4.
+- **Sources:** P-03 to P-14 come from SPEC Appendix C; P-01, P-02, P-04, P-11 and P-13 were resolved before 2026-09-28 and are not logged. P-15 to P-25 were found in the pre-M0 review (2026-09-28). P-26 was found while reconciling revision 2026-09-29, P-27 during M4, and P-28 and P-29 during M6.
 - **Status after revision 2026-09-29:**
   - resolved: P-03, P-07, P-09, P-10, P-14, and P-15 to P-25;
-  - open: P-05, P-06, P-08, P-12, P-26, P-27.
+  - open: P-05, P-06, P-08, P-12, P-26, P-27, P-28, P-29.
 - "Location" and "Evidence" below refer to revision 2026-09-28, where the issue was found. Each `Status` line says where revision 2026-09-29 addresses it.
 
 ---
@@ -268,4 +268,39 @@ Evidence: `docs/test-reports/policy-oracle-m4.json`, `misses_by_cause` (150,000 
 What the implementation does: The procedure as written, which is sound. The oracle reports the causes (D-58).
 Suggested fix to the paper: Extend Remark 1 to name dead child rules and step 3(b)'s single-rule, whole-clause skip test. Whether to refine the procedure, for example by skipping child rules whose clause is unsatisfiable, is for the author to decide.
 Severity: clarity (soundness is unaffected)
+Status: open in revision 2026-09-29.
+
+## P-28 — Cold verifiers pair before phase 8, because of line 24
+Paper location: §4.6 ("Figure 2 shows why the order matters … only a chain that has survived every structural, temporal, and policy check reaches the pairing computation"); Figure 2 and its caption; Algorithm 1 line 24 (revision 2026-09-29)
+Problem:
+- Line 24 verifies each signer's certificate under its registry root. With BLS roots, the paper's own scheme, that is a two-pairing check (hash-to-G2, two Miller loops, one final exponentiation).
+- Phase 5 precedes phase 6, so on a cold verifier a chain rejected by the policy checks (lines 30–37), and any chain that reaches phase 5, has already cost N + 1 pairing checks.
+- Figure 2 lists pairings only for phase 7 (receipts) and phase 8 (the aggregate).
+- The inputs this needs are public: bodies naming real identities and their certified keys, with any aggregate. So an adversary can make a cold verifier resolve and pair for every such chain.
+- A warm verifier, with the certificates cached, does not pair before phase 7, as Figure 2 says.
+Evidence: `tests/security.rs::phase_ordering_count_ops`, with `count-ops`.
+- A cold verifier rejects a line-34 chain with N = 2 after 3 signature verifications, 3 hash-to-G2, 6 Miller loops and 3 final exponentiations, all from line 24.
+- A warm verifier rejects the same chain with 0 pairings and 0 resolver calls.
+- The expired and wrong-audience chains are rejected with 0 pairings and 0 resolver calls, cold or warm.
+What the implementation does: The algorithm as written. The test asserts the actual counts (D-61).
+Suggested fix to the paper: State that the cheap-checks-first ordering bounds pairing work only for cached certificates. Account for line 24's verifications in Figure 2 (phase 5: "may query registry and verify certificates"). Note the cold-path cost in §8.2.
+Severity: clarity (a performance and denial-of-service claim; soundness is unaffected)
+Status: open in revision 2026-09-29.
+
+## P-29 — Revocation by serial, "most recent certificate" resolution, and caching disagree when a key is renewed
+Paper location: §5.4 (resolution returns the most recently issued certificate for an identifier and key; a revocation "immediately evicts the corresponding cached entry"); §5.6 (a revocation assertion names one certificate, by serial); §5.5 (revision 2026-09-29)
+Problem:
+- When a registry renews a certificate for the same key, one identifier–key binding has two unexpired certificates. That is the usual practice with short lifetimes.
+- A revocation assertion names one serial. If it names the renewal, resolution (which returns the most recent certificate) yields the revoked certificate, and a verifier that resolves afresh rejects.
+- A verifier that cached the older certificate still holds it. Eviction touches only the revoked serial, so it keeps accepting chains under that key until the older certificate expires or its cache TTL ends.
+- Caching therefore changes outcomes: §4.6 says caches change cost, "not, within the propagation bound of Section 5.6, their outcome", and this can last up to the one-hour TTL.
+- More generally, revoking one certificate does not revoke a compromised key that other certificates still bind.
+Evidence: `tests/cache_equivalence.rs::renewal_of_the_same_key_then_revocation_diverges`. The uncached verifier returns L27; the warm verifier accepts. The SPEC §11.3 equivalence run, whose events are revocations, expiry, new pins and new-key rotations, never renews a key, and found no divergence in 10,000 chains.
+What the implementation does: The paper as written. The divergence is documented by that test.
+Suggested fix to the paper: Author to decide. Options:
+- revoke by identifier and key rather than by serial;
+- require a registry to revoke every unexpired certificate of a binding when it revokes one;
+- forbid renewing a binding while an unexpired certificate for it exists;
+- have verifiers evict every cached entry for the binding a revoked serial belongs to. This needs the assertion to name the binding.
+Severity: soundness (a revoked renewal can leave the key accepted by caching verifiers; bounded by the cache TTL and the older certificate's expiry)
 Status: open in revision 2026-09-29.

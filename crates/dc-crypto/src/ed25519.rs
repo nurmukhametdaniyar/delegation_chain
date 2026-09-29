@@ -36,6 +36,7 @@ impl SigScheme for Ed25519 {
     }
 
     fn verify(pk: &VerifyingKey, msg: &[u8; 32], _dst: Dst, sig: &Signature) -> bool {
+        crate::ops::add(|c| c.sig_verifications += 1);
         pk.verify_strict(msg, sig).is_ok()
     }
 

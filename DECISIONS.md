@@ -543,3 +543,55 @@ Decision:
 - **`World`.** Keys, registry roots and registry nonce streams are derived from the world seed and a label, so a seed reproduces the whole world, including the envelope bytes (tested).
 Why: SPEC §8 fixes the roles, not these mechanics.
 Affects benchmarks: no. Chains are built outside every timed region. Q7's signing-side costs time the services' `sign`, `approve` and `issue`.
+
+## D-60 — Certificate resolution failures, and the certificate cache
+Spec section: §6.6, §10.1, §10.2     Paper section: Algorithm 1 lines 23–27; Algorithm 2 lines 41–42; §5.4
+Decision:
+- **Which line rejects what.** For position k:
+  - `L23` if the resolver returns nothing, or returns a certificate that does not bind `(sid(B_k), spk(B_k))` (wrong identifier or key). A certificate for another binding does not resolve this one.
+  - `L24` if the certificate is malformed (D-50), no root is configured for `org(sid)`, its signature does not verify under that root, or its key fails validation (D-05).
+  - For approvers, the same failures map to `L41` and `L42`. Lines 25–27 map to `L42` as well.
+- **Certificate cache.** Keyed by identifier, then key. An entry is stored after line 24 passes (D-37), and lives until `min(cert.exp, t + 3600 s)`. Lines 25–27 are re-checked on every use. Ingesting a revocation evicts every entry with that registry and serial. A verifier built with `VerifierConfig::uncached()` never caches, and serves as the reference for SPEC §11.3.
+- **Receipts.** Line 40 finds a required approver's receipt by binary search, since receipts are sorted (D-15). The invocation digest is computed only when an approval is required.
+Why: The paper names the checks, not the reject line for each way resolution can fail, nor the cache's key.
+Affects benchmarks: yes. The warm state depends on these cache rules.
+
+## D-61 — The phase-ordering row: cold line-34 rejections involve pairings
+Spec section: §11.2 "Phase ordering (Figure 2, count-ops)"     Paper section: §4.6, Figure 2 (P-28)
+Decision: For the line-34 case, SPEC expects 0 pairings. The test instead asserts the counts that actually occur:
+- 0 pairings for a warm verifier;
+- for a cold verifier, exactly N+1 certificate verifications and no aggregate or receipt check: for N = 2, 3 signature verifications, 3 hash-to-G2, 6 Miller loops, 3 final exponentiations.
+The expired-chain and wrong-audience cases assert 0 pairings and 0 resolver calls, as SPEC says, and pass on a cold verifier.
+Why: Line 24 verifies each certificate under its registry root, and in arms A and B that is a BLS verification. Phase 5 precedes phase 6, so a cold verifier has paired before it reaches line 34. Asserting 0 would make the test fail against a correct implementation of the paper. The discrepancy is the paper's claim, logged as P-28, and not a defect to hide. (SPEC §0 rule 10: this test's expectation changed, and this entry records why.)
+Affects benchmarks: yes, for the §13.11 claim "cheap checks reject hostile chains before any pairing". Its verdict must separate warm from cold.
+
+## D-62 — Nonce-cache eviction
+Spec section: §10.4     Paper section: §4.6, Theorem 5
+Decision:
+- Lookups evict an expired entry lazily, and only if it is still expired under the shard lock.
+- `insert_if_absent` treats an expired entry as absent.
+- The periodic sweep is a public method (`NonceCache::sweep`) that the host calls. It is never called inside `verify`, so a sweep does not land inside a timed verification and inflate p99. The benchmark harness sweeps between configurations.
+- Neither path evicts an unexpired entry; this is tested.
+- The key is the invoker key followed by the nonce, in one byte vector.
+Why: SPEC asks for a periodic sweep but does not say who runs it. Running it inside `verify` would put an occasional O(cache) cost into some measured calls, and would not be the same across arms with different call rates.
+Affects benchmarks: yes (Q6, Q10). It keeps sweep cost out of the latency samples.
+
+## D-63 — How `count-ops` counts
+Spec section: §10.3     Paper section: §4.6
+Decision:
+- Counters are thread-local; one verification runs on one thread (D-29). They are reset at the start of `verify_counted`.
+- Crypto operations are counted in `dc-crypto`, where it asks `blst` for the work, with the multiplicities `blst` performs:
+  - a single BLS verification: one hash-to-G2, two Miller loops and one final exponentiation;
+  - an aggregate over n messages: n hash-to-G2, n + 1 Miller loops and one final exponentiation.
+  - An Ed25519 verification counts one signature verification and nothing else.
+- Resolver calls, policy-store calls, `Contains` and `Evaluate` are counted by the verifier.
+- "Pairings" in the §11.2 rows means Miller loops plus final exponentiations.
+- The feature is off by default. `dc_crypto::ops::ENABLED` reports whether it is on, so that a benchmark harness can refuse an instrumented build.
+Why: `blst` exposes no counters, so counting at the call sites is the closest honest measure.
+Affects benchmarks: no. It is never enabled in timed runs (SPEC §10.3).
+
+## D-64 — Dependencies optimized in dev and test builds
+Spec section: §3.3     Paper section: not applicable
+Decision: `[profile.dev.package."*"] opt-level = 3`, so that `blst`, `dalek` and the other dependencies are optimized in `cargo test`. Workspace crates stay at the dev profile. Release and bench profiles are unchanged.
+Why: The security suite's 64-thread, 1,000-round replay test and the 10,000-chain equivalence test would otherwise take minutes.
+Affects benchmarks: no

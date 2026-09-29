@@ -52,6 +52,12 @@ impl SigScheme for Bls {
     }
 
     fn verify(pk: &PublicKey, msg: &[u8; 32], dst: Dst, sig: &Signature) -> bool {
+        crate::ops::add(|c| {
+            c.sig_verifications += 1;
+            c.hash_to_curve += 1;
+            c.miller_loops += 2;
+            c.final_exps += 1;
+        });
         // Both points were validated when they were parsed (D-05, D-30).
         sig.verify(false, msg, dst.bls(), &[], pk, false) == BLST_ERROR::BLST_SUCCESS
     }
@@ -103,6 +109,12 @@ impl ChainScheme for BlsAggregate {
         if pks.is_empty() || pks.len() != msgs.len() {
             return false;
         }
+        crate::ops::add(|c| {
+            c.sig_verifications += 1;
+            c.hash_to_curve += msgs.len() as u64;
+            c.miller_loops += msgs.len() as u64 + 1;
+            c.final_exps += 1;
+        });
         let msgs: Vec<&[u8]> = msgs.iter().map(|m| &m[..]).collect();
         // σ_agg was validated at decode and the keys when their certificates
         // were cached, so neither is re-checked here (D-05, D-30). blst does
