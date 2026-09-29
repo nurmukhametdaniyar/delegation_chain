@@ -152,7 +152,7 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
 - **Tests:** 18 fixed tests and 2 property tests (the oracle, and text/CBOR round trips).
   - The fixed tests cover: the §6.2 example verbatim and its five SPEC decisions; Remark 1; reflexivity, including the recommended order; the D-24 special forms; step-3(b) approval retention; every well-formedness rule and size limit; AST-level rules; strict policy decoding; lexical details; contextual keywords; closed-world evaluation and `under`.
   - **P-15 regression.** The child scope, the parent-side variant and a bool-tautology variant are all rejected as malformed, from text and from CBOR. With the check off (`test-hooks`), the pre-review procedure returns true on both P-15 pairs, and a concrete invocation shows each is not contained. With the check on, `contains` refuses both.
-- **Differential oracle, M4 record run** (release build; seed 56324; statistics generated into `docs/test-reports/policy-oracle-m4.json`, figures below copied from it):
+- **Differential oracle, first M4 record run** (release build; seed 56324; superseded by the 64-shard re-run under "M4 follow-up" below, because shard seeds then depended on the core count; statistics generated into `docs/test-reports/policy-oracle-m4.json`, figures below copied from it):
   - cases: 150000; well-formed pairs: 108133.
   - Malformed scopes rejected: 49802, all as independently predicted. The generator produced 54030 undeclared-path atoms and 8385 non-canonical `under` literals.
   - soundness violations: 0; reflexivity failures: 0 of 250198 checks.
@@ -166,3 +166,26 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
 - **CI:** the extended profile (150,000 pairs, plus 150,000 cases per type) now runs in `scripts/ci.sh` and in the workflow.
 - **Decisions added:** D-55 (at the reconciliation), D-56, D-57, D-58.
 - **Paper issues found:** none new. P-08's entry now records the measured string completeness.
+
+## M4 follow-up (2026-09-29)
+
+- **Reproducibility:** the oracle now uses 64 fixed shards on a thread pool (D-58). The record run was repeated with 14 threads and with 3 threads, and the reports matched apart from elapsed time. `docs/test-reports/policy-oracle-m4.json` was replaced with this run.
+- **Record run** (seed 56324; figures generated from the JSON):
+  - cases 150000; well-formed pairs 108370;
+  - soundness violations 0; reflexivity failures 0 of 250533.
+  - `Contains` completeness: 0.920 (47822/51998) overall, and 0.999 (36156/36188) when S2 has no unsatisfiable rule.
+  - `implies`/`unsat` by type:
+    - int: 1.000 (78059/78059) / 1.000 (61273/61273);
+    - bool: 1.000 (93335/93335) / 1.000 (54708/54708);
+    - string with a finite set: 1.000 (53123/53123) / 1.000 (51099/51099);
+    - string without: 0.838 (13718/16367) / 0.740 (8762/11843), and against the richer string set 0.914 (13718/15014) / 0.848 (8762/10328).
+- **Miss causes** (4176 misses):
+  - unsatisfiable child rule: 4138;
+  - child rule fully shadowed: 23;
+  - step 3(b): 11, all with the joint region decided by earlier child rules;
+  - string implication: 3 (1 holding on the richer string set, 2 artifacts);
+  - union of rules (Remark 1): 1;
+  - int/bool anomalies: 0.
+  Step 3(b) is a measurable share (11 of the 38 misses that remain once unsatisfiable child rules are excluded), so it is logged as P-27, together with dead child rules.
+- **String rules:** each sound rule in `logic.rs` (`StrC::unsat`, `StrC::implies`) now carries its one-line soundness argument.
+- **Paper issues found:** P-27.

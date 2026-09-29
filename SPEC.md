@@ -1423,6 +1423,7 @@ Configurations re-run: <list>
 - **P-06. Encodings of auxiliary structures are unspecified.** DSTs, field numbering and encodings for PoP challenges, receipts, certificates and revocation assertions are left open, deliberately (§4). The choices are D-04, D-07 and D-09. The InvocationDigest tag is now fixed by §4.5.
 - **P-08. "Closed-form" implication and satisfiability for strings is not established.** §6.4 calls the per-atom checks closed-form. Exactness for mixed `starts_with`/`ends_with`/`contains`/`under` constraints without a finite set is not shown. The implementation is sound but incomplete there (§9.5).
 - **P-12. Signing-service enforcement is unspecified.** The signing service "applies policy enforcement before signing" (§3.1), but the checks it performs are not specified.
+- **P-27. Remark 1 understates where containment is incomplete** (found at M4). Beyond unions, dead child rules (unsatisfiable, or fully shadowed) and step 3(b)'s single-rule, whole-clause skip test also cause misses, and in the M4 oracle they account for almost all of them.
 - **P-26. Line 27 does not state its boundary.** "Not yet valid, expired" does not say whether validity is closed at `nbf` and `exp`, while lines 13 and 44 use closed intervals. The implementation uses the closed interval (D-35). Found in revision 2026-09-29.
 
 **Resolved in revision 2026-09-29** (logged at M0, then marked resolved):
@@ -1446,4 +1447,4 @@ Configurations re-run: <list>
 
 **Resolved before 2026-09-28.** Not logged; listed so the numbering stays stable: P-01 (line 9), P-02 (line 11), P-04 (`issuer_pk`, resolution by key), P-11 (line 41 uses the approver's key), P-13 (containment step 2).
 
-Add new entries (from P-27) as you find them. Finding them is part of the job.
+Add new entries (from P-28) as you find them. Finding them is part of the job.

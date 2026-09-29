@@ -521,8 +521,14 @@ Decision:
 - **Validator check:** for every generated scope, the test computes independently whether it is malformed (an atom on an undeclared path, or `under` with a non-canonical literal), and asserts that the validator agrees.
 - **Oracle:** Definition 1, over the invocations that can match one of S2's rule heads, which is complete for a rule-list S2. For S2 = `allow all`, every invocation is checked, including two shapes no rule can declare.
 - **Per-type check:** `implies`/`unsat` are tested against each type's enumerated domain. Strings are also tested against a richer domain (concatenations of up to three constants). Soundness must hold against both; completeness is reported against both, because the SPEC domain is small enough to make some implications look true that are false.
-- **Determinism:** runs are seeded (`DC_ORACLE_SEED`), sharded across cores, and write their statistics to JSON (`DC_ORACLE_REPORT`). Each shard is seeded from its index, so a run is reproducible for a given seed and core count (the M4 record run was repeated on this 14-core machine and matched, apart from elapsed time), but not across machines with different core counts.
+- **Determinism:** the work is split into 64 shards, each seeded from `DC_ORACLE_SEED` and its index, and scheduled on a pool of `DC_ORACLE_THREADS` threads (default: all cores). The statistics are sums, so a run reproduces for a given seed on any machine and with any thread count. The record run was repeated with 14 threads and with 3, and matched apart from elapsed time. Reports are written to JSON (`DC_ORACLE_REPORT`).
 - **Scale:** the extended CI profile runs 150,000 pairs and 150,000 `implies`/`unsat` cases per type. Plain `cargo test` runs 4,096 pairs.
+- **Miss causes:** every miss (the oracle says contained, `Contains` says no) is replayed step by step to find where the procedure returns false; the test asserts the replay agrees with `contains`. The miss is then attributed:
+  - an unsatisfiable, or fully or partly shadowed, child rule that step 3(a) still requires to be subsumed;
+  - a child rule covered only by a union of parent rules (Remark 1);
+  - step-3(b) conservatism, split by whether the jointly matched invocations are decided by earlier child rules or earlier parent rules;
+  - string implication, split by whether the implication still holds on the richer string set.
+  Attribution uses semantic `implies`/`unsat` over the enumerated domain, per path.
 - **Teeth:** before the M4 record run, three bugs were planted one at a time and each was caught: dropping the step-3(b) approval check, an off-by-one in integer implication, and a reversed `under` prefix test.
 Why: SPEC §9.7 fixes the universe and the assertions but not how pairs are generated. Random independent pairs are almost never contained, which would leave soundness under-tested and make completeness meaningless.
 Affects benchmarks: no

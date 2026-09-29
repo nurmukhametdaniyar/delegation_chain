@@ -31,11 +31,11 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
 use dc_cbor::{INT_MAX, INT_MIN, Key, Value};
-use dc_policy::logic::{implies_path, unsat_path};
+use dc_policy::logic::{implies as logic_implies, implies_path, unsat as logic_unsat, unsat_path};
 use dc_policy::validate::is_canonical_abs;
 use dc_policy::{
     Atom, Decision, Declaration, Invocation, Leaf, Literal, Op, Operand, Rule, Scope, ScopeForm,
-    Type, atom_holds, contains, evaluate,
+    Type, atom_holds, contains, evaluate, subsumes,
 };
 use dc_types::{Identifier, Principal};
 use proptest::collection::vec;
@@ -459,6 +459,308 @@ fn counterexample(s1: &Scope, s2: &Scope) -> Option<String> {
     }
 }
 
+// ---------------------------------------------------------------- miss causes
+
+/// Where `Contains` first returns false, replayed step by step through the
+/// public API (`subsumes`, `logic::unsat`, `logic::implies`), mirroring the
+/// procedure of paper §6.4. The test asserts that the replay agrees with
+/// `contains` on every pair.
+#[derive(Clone, Copy, Debug)]
+enum Failure {
+    /// S2 is `allow all`, or S1 is `deny all` against rules.
+    SpecialForm,
+    /// Step 3(a): no rule of S1 subsumes S2's rule `j`.
+    NoSubsumer { j: usize },
+    /// Step 3(b): S1's rule `ip`, before the subsuming rule, blocks S2's rule `j`.
+    Blocked { j: usize, ip: usize },
+}
+
+fn rules_of(s: &Scope) -> &[Rule] {
+    match s.form() {
+        ScopeForm::Rules(r) => r,
+        _ => &[],
+    }
+}
+
+fn atoms_of(r: &Rule) -> Vec<&Atom> {
+    r.atoms.iter().collect()
+}
+
+fn trace(s1: &Scope, s2: &Scope) -> Option<Failure> {
+    match (s1.form(), s2.form()) {
+        (ScopeForm::AllowAll, _) | (_, ScopeForm::DenyAll) => return None,
+        (_, ScopeForm::AllowAll) | (ScopeForm::DenyAll, _) => return Some(Failure::SpecialForm),
+        _ => {}
+    }
+    let (r1s, r2s) = (rules_of(s1), rules_of(s2));
+    for (j, r2) in r2s.iter().enumerate() {
+        let Some(i1) = r1s.iter().position(|r1| subsumes(r1, r2)) else {
+            return Some(Failure::NoSubsumer { j });
+        };
+        for (ip, rp) in r1s[..i1].iter().enumerate() {
+            if !rp.same_head(r2) {
+                continue;
+            }
+            let joint: Vec<&Atom> = rp.atoms.iter().chain(&r2.atoms).collect();
+            if logic_unsat(&r2.params, &joint) {
+                continue;
+            }
+            let shadowed = r2s[..j].iter().any(|r2p| {
+                r2p.same_head(rp) && logic_implies(&rp.params, &atoms_of(rp), &atoms_of(r2p))
+            });
+            if !shadowed && !rp.approval.is_subset(&r2.approval) {
+                return Some(Failure::Blocked { j, ip });
+            }
+        }
+    }
+    None
+}
+
+/// Values of a path type: the SPEC enumeration, or (strings only) the richer
+/// one.
+fn leaves(ty: Type, extended: bool) -> Vec<Leaf<'static>> {
+    let u = universe();
+    match ty {
+        Type::Int => u.ints.iter().map(|n| Leaf::Int(*n)).collect(),
+        Type::Bool => vec![Leaf::Bool(false), Leaf::Bool(true)],
+        Type::String if extended => u.strs3.iter().map(|s| Leaf::Str(s)).collect(),
+        Type::String => u.strs.iter().map(|s| Leaf::Str(s)).collect(),
+    }
+}
+
+fn sat_on_path(ty: Type, atoms: &[&Atom], extended: bool) -> Vec<Leaf<'static>> {
+    leaves(ty, extended)
+        .into_iter()
+        .filter(|v| atoms.iter().all(|a| atom_holds(a, v)))
+        .collect()
+}
+
+/// Semantic `unsat` and `implies` over the enumerated domain. A head's
+/// invocations are the product of its paths' domains, so both factor per
+/// path.
+fn sem_unsat(decl: &Declaration, atoms: &[&Atom], extended: bool) -> bool {
+    decl.iter().any(|(p, ty)| {
+        let here: Vec<&Atom> = atoms.iter().copied().filter(|a| a.path == *p).collect();
+        !here.is_empty() && sat_on_path(*ty, &here, extended).is_empty()
+    })
+}
+
+fn sem_implies(decl: &Declaration, c2: &[&Atom], c1: &[&Atom], extended: bool) -> bool {
+    if sem_unsat(decl, c2, extended) {
+        return true;
+    }
+    c1.iter().all(|b| {
+        let here: Vec<&Atom> = c2.iter().copied().filter(|a| a.path == b.path).collect();
+        sat_on_path(decl[&b.path], &here, extended)
+            .iter()
+            .all(|v| atom_holds(b, v))
+    })
+}
+
+/// Does any of these rules constrain a string path without an `==`/`in`?
+fn has_open_string(rules: &[&Rule]) -> bool {
+    rules.iter().any(|r| {
+        r.atoms.iter().any(|a| {
+            r.params.get(&a.path) == Some(&Type::String)
+                && !r
+                    .atoms
+                    .iter()
+                    .any(|b| b.path == a.path && matches!(b.op, Op::Eq | Op::In))
+        })
+    })
+}
+
+fn matches(r: &Rule, params: &Value) -> bool {
+    let single = Scope::new(ScopeForm::Rules(vec![r.clone()])).expect("well-formed rule");
+    eval(&single, &r.at, &r.tool, params) != Decision::Deny
+}
+
+/// The enumerated invocations of `r`'s head.
+fn head_domain(r: &Rule) -> &'static [Value] {
+    &universe().by_mask[mask_of(&r.params) as usize]
+}
+
+/// Do earlier rules with the same head match? Only those can match the same
+/// invocations, since the declaration fixes the shape.
+fn earlier_matches(rules: &[Rule], k: usize, params: &Value) -> bool {
+    rules[..k]
+        .iter()
+        .any(|e| e.same_head(&rules[k]) && matches(e, params))
+}
+
+#[derive(Default)]
+struct Misses {
+    total: AtomicU64,
+    union: AtomicU64,
+    step_3b_child_cover: AtomicU64,
+    step_3b_parent_shadow: AtomicU64,
+    step_3b_both: AtomicU64,
+    string_confirmed: AtomicU64,
+    string_artifact: AtomicU64,
+    unsat_child: AtomicU64,
+    shadowed_child: AtomicU64,
+    partly_shadowed_child: AtomicU64,
+    exact_type_anomaly: AtomicU64,
+}
+
+enum Cause {
+    Union,
+    Step3b {
+        child_cover: bool,
+        parent_shadow: bool,
+    },
+    StringImplication {
+        confirmed: bool,
+    },
+    /// The child rule can never match: its clause is unsatisfiable, or S2 is
+    /// a rule list under a `deny all` parent that accepts nothing.
+    UnsatChild,
+    /// The child rule is satisfiable but every invocation it matches is
+    /// decided by an earlier child rule.
+    ShadowedChild,
+    PartlyShadowedChild,
+    ExactTypeAnomaly,
+}
+
+impl Misses {
+    fn record(&self, c: Cause) {
+        self.total.fetch_add(1, Relaxed);
+        let slot = match c {
+            Cause::Union => &self.union,
+            Cause::Step3b {
+                child_cover: true,
+                parent_shadow: false,
+            } => &self.step_3b_child_cover,
+            Cause::Step3b {
+                child_cover: false,
+                parent_shadow: true,
+            } => &self.step_3b_parent_shadow,
+            Cause::Step3b { .. } => &self.step_3b_both,
+            Cause::StringImplication { confirmed: true } => &self.string_confirmed,
+            Cause::StringImplication { confirmed: false } => &self.string_artifact,
+            Cause::UnsatChild => &self.unsat_child,
+            Cause::ShadowedChild => &self.shadowed_child,
+            Cause::PartlyShadowedChild => &self.partly_shadowed_child,
+            Cause::ExactTypeAnomaly => &self.exact_type_anomaly,
+        };
+        slot.fetch_add(1, Relaxed);
+    }
+
+    fn json(&self) -> serde_json::Value {
+        let g = |a: &AtomicU64| a.load(Relaxed);
+        let step3b =
+            g(&self.step_3b_child_cover) + g(&self.step_3b_parent_shadow) + g(&self.step_3b_both);
+        serde_json::json!({
+            "total": g(&self.total),
+            "union of rules (Remark 1)": g(&self.union),
+            "step 3(b) conservatism": {
+                "total": step3b,
+                "joint region decided by earlier child rules": g(&self.step_3b_child_cover),
+                "joint region decided by earlier parent rules": g(&self.step_3b_parent_shadow),
+                "both": g(&self.step_3b_both),
+            },
+            "string implication": {
+                "total": g(&self.string_confirmed) + g(&self.string_artifact),
+                "still holds on the richer string set": g(&self.string_confirmed),
+                "artifact of the SPEC string set": g(&self.string_artifact),
+            },
+            "other": {
+                "child rule unsatisfiable": g(&self.unsat_child),
+                "child rule fully shadowed by earlier child rules": g(&self.shadowed_child),
+                "child rule partly shadowed by earlier child rules": g(&self.partly_shadowed_child),
+                "int/bool implication anomaly (expected 0)": g(&self.exact_type_anomaly),
+            },
+        })
+    }
+}
+
+/// Assigns a miss (the oracle says contained, `Contains` says no) to a cause.
+fn classify(s1: &Scope, s2: &Scope, failure: Failure) -> Cause {
+    let (r1s, r2s) = (rules_of(s1), rules_of(s2));
+    match failure {
+        // S1 = deny all against rules is contained only if S2 accepts nothing.
+        Failure::SpecialForm => Cause::UnsatChild,
+        Failure::NoSubsumer { j } => {
+            let r2 = &r2s[j];
+            let live: Vec<&Value> = head_domain(r2)
+                .iter()
+                .filter(|p| matches(r2, p) && !earlier_matches(r2s, j, p))
+                .collect();
+            if live.is_empty() {
+                return if sem_unsat(&r2.params, &atoms_of(r2), false) {
+                    Cause::UnsatChild
+                } else {
+                    Cause::ShadowedChild
+                };
+            }
+            let candidates: Vec<&Rule> = r1s
+                .iter()
+                .filter(|r1| r1.same_head(r2) && r1.approval.is_subset(&r2.approval))
+                .collect();
+            // A single parent rule semantically subsumes the whole child rule,
+            // but `implies` said no.
+            if let Some(r1) = candidates
+                .iter()
+                .find(|r1| sem_implies(&r2.params, &atoms_of(r2), &atoms_of(r1), false))
+            {
+                if !has_open_string(&[r1, r2]) {
+                    return Cause::ExactTypeAnomaly;
+                }
+                let confirmed = sem_implies(&r2.params, &atoms_of(r2), &atoms_of(r1), true);
+                return Cause::StringImplication { confirmed };
+            }
+            // A single parent rule covers the part of the child rule that is
+            // not shadowed, but not the whole rule.
+            if candidates
+                .iter()
+                .any(|r1| live.iter().all(|p| matches(r1, p)))
+            {
+                return Cause::PartlyShadowedChild;
+            }
+            Cause::Union
+        }
+        Failure::Blocked { j, ip } => {
+            let (r2, rp) = (&r2s[j], &r1s[ip]);
+            // The skip test (r′ implies some earlier r2′) holds semantically,
+            // but `implies` missed it.
+            let skip = r2s[..j].iter().find(|r2p| {
+                r2p.same_head(rp) && sem_implies(&rp.params, &atoms_of(rp), &atoms_of(r2p), false)
+            });
+            let joint: Vec<&Atom> = rp.atoms.iter().chain(&r2.atoms).collect();
+            if skip.is_some() || sem_unsat(&r2.params, &joint, false) {
+                let mut involved: Vec<&Rule> = vec![rp, r2];
+                involved.extend(skip);
+                if !has_open_string(&involved) {
+                    return Cause::ExactTypeAnomaly;
+                }
+                let confirmed = match skip {
+                    Some(r2p) => sem_implies(&rp.params, &atoms_of(rp), &atoms_of(r2p), true),
+                    None => sem_unsat(&r2.params, &joint, true),
+                };
+                return Cause::StringImplication { confirmed };
+            }
+            // The joint region is non-empty, yet (the pair being contained) no
+            // invocation in it is decided by both r′ and r2. Record who decides
+            // it instead.
+            let (mut child_cover, mut parent_shadow) = (false, false);
+            for p in head_domain(r2)
+                .iter()
+                .filter(|p| matches(rp, p) && matches(r2, p))
+            {
+                if earlier_matches(r2s, j, p) {
+                    child_cover = true;
+                } else if earlier_matches(r1s, ip, p) {
+                    parent_shadow = true;
+                }
+            }
+            Cause::Step3b {
+                child_cover,
+                parent_shadow,
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------- statistics
 
 #[derive(Default)]
@@ -502,7 +804,11 @@ struct Stats {
     soundness_violations: AtomicU64,
     reflexivity_failures: AtomicU64,
     overall: Counter,
+    /// Pairs whose S2 has no unsatisfiable rule: closer to real policies,
+    /// which do not contain contradictions.
+    overall_satisfiable_children: Counter,
     by_category: [Counter; 6],
+    misses: Misses,
 }
 
 const CATEGORIES: [&str; 6] = [
@@ -564,14 +870,37 @@ fn runner(seed: u64, shard: u64, cases: u32) -> TestRunner {
     TestRunner::new_with_rng(config, TestRng::from_seed(RngAlgorithm::ChaCha, &bytes))
 }
 
-fn shards(total: u64) -> Vec<(u64, u32)> {
-    let n = std::thread::available_parallelism()
-        .map(|n| n.get() as u64)
-        .unwrap_or(4)
-        .max(1);
-    (0..n)
-        .map(|i| (i, (total / n + u64::from(i < total % n)) as u32))
-        .collect()
+/// Work is split into a fixed number of shards, each with its own seed, and
+/// the shards are scheduled on a pool of `DC_ORACLE_THREADS` threads (default:
+/// all cores). Statistics are sums, so a run reproduces for a given seed
+/// whatever the thread count or machine (D-58).
+const SHARDS: u64 = 64;
+
+fn run_sharded(total: u64, work: impl Fn(u64, u32) + Sync) {
+    let threads = env_u64(
+        "DC_ORACLE_THREADS",
+        std::thread::available_parallelism()
+            .map(|n| n.get() as u64)
+            .unwrap_or(4),
+    )
+    .max(1);
+    let next = AtomicU64::new(0);
+    std::thread::scope(|scope| {
+        for _ in 0..threads {
+            scope.spawn(|| {
+                loop {
+                    let shard = next.fetch_add(1, Relaxed);
+                    if shard >= SHARDS {
+                        break;
+                    }
+                    let cases = total / SHARDS + u64::from(shard < total % SHARDS);
+                    if cases > 0 {
+                        work(shard, cases as u32);
+                    }
+                }
+            });
+        }
+    });
 }
 
 // ---------------------------------------------------------------- the tests
@@ -600,10 +929,10 @@ fn logic_check(ty_index: usize, stats: &[LogicStats; 4], seed: u64, total: u64) 
         Type::String => u.strs3.iter().map(|s| Leaf::Str(s)).collect(),
         _ => vec![],
     };
-    std::thread::scope(|scope| {
-        for (shard, cases) in shards(total) {
-            let (domain, extended) = (&domain, &extended);
-            scope.spawn(move || {
+    let (domain, extended) = (&domain, &extended);
+    run_sharded(total, |shard, cases| {
+        {
+            {
                 let mut r = runner(seed ^ 0x1061c, shard + 64 * ty_index as u64, cases);
                 let strategy = (vec(atom_for(ty_index), 0..=4), atom_for(ty_index));
                 r.run(&strategy, |(c, b)| {
@@ -647,7 +976,7 @@ fn logic_check(ty_index: usize, stats: &[LogicStats; 4], seed: u64, total: u64) 
                     Ok(())
                 })
                 .unwrap();
-            });
+            }
         }
     });
 }
@@ -659,10 +988,10 @@ fn differential_oracle() {
     let stats = Stats::default();
     let start = std::time::Instant::now();
 
-    std::thread::scope(|scope| {
-        for (shard, cases) in shards(total) {
-            let stats = &stats;
-            scope.spawn(move || {
+    let stats = &stats;
+    run_sharded(total, |shard, cases| {
+        {
+            {
                 let mut r = runner(seed, shard, cases);
                 r.run(&pair(), |(f1, f2)| {
                     stats.cases.fetch_add(1, Relaxed);
@@ -711,13 +1040,27 @@ fn differential_oracle() {
                         s1,
                         s2
                     );
+                    // The instrumented replay must agree with the procedure.
+                    let failure = trace(s1, s2);
+                    prop_assert_eq!(failure.is_none(), claimed, "trace disagrees with contains");
                     let contained = ce.is_none();
                     stats.overall.record(contained, claimed);
+                    if !rules_of(s2)
+                        .iter()
+                        .any(|r| sem_unsat(&r.params, &atoms_of(r), false))
+                    {
+                        stats
+                            .overall_satisfiable_children
+                            .record(contained, claimed);
+                    }
                     stats.by_category[category([s1.form(), s2.form()])].record(contained, claimed);
+                    if contained && !claimed {
+                        stats.misses.record(classify(s1, s2, failure.unwrap()));
+                    }
                     Ok(())
                 })
                 .unwrap();
-            });
+            }
         }
     });
 
@@ -765,6 +1108,8 @@ fn differential_oracle() {
             "soundness_violations": stats.soundness_violations.load(Relaxed),
             "completeness_overall": stats.overall.json(),
             "completeness_by_category": by_category,
+            "completeness_when_no_child_rule_is_unsatisfiable": stats.overall_satisfiable_children.json(),
+            "misses_by_cause": stats.misses.json(),
         },
         "implies_unsat_by_type": logic_json,
         "enumeration": {

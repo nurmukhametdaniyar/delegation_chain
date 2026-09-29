@@ -3,51 +3,77 @@
     "cases": 150000,
     "completeness_by_category": {
       "bool": {
-        "completeness": 0.9377889869693148,
-        "oracle_true": 4758,
-        "procedure_true": 4462
+        "completeness": 0.9379064401090833,
+        "oracle_true": 4767,
+        "procedure_true": 4471
       },
       "int": {
-        "completeness": 0.9295061207260448,
-        "oracle_true": 4738,
-        "procedure_true": 4404
+        "completeness": 0.9268659926865993,
+        "oracle_true": 4649,
+        "procedure_true": 4309
       },
       "mixed": {
-        "completeness": 0.8586504494030318,
-        "oracle_true": 22363,
-        "procedure_true": 19202
+        "completeness": 0.8555585129979594,
+        "oracle_true": 22542,
+        "procedure_true": 19286
       },
       "no atoms": {
-        "completeness": 0.9996249531191399,
-        "oracle_true": 15998,
-        "procedure_true": 15992
+        "completeness": 0.9996875585827657,
+        "oracle_true": 16003,
+        "procedure_true": 15998
       },
       "string, finite set": {
-        "completeness": 0.8800193517174649,
-        "oracle_true": 2067,
-        "procedure_true": 1819
+        "completeness": 0.8960038517091959,
+        "oracle_true": 2077,
+        "procedure_true": 1861
       },
       "string, no finite set": {
-        "completeness": 0.9677906391545043,
-        "oracle_true": 1987,
-        "procedure_true": 1923
+        "completeness": 0.9678571428571429,
+        "oracle_true": 1960,
+        "procedure_true": 1897
       }
     },
     "completeness_overall": {
-      "completeness": 0.9208452929051646,
-      "oracle_true": 51911,
-      "procedure_true": 47802
+      "completeness": 0.9196892188161083,
+      "oracle_true": 51998,
+      "procedure_true": 47822
     },
-    "contains_true": 47802,
-    "malformed_scopes_rejected": 49802,
-    "noncanonical_under_generated": 8385,
-    "reflexivity_checks": 250198,
+    "completeness_when_no_child_rule_is_unsatisfiable": {
+      "completeness": 0.9991157289709296,
+      "oracle_true": 36188,
+      "procedure_true": 36156
+    },
+    "contains_true": 47822,
+    "malformed_scopes_rejected": 49467,
+    "misses_by_cause": {
+      "other": {
+        "child rule fully shadowed by earlier child rules": 23,
+        "child rule partly shadowed by earlier child rules": 0,
+        "child rule unsatisfiable": 4138,
+        "int/bool implication anomaly (expected 0)": 0
+      },
+      "step 3(b) conservatism": {
+        "both": 0,
+        "joint region decided by earlier child rules": 11,
+        "joint region decided by earlier parent rules": 0,
+        "total": 11
+      },
+      "string implication": {
+        "artifact of the SPEC string set": 2,
+        "still holds on the richer string set": 1,
+        "total": 3
+      },
+      "total": 4176,
+      "union of rules (Remark 1)": 1
+    },
+    "noncanonical_under_generated": 8374,
+    "reflexivity_checks": 250533,
     "reflexivity_failures": 0,
     "soundness_violations": 0,
-    "undeclared_path_atoms_generated": 54030,
-    "wellformed_pairs": 108133
+    "undeclared_path_atoms_generated": 53635,
+    "wellformed_pairs": 108370
   },
-  "elapsed_seconds": 5.349676291,
+  "elapsed_seconds": 6.360537792,
   "enumeration": {
     "ints": 17,
     "invocations_per_audience_tool": 12152,
@@ -59,8 +85,8 @@
       "cases": 150000,
       "implies": {
         "completeness": 1.0,
-        "oracle_true": 93525,
-        "procedure_true": 93525
+        "oracle_true": 93335,
+        "procedure_true": 93335
       },
       "implies_against_extended_strings": {
         "completeness": null,
@@ -70,8 +96,8 @@
       "soundness_violations": 0,
       "unsat": {
         "completeness": 1.0,
-        "oracle_true": 54941,
-        "procedure_true": 54941
+        "oracle_true": 54708,
+        "procedure_true": 54708
       },
       "unsat_against_extended_strings": {
         "completeness": null,
@@ -83,8 +109,8 @@
       "cases": 150000,
       "implies": {
         "completeness": 1.0,
-        "oracle_true": 77688,
-        "procedure_true": 77688
+        "oracle_true": 78059,
+        "procedure_true": 78059
       },
       "implies_against_extended_strings": {
         "completeness": null,
@@ -94,8 +120,8 @@
       "soundness_violations": 0,
       "unsat": {
         "completeness": 1.0,
-        "oracle_true": 60889,
-        "procedure_true": 60889
+        "oracle_true": 61273,
+        "procedure_true": 61273
       },
       "unsat_against_extended_strings": {
         "completeness": null,
@@ -104,51 +130,51 @@
       }
     },
     "string, finite set": {
-      "cases": 65862,
+      "cases": 65479,
       "implies": {
         "completeness": 1.0,
-        "oracle_true": 53606,
-        "procedure_true": 53606
+        "oracle_true": 53123,
+        "procedure_true": 53123
       },
       "implies_against_extended_strings": {
         "completeness": 1.0,
-        "oracle_true": 53606,
-        "procedure_true": 53606
+        "oracle_true": 53123,
+        "procedure_true": 53123
       },
       "soundness_violations": 0,
       "unsat": {
         "completeness": 1.0,
-        "oracle_true": 51565,
-        "procedure_true": 51565
+        "oracle_true": 51099,
+        "procedure_true": 51099
       },
       "unsat_against_extended_strings": {
         "completeness": 1.0,
-        "oracle_true": 51565,
-        "procedure_true": 51565
+        "oracle_true": 51099,
+        "procedure_true": 51099
       }
     },
     "string, no finite set": {
-      "cases": 72121,
+      "cases": 72628,
       "implies": {
-        "completeness": 0.8412932571147581,
-        "oracle_true": 16269,
-        "procedure_true": 13687
+        "completeness": 0.8381499358465204,
+        "oracle_true": 16367,
+        "procedure_true": 13718
       },
       "implies_against_extended_strings": {
-        "completeness": 0.9191457927607279,
-        "oracle_true": 14891,
-        "procedure_true": 13687
+        "completeness": 0.9136805648061809,
+        "oracle_true": 15014,
+        "procedure_true": 13718
       },
       "soundness_violations": 0,
       "unsat": {
-        "completeness": 0.7429227237949503,
-        "oracle_true": 11763,
-        "procedure_true": 8739
+        "completeness": 0.7398463227222832,
+        "oracle_true": 11843,
+        "procedure_true": 8762
       },
       "unsat_against_extended_strings": {
-        "completeness": 0.8550880626223092,
-        "oracle_true": 10220,
-        "procedure_true": 8739
+        "completeness": 0.8483733539891557,
+        "oracle_true": 10328,
+        "procedure_true": 8762
       }
     }
   },

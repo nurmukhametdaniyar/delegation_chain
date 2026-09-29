@@ -222,6 +222,10 @@ impl<'a> StrC<'a> {
     }
 
     /// With a finite set: the members that satisfy every atom.
+    ///
+    /// Exact. An `==` or `in` atom holds only for members of its set, so
+    /// every satisfying value lies in the intersection E; filtering E by
+    /// every atom yields precisely the satisfying values.
     fn admissible(&self) -> Option<Vec<&'a str>> {
         let e = self.e.as_ref()?;
         Some(
@@ -232,43 +236,78 @@ impl<'a> StrC<'a> {
         )
     }
 
+    /// Returns true only when no string satisfies every atom. Each rule below
+    /// states why it can never say `true` for a satisfiable conjunction.
+    ///
+    /// A fact used twice: if `v under q` holds, then `v` starts with `q` as a
+    /// string. `v` is canonical, and `segments(q)` is a prefix of
+    /// `segments(v)`, so `v` is `q`, or `q/…`, or (for `q = "/"`) some path
+    /// beginning with `/`.
     fn unsat(&self) -> bool {
+        // Finite set: exact (see `admissible`).
         if let Some(a) = self.admissible() {
             return a.is_empty();
         }
-        let pairs = |v: &[&str], ok: &dyn Fn(&str, &str) -> bool| {
+        let prefix_compatible = |x: &str, y: &str| x.starts_with(y) || y.starts_with(x);
+        let incompatible_pair = |v: &[&str], ok: &dyn Fn(&str, &str) -> bool| {
             v.iter()
                 .enumerate()
                 .any(|(i, x)| v[i + 1..].iter().any(|y| !ok(x, y)))
         };
-        let prefix_compatible = |x: &str, y: &str| x.starts_with(y) || y.starts_with(x);
-        pairs(&self.p, &prefix_compatible)
-            || pairs(&self.s, &|x, y| x.ends_with(y) || y.ends_with(x))
-            || pairs(&self.u, &|x, y| seg_prefix(x, y) || seg_prefix(y, x))
+        // Two `starts_with` operands, neither a prefix of the other: a string
+        // starting with both has each as a prefix, and two prefixes of one
+        // string are always nested.
+        incompatible_pair(&self.p, &prefix_compatible)
+            // Two `ends_with` operands, neither a suffix of the other: two
+            // suffixes of one string are always nested.
+            || incompatible_pair(&self.s, &|x, y| x.ends_with(y) || y.ends_with(x))
+            // Two `under` operands, neither a segment prefix of the other: two
+            // segment prefixes of one path's segment list are always nested.
+            || incompatible_pair(&self.u, &|x, y| seg_prefix(x, y) || seg_prefix(y, x))
+            // `starts_with p` and `under q` with p and q not nested as strings:
+            // the value would start with both p and q (fact above), so p and q
+            // would be nested.
             || self
                 .p
                 .iter()
                 .any(|p| self.u.iter().any(|q| !prefix_compatible(p, q)))
     }
 
+    /// Returns true only when every string satisfying the atoms satisfies
+    /// `b`. Each rule below states why.
     fn implies(&self, b: &Atom) -> bool {
+        // Vacuous: nothing satisfies the atoms (sound because `unsat` is).
         if self.unsat() {
             return true;
         }
+        // Finite set: exact (see `admissible`).
         if let Some(a) = self.admissible() {
             return a.iter().all(|v| atom_holds(b, &Leaf::Str(v)));
         }
+        // Without a finite set, `in` and `==` are never implied: the answer
+        // `false` is always sound.
         let Some(x) = str_of(&b.operand) else {
-            return false; // `in`: never, without a finite set
+            return false;
         };
         match b.op {
             Op::StartsWith => {
+                // Every string starts with "" (D-57).
                 x.is_empty()
+                    // v starts with p, and p starts with x, so v starts with x.
                     || self.p.iter().any(|p| p.starts_with(x))
+                    // v under q means v starts with q (fact above); q starts with x.
                     || self.u.iter().any(|q| q.starts_with(x))
             }
-            Op::EndsWith => x.is_empty() || self.s.iter().any(|s| s.ends_with(x)),
+            Op::EndsWith => {
+                // Every string ends with "" (D-57); v ends with s, and s ends
+                // with x, so v ends with x.
+                x.is_empty() || self.s.iter().any(|s| s.ends_with(x))
+            }
             Op::Contains => {
+                // Every string contains "" (D-57). Otherwise v contains the
+                // operand y of some `starts_with`, `ends_with`, `contains` or
+                // `under` atom (for `under`, v starts with y by the fact
+                // above), and y contains x, so v contains x.
                 x.is_empty()
                     || self
                         .p
@@ -278,8 +317,12 @@ impl<'a> StrC<'a> {
                         .chain(&self.u)
                         .any(|y| y.contains(x))
             }
+            // v is canonical, and segments(q) is a prefix of segments(v).
+            // segments(x) is a prefix of segments(q), and prefixes compose, so
+            // v is under x.
             Op::Under => self.u.iter().any(|q| seg_prefix(x, q)),
-            _ => false, // `==`: never, without a finite set
+            // `==` without a finite set: never implied, so `false` is sound.
+            _ => false,
         }
     }
 }

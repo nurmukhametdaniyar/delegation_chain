@@ -7,10 +7,10 @@ Problems in the paper, _DelegationChain: Aggregatable Capability Chains for Cros
 | 2026-09-28 | 42 | `bd94cef24e50a5bfca09375ef495b54e07aeba986e8c5096a2fc0c329f62e81e` | until 2026-09-29 (commit `e223f05`) |
 | 2026-09-29 | 44 | `51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14` | current |
 
-- **Sources:** P-03 to P-14 come from SPEC Appendix C; P-01, P-02, P-04, P-11 and P-13 were resolved before 2026-09-28 and are not logged. P-15 to P-25 were found in the pre-M0 review (2026-09-28). P-26 was found while reconciling revision 2026-09-29.
+- **Sources:** P-03 to P-14 come from SPEC Appendix C; P-01, P-02, P-04, P-11 and P-13 were resolved before 2026-09-28 and are not logged. P-15 to P-25 were found in the pre-M0 review (2026-09-28). P-26 was found while reconciling revision 2026-09-29, and P-27 during M4.
 - **Status after revision 2026-09-29:**
   - resolved: P-03, P-07, P-09, P-10, P-14, and P-15 to P-25;
-  - open: P-05, P-06, P-08, P-12, P-26.
+  - open: P-05, P-06, P-08, P-12, P-26, P-27.
 - "Location" and "Evidence" below refer to revision 2026-09-28, where the issue was found. Each `Status` line says where revision 2026-09-29 addresses it.
 
 ---
@@ -250,3 +250,22 @@ What the implementation does: Treats validity as the closed interval `t ∈ [nbf
 Suggested fix to the paper: "reject unless t ∈ [cert_k.nbf, cert_k.exp] and cert_k is not revoked at t".
 Severity: interoperability
 Status: open in revision 2026-09-29, where it was introduced by the rewording of line 27.
+
+## P-27 — Remark 1 understates where the containment procedure is incomplete
+Paper location: §6.4, the containment procedure (steps 3(a) and 3(b)) and Remark 1 (revision 2026-09-29)
+Problem: Remark 1 attributes the incompleteness to step 3(a): "a child rule covered only by the union of several parent rules is rejected". Two other sources exist, and Remark 1 names neither.
+- **Dead child rules.** Step 3(a) requires every rule of S2 to have a subsumer. That includes a rule that can never decide an invocation, because its clause is unsatisfiable or because earlier rules of S2 catch everything it matches. When S1 has no same-head rule with an approval requirement weak enough, `Contains` returns false, although the rule is harmless.
+- **Step 3(b).** The skip test requires the whole of r′'s clause to imply a single earlier child rule's clause. It would suffice that the invocations matched by both r′ and r2 are decided by earlier child rules.
+Evidence: `docs/test-reports/policy-oracle-m4.json`, `misses_by_cause` (150,000 generated pairs, seed 56324). A miss is a pair the bounded oracle judges contained but `Contains` rejects.
+- Of the 4176 misses:
+  - 4138 have an unsatisfiable child rule;
+  - 23 have a child rule fully shadowed by earlier child rules;
+  - 11 are step 3(b), in every case with the joint region decided by earlier child rules;
+  - 3 are string implication;
+  - 1 is a union of rules.
+- Pairs whose S2 has no unsatisfiable rule reach completeness 0.999 (36156/36188).
+- The proportions reflect the generator. It draws atoms independently, which often produces contradictory rules, and it derives children by mutations that rarely split one rule into several. The numbers therefore show that each source exists, not how often each arises in real policies.
+What the implementation does: The procedure as written, which is sound. The oracle reports the causes (D-58).
+Suggested fix to the paper: Extend Remark 1 to name dead child rules and step 3(b)'s single-rule, whole-clause skip test. Whether to refine the procedure, for example by skipping child rules whose clause is unsatisfiable, is for the author to decide.
+Severity: clarity (soundness is unaffected)
+Status: open in revision 2026-09-29.
