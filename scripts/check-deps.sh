@@ -13,7 +13,9 @@ status=0
 
 for manifest in Cargo.toml crates/*/Cargo.toml; do
   [[ "$manifest" == "crates/dc-crypto/Cargo.toml" || "$manifest" == "Cargo.toml" ]] && continue
-  if grep -Eq '^blst' "$manifest"; then
+  # A dependency key `blst = …` or `blst.workspace = …`; not a feature such
+  # as `blst-no-threads`.
+  if grep -Eq '^blst *(=|\.)' "$manifest"; then
     echo "check-deps: $manifest depends on blst directly (D-29)" >&2
     status=1
   fi

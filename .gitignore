@@ -3,3 +3,7 @@
 scripts/.venv/
 __pycache__/
 .DS_Store
+# M8 dry-run output: its numbers are never reported (SPEC §15).
+results/dry-run/
+fuzz/corpus-work/
+fuzz/artifacts/

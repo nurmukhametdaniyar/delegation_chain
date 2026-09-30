@@ -725,3 +725,82 @@ Decision:
 - **The arm-A-only test stays.** `cache_equivalence.rs` remains, as the M6 record extended by D-65.
 Why: SPEC §11.3 names the configurations, not how to make a prefix cache hit often enough for the test to mean something.
 Affects benchmarks: no
+
+## D-71 — Workload definitions
+Spec section: §13.2, §13.5     Paper section: §6.2 (the medium policy)
+Decision: everything is generated from seed `0xDC_2026_0929` (`crates/dc-bench/src/workload.rs`).
+- **Parties.**
+  - `orga` holds the issuer, the finance approver, and agents `p0`–`p11`; `orgc` holds agents `p0`–`p11`; `orgb` holds the services.
+  - Hop k of chain i is agent `(i + k) mod 12` of `orga` for even k and of `orgc` for odd k. Chains are cross-organizational, and no identity repeats within a chain for N ≤ 10 (D-40).
+  - The first 12 warm-up chains cover every agent at every hop position.
+- **small.** One rule: `amount <= 1000` over `amount: int` and `to: string`. Delegations are identity. The invocation is 500 to `acct_vendor_a`.
+- **medium.** The §6.2 policy, verbatim. Odd hops tighten rule 1's bound by 10, even hops rule 2's by 1,000: one bound per hop, cumulative. The invocation is 500 to `acct_vendor_a` (rule 1, no approval).
+- **medium-approval.** The same chain; the invocation is 5,000, which falls to rule 2 and carries one finance receipt.
+- **large.** 16 rules: tools payments/transfer and refunds/issue at the payments service, and files/read and archive/restore at the files service, 4 rules each.
+  - Each rule declares 4 parameters and has 3 atoms.
+  - Rule 0 of each payment tool requires approval and precedes the permissive rule 1 it overlaps.
+  - The target, archive rule 3, is last. Its size bound is 4,000,000 − k at hop k.
+  - Hops 1–6 drop 2 rules each, from the 13 that are neither approval rules nor the target, in a seeded Fisher–Yates order; 4 rules remain from hop 6 on (D-38).
+  - The invocation (archive/restore, path under `/data/archive/3/`) matches only the target, which is Evaluate's worst case.
+- **Times.** Every chain is issued and verified at T0 = 1,790,000,000. Bodies expire at T0 + 3,600, the invocation window is [T0, T0 + 600], and certificates last 24 hours.
+- **Sets.** Each chain set has its own random stream, from SHA-256(seed, set tag). The tag names the family, profile, N, layout and count. Sets verified by one verifier therefore never share a nonce stream.
+- **Verification.** `crates/dc-bench/tests/workload.rs` checks that every profile verifies at every N for arms A, A-ind and C, in both layouts, and the large profile's shape.
+Why: SPEC §13.2 fixes the profiles' shape, not their exact rules, tightening steps, identities or times.
+Affects benchmarks: yes. This defines the workloads.
+
+## D-72 — Harness method details
+Spec section: §13.3–§13.6, §13.8     Paper section: not applicable (method)
+Decision:
+- **Sets.** Each run process generates all its chain sets first, on every core, into `target/dc-bench-sets/`. It then waits 30 s for the machine to settle, and runs its configurations in an order seeded per run (`order_seed(run)`), so each run has a different order. The sets are deleted at the end of the run.
+- **The timed operation.**
+  - One `Subject::verify(&bytes)` call through a trait object, the same for every arm.
+  - Arms B and D call `verify_traced(bytes, clock.now())`, which is the body of their `verify`, so that the harness can assert the path.
+  - Arm E calls `BiscuitArm::verify`.
+  - A cold verifier is a normal verifier (caching on) with empty caches, built before every call, outside the timer.
+- **Rejections are fatal.** Every verification must accept. Arms B and D must hit on every measured warm+prefix call and miss on every measured prefix-miss call. Any exception aborts the run rather than producing numbers.
+- **Q5.** Latency is injected by `WithLatency`, which sleeps at least the delay per call. The call counts per verification are recorded in `run*-calls.csv`.
+- **Q6.**
+  - One shared verifier per (arm, threads). Its certificate caches are warmed with 1,000 separate chains; arms B and D fill their prefix entries during the timed run, one miss per prefix.
+  - Chains are handed out by an atomic counter.
+  - Wall time runs from the start barrier to the join.
+  - The p99 comes from per-thread HdrHistograms (3 significant digits), merged.
+  - The (arm, threads) order is shuffled per run.
+- **Statistics.** Headline statistics pool the samples of all runs for a configuration. Each run's median is reported for run-to-run variation. Bootstrap seeds derive from the configuration's key.
+- **A-mt.** A separate build (`--no-default-features`, into `target/a-mt`). A binary refuses every row whose build does not match its label, and records its blst threading mode.
+- **Arm E's label.** Its state is `stateless`: Biscuit keeps nothing between calls, so it has no cold/warm distinction.
+- **Q2.** 20 sampled chains per cell. Arm E's token bytes are reported as a total only.
+- **Q10.** A dedicated binary with `stats_alloc`. Caches are measured by difference between two verifiers that differ only in the cache under test; see the binary's documentation.
+- **One command.** `cargo run --release -p dc-bench -- all` (`default-run`). It builds A-mt, runs the three runs, bytes, memory, criterion (with `CRITERION_HOME` in the results directory), the report and the plots. `--mode dry` is M8's dry run, into `results/dry-run/`, which is not committed.
+Why: SPEC §13.5 leaves these open.
+Affects benchmarks: yes (method)
+
+## D-73 — Micro-benchmark definitions (Q7, Q8, primitives)
+Spec section: §13.5     Paper section: §4.6 (cost attribution)
+Decision:
+- **Hash-to-G2.** `blst` has no safe hash-to-G2 on points, and `unsafe` is not permitted in dc-bench. `bls/hash_to_g2_proxy` therefore times a pairing context plus one `Pairing::aggregate` with no signature (hash, then queue the pair). `bls/pairing_context` times the context alone, and the difference estimates hash-to-G2. The Miller loop and the final exponentiation are timed directly (`blst_fp12::miller_loop`, `final_exp`).
+- **Q8 scopes.** Every rule has one head and 8 declared integer parameters. Rule i's atoms bound x0 … x(a−2) by 1,000 and require x(a−1) == i, so a rule fails only at its last atom.
+  - Evaluate, typical: the first rule matches. Worst: only the last rule matches.
+  - Contains, typical: the child equals the parent. Worst: every child rule's bounds are tightened.
+- **Q7.**
+  - Per-hop signing is `SigningService::sign` on a delegation: canonical encoding, digest and signature.
+  - "Aggregate add" is `ChainScheme::accumulate`: a point addition for BLS, a push for Ed25519.
+  - Receipt signing is `ApprovalService::approve`.
+  - Issuance is `IssuanceService::issue`.
+Why: SPEC §13.5 lists what to measure, not how to construct the inputs.
+Affects benchmarks: yes (Q7, Q8, the α/β attribution)
+
+## D-74 — Fuzzing the CBOR decoder on the stable toolchain
+Spec section: §11.4     Paper section: not applicable
+Decision:
+- **Target.** `fuzz/` is a cargo-fuzz crate with one target, `cbor_decode`: the dc-cbor decoder on arbitrary bytes.
+- **Properties.**
+  - Nothing panics.
+  - Input decoded with no canonical-form violation re-encodes to itself.
+  - Re-encoding is a fixed point.
+- **Toolchain.** cargo-fuzz is not installed, and the installed nightly (1.67, 2022) predates edition 2024. The target is therefore built on the pinned stable toolchain with cargo-fuzz's own coverage flags, which are all stable `-C` options, for the host triple (`scripts/fuzz.sh`).
+  - AddressSanitizer (`-Zsanitizer`) is nightly-only and is left out; the decoder has no `unsafe`.
+  - On this machine, `/usr/local/include` holds C headers that shadow the SDK's, so libFuzzer's C++ is built with `-isysroot` of the Xcode SDK. That is a local quirk, not a project setting.
+  - `cargo fuzz run cbor_decode` works unchanged wherever cargo-fuzz is installed.
+- **A failing property, corrected.** The third property first compared decoded `Value`s. It failed at once, because for input whose map keys are out of order (a recorded violation) the decoder keeps the input order, while the encoder writes canonical order. So the values differ in map order only. The property was wrong, not the decoder, and it now compares bytes (the fixed point). The failing input is kept as the corpus seed `regress-unsorted-map-keys`.
+Why: the author asked for a decoder fuzz target before M9. SPEC §11.4 requires no panics and no accepted mutation.
+Affects benchmarks: no

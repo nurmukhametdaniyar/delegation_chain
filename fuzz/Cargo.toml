@@ -1,0 +1,26 @@
+# cargo-fuzz targets (SPEC §11.4). Outside the main workspace: run with
+# `cargo fuzz run cbor_decode` (cargo-fuzz), or see fuzz/README.md for the
+# stable-toolchain command used when cargo-fuzz is not installed.
+[package]
+name = "dc-fuzz"
+version = "0.0.0"
+publish = false
+# 2021: libfuzzer-sys's macro emits `#[no_mangle]`, which edition 2024
+# requires to be written as unsafe.
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+dc-cbor = { path = "../crates/dc-cbor" }
+
+[[bin]]
+name = "cbor_decode"
+path = "fuzz_targets/cbor_decode.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]

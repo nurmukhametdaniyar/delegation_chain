@@ -301,3 +301,28 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
 - **Departure from SPEC text, for the checkpoint:** a prefix-cache entry's window is also capped at the certificate cache's TTL (D-67). SPEC §12.1 lists only the certificates' and bodies' windows.
 - **Decisions added:** D-66 to D-70.
 - **Paper issues found:** none new in M7. (P-30 was found while resolving P-29.)
+
+## M8 — `dc-bench` (2026-09-30)
+
+- **Done:**
+  - Workloads: small, medium, medium-approval and large; the seeded world; per-set random streams; cross-organizational identity pools (D-71).
+  - Arms and states behind one `Subject::verify`: cold, warm, warm+prefix, prefix-miss, Q5's injected latency, and E stateless.
+  - The latency harness: sets generated per run, a seeded random order, and rejections, hits and misses asserted. Also Q6 throughput (shared verifier, HdrHistogram p99), Q2 bytes, and Q10 memory in a `stats_alloc` binary (D-72).
+  - Criterion benches: primitives, Q7 signing and Q8 policy (D-73).
+  - `env.json` capture, including the compile-time `RUSTFLAGS` from a build script.
+  - The statistics: type-7 quantiles, a seeded bootstrap with draws kept in order, paired ratios, and the Q3 OLS with bootstrap CIs.
+  - The report generator (`summary.md`, `summary.json`) and `scripts/plot.py`, in a venv with pinned requirements. The plots use a validated categorical palette, with a marker and a direct label per series.
+  - The one-command `all`, which builds and runs A-mt separately (D-29).
+  - The QoS FFI call in `qos.rs`, the one permitted `unsafe`.
+- **Dry run** (`--mode dry`, 10 iterations per configuration; results in `results/dry-run/`, not committed, numbers not reported). It completed end to end:
+  - all 231 latency configurations (215 in the main build, 16 in the A-mt build), with every verification accepted and every B/D hit or miss as expected;
+  - Q5's call counts of 4 resolver calls and 1 policy-store call per cold N = 3 verification, as SPEC §13.4 expects;
+  - Q6 (24 rows), Q2, Q10, criterion (92 benchmarks), the summary and five plots.
+- **Fuzzing (before M9, as asked):** the `fuzz/` crate with target `cbor_decode`, and `scripts/fuzz.sh` (D-74).
+  - The first run found a wrong property, not a decoder bug: decoded `Value`s differ in map order after re-encoding non-canonical input. The property now compares bytes (a fixed point), and the input is kept as a corpus seed.
+  - A 10-minute run then found no crash: 111,517,984 executions, 8,875 new corpus units.
+- **Draft `BENCH_PLAN_FROZEN.md`,** for the author's approval. Not frozen, not tagged.
+- **CI:** `check-deps.sh`'s blst check matched dc-bench's feature `blst-no-threads`, a false positive. It now matches only a `blst` dependency key; a real `blst` dependency is still caught.
+- **Environment note:** the machine was on battery for the dry run. The frozen plan requires AC power for full runs.
+- **Decisions added:** D-71 to D-74.
+- **Paper issues found:** none.
