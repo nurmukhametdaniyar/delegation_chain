@@ -84,6 +84,55 @@ fn blst_path() -> &'static str {
     }
 }
 
+/// M9's preconditions (frozen plan §5): AC power, High Power mode, and an
+/// idle machine. Idle means a 1-minute load average below 2.0, and no other
+/// process using more than 25% of a core, both fixed before any measurement.
+pub fn requirements() -> Value {
+    let battery = cmd("pmset", &["-g", "batt"]).unwrap_or_default();
+    let ac = battery
+        .lines()
+        .next()
+        .is_some_and(|l| l.contains("'AC Power'"));
+    let pmset = cmd("pmset", &["-g"]).unwrap_or_default();
+    let powermode = pmset
+        .lines()
+        .map(str::trim)
+        .find(|l| l.split_whitespace().next() == Some("powermode"))
+        .and_then(|l| l.split_whitespace().nth(1))
+        .map(str::to_owned);
+    // powermode 2 is High Power (0 automatic, 1 Low Power).
+    let high_power = powermode.as_deref() == Some("2");
+    let load: Option<f64> = cmd("sysctl", &["-n", "vm.loadavg"])
+        .and_then(|s| {
+            s.trim_matches(['{', '}', ' '])
+                .split_whitespace()
+                .next()
+                .map(str::to_owned)
+        })
+        .and_then(|s| s.parse().ok());
+    let me = std::process::id();
+    let busy: Vec<Value> = cmd("ps", &["-Ao", "pid=,pcpu=,comm="])
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|l| {
+            let mut it = l.split_whitespace();
+            let pid: u32 = it.next()?.parse().ok()?;
+            let pcpu: f64 = it.next()?.parse().ok()?;
+            let comm = it.collect::<Vec<_>>().join(" ");
+            (pid != me && pcpu > 25.0).then(|| json!({"pid": pid, "pcpu": pcpu, "command": comm}))
+        })
+        .collect();
+    let idle = load.is_some_and(|l| l < 2.0) && busy.is_empty();
+    json!({
+        "ac_power": ac,
+        "powermode": powermode,
+        "high_power_mode": high_power,
+        "idle": {"loadavg_1m": load, "busy_processes": busy, "ok": idle},
+        "ok": ac && high_power && idle,
+        "rule": "AC power, High Power mode (pmset powermode 2), 1-minute load average < 2.0, no other process > 25% CPU",
+    })
+}
+
 pub fn capture(root: &Path) -> Value {
     let pmset = cmd("pmset", &["-g"]).unwrap_or_default();
     let pick = |key: &str| {
@@ -143,5 +192,8 @@ pub fn capture(root: &Path) -> Value {
             "dirty": dirty,
         },
         "date_utc": cmd("date", &["-u", "+%Y-%m-%dT%H:%M:%SZ"]),
+        "zstd": cmd("zstd", &["--version"]),
+        "thermal": crate::thermal::read(),
+        "m9_requirements": requirements(),
     })
 }

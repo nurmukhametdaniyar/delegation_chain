@@ -1,16 +1,22 @@
-//! `results/summary.md` and `results/summary.json` (SPEC §13.6–§13.8),
-//! generated from `results/raw/*.csv`, `results/bytes.json`,
-//! `results/memory.json`, `results/env.json` and criterion's estimates.
-//! Every number in the summary comes from those files.
+//! `results/summary.md` and `results/summary.json` (SPEC §13.6–§13.8; the
+//! frozen plan §6). Every number comes from the files the harness wrote.
+//!
+//! The raw data are read only from the zstd archives in `results/archive/`,
+//! after every archive's SHA-256 has been checked against
+//! `archive/MANIFEST.sha256`. A missing manifest or a mismatch stops the
+//! report. Samples from a thermal re-run replace that run's samples of the
+//! configuration.
 //!
 //! Per configuration, samples are pooled over runs for the headline
 //! statistics, and each run's median is reported for run-to-run variation
-//! (D-72).
+//! (D-72). Ratio verdicts use the ±10% margin and require all runs to agree
+//! (frozen plan §6).
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::process::Command;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -59,41 +65,148 @@ pub struct Row {
     pub pooled: Summary,
     /// Run number → that run's median.
     pub run_medians: BTreeMap<usize, f64>,
+    /// Runs whose samples came from a thermal re-run.
+    pub rerun_runs: Vec<usize>,
     #[serde(skip)]
     pub draws: Vec<f64>,
 }
 
-fn read_latency(raw: &Path) -> Result<BTreeMap<Key, BTreeMap<usize, Vec<u64>>>, String> {
-    let mut out: BTreeMap<Key, BTreeMap<usize, Vec<u64>>> = BTreeMap::new();
-    let mut files: Vec<PathBuf> = fs::read_dir(raw)
-        .map_err(|e| format!("{}: {e}", raw.display()))?
-        .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| {
-            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            name.starts_with("run")
-                && name.ends_with(".csv")
-                && !name.contains("-calls")
-                && !name.contains("-throughput")
-        })
-        .collect();
-    files.sort();
-    for f in files {
-        let mut r = csv::Reader::from_path(&f).map_err(|e| format!("{}: {e}", f.display()))?;
-        for rec in r.records() {
-            let rec = rec.map_err(|e| format!("{}: {e}", f.display()))?;
-            let get = |i: usize| rec.get(i).unwrap_or("");
-            let run: usize = get(0).parse().map_err(|_| "bad run")?;
-            let key = Key::new(get(1), get(2), get(3).parse().map_err(|_| "bad N")?, get(4));
-            let ns: u64 = get(6).parse().map_err(|_| "bad ns")?;
-            out.entry(key).or_default().entry(run).or_default().push(ns);
-        }
-    }
-    Ok(out)
+type Samples = BTreeMap<Key, BTreeMap<usize, Vec<u64>>>;
+/// (arm, state, run) → (verifications, resolver calls, store calls).
+type Calls = BTreeMap<(String, String, usize), (u64, u64, u64)>;
+/// (arm, threads, run) → (accepted/s, p99 ns).
+type Throughput = BTreeMap<(String, usize, usize), (f64, f64)>;
+
+/// The raw data, read from verified archives.
+#[derive(Default)]
+pub struct Raw {
+    pub latency: Samples,
+    pub reruns: Samples,
+    pub calls: Calls,
+    pub throughput: Throughput,
+    /// Thermal rows: (file stem, config, phase, throttled).
+    pub thermal: Vec<(String, String, String, bool)>,
+    pub archives: usize,
 }
 
-/// Statistics for every configuration, bootstrapped on `threads` threads.
-pub fn rows(raw: &Path, threads: usize) -> Result<BTreeMap<Key, Row>, String> {
-    let data: Vec<(Key, BTreeMap<usize, Vec<u64>>)> = read_latency(raw)?.into_iter().collect();
+fn hex(h: &[u8]) -> String {
+    h.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn decompress(path: &Path) -> Result<Vec<u8>, String> {
+    let out = Command::new("zstd")
+        .arg("-dcq")
+        .arg(path)
+        .output()
+        .map_err(|e| format!("zstd: {e}"))?;
+    if !out.status.success() {
+        return Err(format!("zstd could not decompress {}", path.display()));
+    }
+    Ok(out.stdout)
+}
+
+/// Checks every archive against the manifest, then reads it.
+pub fn load_raw(results: &Path) -> Result<Raw, String> {
+    let dir = results.join("archive");
+    let manifest = fs::read_to_string(dir.join("MANIFEST.sha256")).map_err(|_| {
+        format!(
+            "no {}: run `dc-bench archive` first; the report reads raw data only from verified archives",
+            dir.join("MANIFEST.sha256").display()
+        )
+    })?;
+    let mut raw = Raw::default();
+    for line in manifest.lines().filter(|l| !l.trim().is_empty()) {
+        let (want, name) = line
+            .split_once("  ")
+            .ok_or_else(|| format!("malformed manifest line: {line}"))?;
+        let path = dir.join(name);
+        let bytes = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let got = hex(&dc_types::digest::sha256(&[&bytes]));
+        if got != want {
+            return Err(format!(
+                "manifest mismatch for {name}: expected {want}, got {got}"
+            ));
+        }
+        raw.archives += 1;
+        let file = name.strip_suffix(".zst").unwrap_or(name);
+        if file.ends_with(".json") {
+            continue;
+        }
+        let data = decompress(&path)?;
+        let mut rd = csv::Reader::from_reader(&data[..]);
+        let recs: Vec<csv::StringRecord> = rd
+            .records()
+            .collect::<Result<_, _>>()
+            .map_err(|e| format!("{file}: {e}"))?;
+        let rerun = file.contains("-rerun");
+        let num = |s: &str| s.parse::<f64>().unwrap_or(f64::NAN);
+        if let Some(stem) = file.strip_suffix("-thermal.csv") {
+            for r in &recs {
+                raw.thermal.push((
+                    stem.to_owned(),
+                    r[1].to_owned(),
+                    r[2].to_owned(),
+                    &r[6] == "true",
+                ));
+            }
+        } else if file.ends_with("-calls.csv") {
+            for r in &recs {
+                let run = num(&r[0]) as usize;
+                let v = (num(&r[5]) as u64, num(&r[6]) as u64, num(&r[7]) as u64);
+                // A re-run's counts replace the original's.
+                if rerun
+                    || !raw
+                        .calls
+                        .contains_key(&(r[1].to_owned(), r[2].to_owned(), run))
+                {
+                    raw.calls.insert((r[1].to_owned(), r[2].to_owned(), run), v);
+                }
+            }
+        } else if file.ends_with("-throughput.csv") {
+            for r in &recs {
+                let run = num(&r[0]) as usize;
+                let k = (r[1].to_owned(), num(&r[2]) as usize, run);
+                let v = (num(&r[4]) / (num(&r[5]) / 1e9), num(&r[7]));
+                if rerun || !raw.throughput.contains_key(&k) {
+                    raw.throughput.insert(k, v);
+                }
+            }
+        } else {
+            let target = if rerun {
+                &mut raw.reruns
+            } else {
+                &mut raw.latency
+            };
+            for r in &recs {
+                let run = num(&r[0]) as usize;
+                let key = Key::new(&r[1], &r[2], num(&r[3]) as usize, &r[4]);
+                target
+                    .entry(key)
+                    .or_default()
+                    .entry(run)
+                    .or_default()
+                    .push(num(&r[6]) as u64);
+            }
+        }
+    }
+    Ok(raw)
+}
+
+/// Statistics for every configuration, with re-run samples in place of the
+/// throttled originals, bootstrapped on `threads` threads.
+pub fn rows(raw: &Raw, threads: usize) -> BTreeMap<Key, Row> {
+    let mut merged = raw.latency.clone();
+    let mut rerun_runs: BTreeMap<Key, Vec<usize>> = BTreeMap::new();
+    for (key, runs) in &raw.reruns {
+        for (run, v) in runs {
+            merged
+                .entry(key.clone())
+                .or_default()
+                .insert(*run, v.clone());
+            rerun_runs.entry(key.clone()).or_default().push(*run);
+        }
+    }
+    let data: Vec<(Key, BTreeMap<usize, Vec<u64>>)> = merged.into_iter().collect();
     let next = AtomicUsize::new(0);
     let out = Mutex::new(BTreeMap::new());
     std::thread::scope(|s| {
@@ -117,6 +230,7 @@ pub fn rows(raw: &Path, threads: usize) -> Result<BTreeMap<Key, Row>, String> {
                             key: key.clone(),
                             pooled: summary,
                             run_medians,
+                            rerun_runs: rerun_runs.get(key).cloned().unwrap_or_default(),
                             draws,
                         },
                     );
@@ -124,45 +238,47 @@ pub fn rows(raw: &Path, threads: usize) -> Result<BTreeMap<Key, Row>, String> {
             });
         }
     });
-    Ok(out.into_inner().unwrap())
+    out.into_inner().unwrap()
 }
 
-fn us(ns: f64) -> String {
-    if ns >= 100_000.0 {
-        format!("{:.0}", ns / 1000.0)
+// ---- verdicts (frozen plan §6) ----
+
+/// The practical-significance margin around 1.
+pub const MARGIN: f64 = 0.10;
+
+/// A ratio verdict: aggregating arm over non-aggregating arm.
+#[derive(Clone, Debug, Serialize)]
+pub struct Verdict {
+    pub ratio: Ratio,
+    /// Each run's ratio of medians.
+    pub runs: BTreeMap<usize, f64>,
+    pub verdict: &'static str,
+}
+
+/// The ±10% rule on the pooled CI, then run agreement.
+pub fn verdict(r: &Ratio, runs: &BTreeMap<usize, f64>) -> &'static str {
+    let (lo, hi) = r.ci;
+    let (lower, upper) = (1.0 - MARGIN, 1.0 + MARGIN);
+    let pooled = if hi < lower {
+        "net benefit"
+    } else if lo > upper {
+        "not a net benefit"
+    } else if lo >= lower && hi <= upper {
+        "no material difference"
     } else {
-        format!("{:.1}", ns / 1000.0)
+        return "inconclusive";
+    };
+    let same_side = |x: f64| match pooled {
+        "net benefit" => x < lower,
+        "not a net benefit" => x > upper,
+        _ => (lower..=upper).contains(&x),
+    };
+    if !runs.is_empty() && runs.values().all(|&x| same_side(x)) {
+        pooled
+    } else {
+        "inconclusive (runs disagree)"
     }
 }
-
-fn cell(r: Option<&Row>) -> String {
-    match r {
-        Some(r) => format!(
-            "{} [{}, {}] / {}",
-            us(r.pooled.median),
-            us(r.pooled.median_ci.0),
-            us(r.pooled.median_ci.1),
-            us(r.pooled.p99)
-        ),
-        None => "—".into(),
-    }
-}
-
-fn fmt_ratio(r: &Ratio) -> String {
-    format!("{:.3} [{:.3}, {:.3}]", r.value, r.ci.0, r.ci.1)
-}
-
-/// AIP's published Rust verify times for biscuit-auth 6.0 chained mode on
-/// an Apple M3 Max (Prakash 2026, arXiv:2603.24775, Tables 4–5, as quoted
-/// in SPEC §13.10; not re-checked against the paper). Depth → ms.
-pub const AIP_CHAINED_MS: [(usize, f64); 6] = [
-    (0, 0.188),
-    (1, 0.292),
-    (2, 0.403),
-    (3, 0.516),
-    (4, 0.625),
-    (5, 0.745),
-];
 
 struct Ctx<'a> {
     rows: &'a BTreeMap<Key, Row>,
@@ -173,10 +289,27 @@ impl Ctx<'_> {
         self.rows.get(&Key::new(arm, state, n, profile))
     }
 
-    fn ratio(&self, a: (&str, &str), b: (&str, &str), n: usize, profile: &str) -> Option<Ratio> {
+    fn verdict(
+        &self,
+        a: (&str, &str),
+        b: (&str, &str),
+        n: usize,
+        profile: &str,
+    ) -> Option<Verdict> {
         let x = self.get(a.0, a.1, n, profile)?;
         let y = self.get(b.0, b.1, n, profile)?;
-        Some(ratio(&x.pooled, &x.draws, &y.pooled, &y.draws))
+        let r = ratio(&x.pooled, &x.draws, &y.pooled, &y.draws);
+        let runs: BTreeMap<usize, f64> = x
+            .run_medians
+            .iter()
+            .filter_map(|(run, mx)| y.run_medians.get(run).map(|my| (*run, mx / my)))
+            .collect();
+        let v = verdict(&r, &runs);
+        Some(Verdict {
+            ratio: r,
+            runs,
+            verdict: v,
+        })
     }
 
     fn fit(&self, arm: &str, state: &str, profile: &str) -> Option<Fit> {
@@ -190,6 +323,60 @@ impl Ctx<'_> {
         Some(fit(&ns, &medians, &draws))
     }
 }
+
+fn us(ns: f64) -> String {
+    if ns >= 100_000.0 {
+        format!("{:.0}", ns / 1000.0)
+    } else {
+        format!("{:.1}", ns / 1000.0)
+    }
+}
+
+fn cell(r: Option<&Row>) -> String {
+    match r {
+        Some(r) => format!(
+            "{} [{}, {}] / {}{}",
+            us(r.pooled.median),
+            us(r.pooled.median_ci.0),
+            us(r.pooled.median_ci.1),
+            us(r.pooled.p99),
+            if r.rerun_runs.is_empty() { "" } else { " †" }
+        ),
+        None => "—".into(),
+    }
+}
+
+fn fmt_ratio(r: &Ratio) -> String {
+    format!("{:.3} [{:.3}, {:.3}]", r.value, r.ci.0, r.ci.1)
+}
+
+fn fmt_verdict(v: &Option<Verdict>) -> String {
+    match v {
+        Some(v) => format!(
+            "{} — **{}** (runs: {})",
+            fmt_ratio(&v.ratio),
+            v.verdict,
+            v.runs
+                .values()
+                .map(|x| format!("{x:.3}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        None => "—".into(),
+    }
+}
+
+/// AIP's published Rust verify times for biscuit-auth 6.0 chained mode on
+/// an Apple M3 Max (Prakash 2026, arXiv:2603.24775, Tables 4–5, as quoted
+/// in SPEC §13.10; not re-checked against the paper). Depth → ms.
+pub const AIP_CHAINED_MS: [(usize, f64); 6] = [
+    (0, 0.188),
+    (1, 0.292),
+    (2, 0.403),
+    (3, 0.516),
+    (4, 0.625),
+    (5, 0.745),
+];
 
 fn read_json(path: &Path) -> Option<Value> {
     serde_json::from_str(&fs::read_to_string(path).ok()?).ok()
@@ -237,9 +424,31 @@ fn criterion_estimates(dir: &Path) -> Vec<(String, f64, (f64, f64))> {
     out
 }
 
+/// The first N at which A's bytes cross C's, from N = 1 upward.
+fn break_even(pts: &[(usize, f64, f64)]) -> String {
+    let Some(&(n0, a0, c0)) = pts.first() else {
+        return "—".into();
+    };
+    let start = (a0 - c0).signum();
+    for &(n, a, c) in pts {
+        if (a - c).signum() != start && a != c {
+            return format!(
+                "N = {n}: A is {} than C from N = {n} on (A {} C at N = {n0})",
+                if a < c { "smaller" } else { "larger" },
+                if start > 0.0 { ">" } else { "<" }
+            );
+        }
+    }
+    format!(
+        "none in range (N = 1–10): A is {} than C throughout",
+        if start > 0.0 { "larger" } else { "smaller" }
+    )
+}
+
 /// Writes `summary.md` and `summary.json` into `results`.
 pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Result<(), String> {
-    let rows = rows(&results.join("raw"), threads)?;
+    let raw = load_raw(results)?;
+    let rows = rows(&raw, threads);
     let cx = Ctx { rows: &rows };
     let env = read_json(&results.join("env.json")).unwrap_or(Value::Null);
     let mut md = String::new();
@@ -254,11 +463,11 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
     if dry {
         writeln!(
             w,
-            "> **Dry run (M8). These numbers are not results and must not be reported.**\n"
+            "> **Dry run. These numbers are not results and must not be reported.**\n"
         )
         .unwrap();
     }
-    writeln!(w, "Generated by `dc-bench report` from `{}`. Latency cells are the median in µs, its bootstrap 95% CI, and p99 (µs): `median [lo, hi] / p99`, pooled over runs {:?}.\n", results.display(), runs).unwrap();
+    writeln!(w, "Generated by `dc-bench report` from {} archives verified against `archive/MANIFEST.sha256`. Latency cells are the median in µs, its bootstrap 95% CI, and p99 (µs): `median [lo, hi] / p99`, pooled over runs {:?}. † marks a configuration with samples from a thermal re-run.\n", raw.archives, runs).unwrap();
     writeln!(
         w,
         "- CPU: {} ({} performance + {} efficiency cores)",
@@ -267,11 +476,14 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
     .unwrap();
     writeln!(
         w,
-        "- OS: macOS {} ({}); power source {}, lowpowermode {}",
-        env["os"]["product"],
-        env["os"]["build"],
-        env["power"]["source"],
-        env["power"]["lowpowermode"]
+        "- OS: macOS {} ({}); power source {}, powermode {}",
+        env["os"]["product"], env["os"]["build"], env["power"]["source"], env["power"]["powermode"]
+    )
+    .unwrap();
+    writeln!(
+        w,
+        "- Run requirements (AC power, High Power mode, idle) confirmed: {}",
+        env["m9_requirements"]["ok"]
     )
     .unwrap();
     writeln!(
@@ -305,6 +517,60 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
     )
     .unwrap();
 
+    // ---- verdicts ----
+    writeln!(w, "## Verdicts (frozen plan §6)\n").unwrap();
+    writeln!(w, "Ratios are the aggregating arm over the non-aggregating one: `median [95% CI]`. With a ±{:.0}% margin: **net benefit** if the CI's upper bound < {:.2}; **not a net benefit** if the lower bound > {:.2}; **no material difference** if the CI lies within [{:.2}, {:.2}]; **inconclusive** otherwise. A verdict stands only if every run's own ratio of medians is on the same side of the margin; otherwise **inconclusive (runs disagree)**.\n",
+        100.0 * MARGIN, 1.0 - MARGIN, 1.0 + MARGIN, 1.0 - MARGIN, 1.0 + MARGIN).unwrap();
+    let headline = cx.verdict(("B", "warm+prefix"), ("D", "warm+prefix"), 3, "medium");
+    writeln!(
+        w,
+        "**§1, the deployment pattern (B/D, warm+prefix, N = 3, medium):** {}\n",
+        fmt_verdict(&headline)
+    )
+    .unwrap();
+    writeln!(
+        w,
+        "**Every call a new chain (N = 3, medium, warm):** A/C {}; A/C-batch {}\n",
+        fmt_verdict(&cx.verdict(("A", "warm"), ("C", "warm"), 3, "medium")),
+        fmt_verdict(&cx.verdict(("A", "warm"), ("C-batch", "warm"), 3, "medium"))
+    )
+    .unwrap();
+    let mut profiles: Vec<Profile> = PROFILES.to_vec();
+    profiles.push(Profile::MediumApproval);
+    writeln!(
+        w,
+        "| profile | N | B/D warm+prefix | A/C warm | A/C-batch warm | B/D prefix-miss |"
+    )
+    .unwrap();
+    writeln!(w, "|---|---|---|---|---|---|").unwrap();
+    let mut verdicts_js = vec![];
+    for profile in &profiles {
+        let ns: Vec<usize> = if *profile == Profile::MediumApproval {
+            vec![3]
+        } else {
+            NS.to_vec()
+        };
+        for n in ns {
+            let pl = profile.label();
+            let v = [
+                cx.verdict(("B", "warm+prefix"), ("D", "warm+prefix"), n, pl),
+                cx.verdict(("A", "warm"), ("C", "warm"), n, pl),
+                cx.verdict(("A", "warm"), ("C-batch", "warm"), n, pl),
+                cx.verdict(("B", "prefix-miss"), ("D", "prefix-miss"), n, pl),
+            ];
+            writeln!(
+                w,
+                "| {pl} | {n} | {} |",
+                v.iter().map(fmt_verdict).collect::<Vec<_>>().join(" | ")
+            )
+            .unwrap();
+            verdicts_js.push(json!({"profile": pl, "n": n, "b_over_d_hit": v[0], "a_over_c": v[1], "a_over_cbatch": v[2], "b_over_d_miss": v[3]}));
+        }
+    }
+    writeln!(w).unwrap();
+    js.insert("headline".into(), json!(headline));
+    js.insert("verdicts".into(), json!(verdicts_js));
+
     // ---- Q1 ----
     writeln!(w, "## Q1. Warm per-invocation latency\n").unwrap();
     let q1_cols: [(&str, &str, &str); 9] = [
@@ -322,8 +588,6 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
             "A-mt warm (supplementary: multi-threaded blst)",
         ),
     ];
-    let mut profiles: Vec<Profile> = PROFILES.to_vec();
-    profiles.push(Profile::MediumApproval);
     for profile in &profiles {
         let ns: Vec<usize> = if *profile == Profile::MediumApproval {
             vec![3]
@@ -347,49 +611,6 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
         }
         writeln!(w).unwrap();
     }
-    writeln!(w, "### Ratios of medians (bootstrap 95% CI)\n").unwrap();
-    writeln!(
-        w,
-        "| profile | N | A/C warm | A/C-batch warm | B/D warm+prefix | B/D prefix-miss |"
-    )
-    .unwrap();
-    writeln!(w, "|---|---|---|---|---|---|").unwrap();
-    let mut ratios_js = vec![];
-    for profile in &profiles {
-        for n in NS {
-            let pl = profile.label();
-            let r = [
-                cx.ratio(("A", "warm"), ("C", "warm"), n, pl),
-                cx.ratio(("A", "warm"), ("C-batch", "warm"), n, pl),
-                cx.ratio(("B", "warm+prefix"), ("D", "warm+prefix"), n, pl),
-                cx.ratio(("B", "prefix-miss"), ("D", "prefix-miss"), n, pl),
-            ];
-            if r.iter().all(Option::is_none) {
-                continue;
-            }
-            let s: Vec<String> = r
-                .iter()
-                .map(|x| x.as_ref().map_or("—".into(), fmt_ratio))
-                .collect();
-            writeln!(w, "| {pl} | {n} | {} |", s.join(" | ")).unwrap();
-            ratios_js.push(json!({"profile": pl, "n": n, "a_over_c": r[0], "a_over_cbatch": r[1], "b_over_d_hit": r[2], "b_over_d_miss": r[3]}));
-        }
-    }
-    writeln!(
-        w,
-        "\nHeadline (N = 3, medium): A/C = {}, A/C-batch = {}, B/D (warm+prefix) = {}.\n",
-        cx.ratio(("A", "warm"), ("C", "warm"), 3, "medium")
-            .as_ref()
-            .map_or("—".into(), fmt_ratio),
-        cx.ratio(("A", "warm"), ("C-batch", "warm"), 3, "medium")
-            .as_ref()
-            .map_or("—".into(), fmt_ratio),
-        cx.ratio(("B", "warm+prefix"), ("D", "warm+prefix"), 3, "medium")
-            .as_ref()
-            .map_or("—".into(), fmt_ratio)
-    )
-    .unwrap();
-    js.insert("ratios".into(), json!(ratios_js));
 
     // ---- cold ----
     writeln!(w, "## Cold state\n").unwrap();
@@ -415,31 +636,105 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
     // ---- Q2 ----
     writeln!(w, "## Q2. Bytes on the wire\n").unwrap();
     if let Some(b) = read_json(&results.join("bytes.json")) {
-        writeln!(
-            w,
-            "| arm | profile | N | total | bodies | signatures | signature share |"
-        )
-        .unwrap();
-        writeln!(w, "|---|---|---|---|---|---|---|").unwrap();
-        for r in b["rows"].as_array().into_iter().flatten() {
-            let total = r["total_mean"].as_f64().unwrap_or(0.0);
-            let sigs = r["sigs_mean"].as_f64();
+        let get = |arm: &str, profile: &str, n: usize| -> Option<(f64, f64)> {
+            b["rows"]
+                .as_array()?
+                .iter()
+                .find(|r| {
+                    r["arm"].as_str().is_some_and(|a| a.starts_with(arm))
+                        && (arm != "A" || !r["arm"].as_str().unwrap_or("").starts_with("A-ind"))
+                        && r["profile"] == profile
+                        && r["n"] == n
+                })
+                .map(|r| {
+                    (
+                        r["total_mean"].as_f64().unwrap_or(f64::NAN),
+                        r["sigs_mean"].as_f64().unwrap_or(f64::NAN),
+                    )
+                })
+        };
+        writeln!(w, "Bytes are exact means over 20 sampled chains per cell (they vary only with identifier lengths).\n").unwrap();
+        writeln!(w, "### Primary: A against C\n").unwrap();
+        let mut be_js = vec![];
+        for profile in Profile::ALL {
+            let pl = profile.label();
+            let pts: Vec<(usize, f64, f64)> = (1..=10)
+                .filter_map(|n| Some((n, get("A", pl, n)?.0, get("C", pl, n)?.0)))
+                .collect();
+            if pts.is_empty() {
+                continue;
+            }
+            let be = break_even(&pts);
+            writeln!(w, "**{pl}** — break-even: {be}\n").unwrap();
             writeln!(
                 w,
-                "| {} | {} | {} | {:.0} | {} | {} | {} |",
-                r["arm"].as_str().unwrap_or(""),
+                "| N | A total | C total | A − C | A / C | A signatures | C signatures |"
+            )
+            .unwrap();
+            writeln!(w, "|---|---|---|---|---|---|---|").unwrap();
+            for &(n, a, c) in &pts {
+                let (sa, sc) = (get("A", pl, n).map(|x| x.1), get("C", pl, n).map(|x| x.1));
+                writeln!(
+                    w,
+                    "| {n} | {a:.0} | {c:.0} | {:+.0} | {:.3} | {} | {} |",
+                    a - c,
+                    a / c,
+                    sa.map_or("—".into(), |x| format!("{x:.0}")),
+                    sc.map_or("—".into(), |x| format!("{x:.0}"))
+                )
+                .unwrap();
+            }
+            writeln!(w).unwrap();
+            be_js.push(json!({"profile": pl, "break_even": be}));
+        }
+        writeln!(w, "medium-approval chains also carry the receipt: its approver key and signature are 48 + 96 bytes under BLS and 32 + 64 under Ed25519.\n").unwrap();
+        writeln!(w, "### Aggregation ablation: A against A-ind\n").unwrap();
+        writeln!(
+            w,
+            "| profile | N | A total | A-ind total | saved by aggregation | A-ind / A |"
+        )
+        .unwrap();
+        writeln!(w, "|---|---|---|---|---|---|").unwrap();
+        for profile in Profile::ALL {
+            for n in NS {
+                if let (Some(a), Some(i)) = (
+                    get("A", profile.label(), n),
+                    get("A-ind", profile.label(), n),
+                ) {
+                    writeln!(
+                        w,
+                        "| {} | {n} | {:.0} | {:.0} | {:.0} | {:.3} |",
+                        profile.label(),
+                        a.0,
+                        i.0,
+                        i.0 - a.0,
+                        i.0 / a.0
+                    )
+                    .unwrap();
+                }
+            }
+        }
+        writeln!(w).unwrap();
+        writeln!(w, "### Arm E (Biscuit tokens)\n").unwrap();
+        writeln!(w, "| profile | N (depth N−1) | token bytes |").unwrap();
+        writeln!(w, "|---|---|---|").unwrap();
+        for r in b["rows"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|r| r["arm"] == "E")
+        {
+            writeln!(
+                w,
+                "| {} | {} | {:.0} |",
                 r["profile"].as_str().unwrap_or(""),
                 r["n"],
-                total,
-                r["bodies_mean"]
-                    .as_f64()
-                    .map_or("—".into(), |x| format!("{x:.0}")),
-                sigs.map_or("—".into(), |x| format!("{x:.0}")),
-                sigs.map_or("—".into(), |x| format!("{:.1}%", 100.0 * x / total))
+                r["total_mean"].as_f64().unwrap_or(f64::NAN)
             )
             .unwrap();
         }
-        writeln!(w, "\nCertificate size in this encoding: BLS {} bytes, Ed25519 {} bytes. Paper §8.2 assumes 48 + 96 bytes per BLS certificate before any other field.\n", b["certificate_bytes"]["bls"], b["certificate_bytes"]["ed25519"]).unwrap();
+        writeln!(w, "\nCertificate size in this encoding: BLS {} bytes, Ed25519 {} bytes. Paper §8.2 assumes 48 + 96 bytes per BLS certificate before any other field; `bytes.json` also gives every chain's size with N + 1 certificates inline.\n", b["certificate_bytes"]["bls"], b["certificate_bytes"]["ed25519"]).unwrap();
+        js.insert("break_even".into(), json!(be_js));
         js.insert("bytes".into(), b);
     } else {
         writeln!(w, "_No `bytes.json`._\n").unwrap();
@@ -464,7 +759,7 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
             }
         }
     }
-    writeln!(w, "\n10β/α > 1 means the per-hop term exceeds the fixed term by N = 10; the crossover is N = α/β.\n").unwrap();
+    writeln!(w, "\nThe per-hop term dominates by N = 10 if 10β/α's CI lies above 1, the fixed term if it lies below, neither otherwise; the crossover is N = α/β.\n").unwrap();
     js.insert("fits".into(), json!(fits_js));
 
     // ---- Q4 ----
@@ -474,13 +769,11 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
     for profile in PROFILES {
         for n in NS {
             let pl = profile.label();
-            let a = cx.ratio(("A", "warm"), ("A-ind", "warm"), n, pl);
-            let b = cx.ratio(("A", "cold"), ("A-ind", "cold"), n, pl);
             writeln!(
                 w,
                 "| {pl} | {n} | {} | {} |",
-                a.as_ref().map_or("—".into(), fmt_ratio),
-                b.as_ref().map_or("—".into(), fmt_ratio)
+                fmt_verdict(&cx.verdict(("A", "warm"), ("A-ind", "warm"), n, pl)),
+                fmt_verdict(&cx.verdict(("A", "cold"), ("A-ind", "cold"), n, pl))
             )
             .unwrap();
         }
@@ -493,15 +786,19 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
         "## Q5. Cold path with injected latency (N = 3, medium)\n"
     )
     .unwrap();
-    let calls = read_calls(&results.join("raw"));
     writeln!(w, "| arm | injected per call | latency | resolver calls / verify | policy-store calls / verify |").unwrap();
     writeln!(w, "|---|---|---|---|---|").unwrap();
     for arm in ["A", "C"] {
         for ms in RTT_MS {
             let state = format!("cold+rtt{ms}ms");
-            let r = cx.get(arm, &state, 3, "medium");
-            let c = calls.get(&(arm.to_owned(), state.clone()));
-            let per = |x: u64, v: u64| {
+            let (v, rc, sc) = raw
+                .calls
+                .iter()
+                .filter(|((a, s, _), _)| a == arm && *s == state)
+                .fold((0, 0, 0), |acc, (_, x)| {
+                    (acc.0 + x.0, acc.1 + x.1, acc.2 + x.2)
+                });
+            let per = |x: u64| {
                 if v == 0 {
                     "—".into()
                 } else {
@@ -511,9 +808,9 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
             writeln!(
                 w,
                 "| {arm} | {ms} ms | {} | {} | {} |",
-                cell(r),
-                c.map_or("—".into(), |c| per(c.1, c.0)),
-                c.map_or("—".into(), |c| per(c.2, c.0))
+                cell(cx.get(arm, &state, 3, "medium")),
+                per(rc),
+                per(sc)
             )
             .unwrap();
         }
@@ -526,23 +823,23 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
         "## Q6. Throughput (medium, N = 3; 14 threads includes efficiency cores)\n"
     )
     .unwrap();
-    let tp = read_throughput(&results.join("raw"));
-    writeln!(
-        w,
-        "| arm | threads | accepted/s (median over runs) | per run | p99 per call under load (µs) |"
-    )
-    .unwrap();
+    writeln!(w, "| arm | threads | accepted/s (median over runs) | per run | p99 per call under load (µs), per run |").unwrap();
     writeln!(w, "|---|---|---|---|---|").unwrap();
     let mut tp_js = vec![];
     for arm in THROUGHPUT_ARMS {
         for t in THREADS {
-            let Some(v) = tp.get(&(arm.label().to_owned(), t)) else {
+            let v: Vec<(usize, f64, f64)> = raw
+                .throughput
+                .iter()
+                .filter(|((a, th, _), _)| a == arm.label() && *th == t)
+                .map(|((_, _, r), (rate, p99))| (*r, *rate, *p99))
+                .collect();
+            if v.is_empty() {
                 continue;
-            };
+            }
             let mut rates: Vec<f64> = v.iter().map(|x| x.1).collect();
             rates.sort_by(f64::total_cmp);
             let med = crate::stats::quantile_sorted(&rates, 0.5);
-            let p99s: Vec<String> = v.iter().map(|x| us(x.2)).collect();
             writeln!(
                 w,
                 "| {} | {t}{} | {:.0} | {} | {} |",
@@ -553,12 +850,11 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
                     ""
                 },
                 med,
-                rates
-                    .iter()
-                    .map(|r| format!("{r:.0}"))
+                v.iter()
+                    .map(|x| format!("{:.0}", x.1))
                     .collect::<Vec<_>>()
                     .join(", "),
-                p99s.join(", ")
+                v.iter().map(|x| us(x.2)).collect::<Vec<_>>().join(", ")
             )
             .unwrap();
             tp_js.push(
@@ -575,13 +871,14 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
         "## Q9. Arm E (Biscuit) against AIP's published figures\n"
     )
     .unwrap();
-    writeln!(w, "AIP's figures are **published numbers from different hardware** (Apple M3 Max, macOS 15.3; SPEC §13.10), quoted from SPEC and not re-checked against arXiv:2603.24775. Arm E lacks registry resolution, PoP, revocation, receipts, the nonce cache and parameter binding (paper Table 1).\n").unwrap();
+    writeln!(w, "AIP's figures are **published numbers from different hardware**: an Apple M3 Max under macOS 15.3, against this machine's M4 Max (SPEC §13.10). They are quoted from SPEC and not re-checked against arXiv:2603.24775. Arm E lacks registry resolution, PoP, revocation, receipts, the nonce cache and parameter binding (paper Table 1). **Sanity rule (frozen plan §8):** a ratio outside about 3× at matching depth is investigated before anything about arm E is reported.\n").unwrap();
     writeln!(
         w,
         "| profile | N (depth N−1) | E here | AIP published (ms) | E / AIP |"
     )
     .unwrap();
     writeln!(w, "|---|---|---|---|---|").unwrap();
+    let mut e_flags = vec![];
     for profile in PROFILES {
         for n in NS {
             let r = cx.get("E", "stateless", n, profile.label());
@@ -592,10 +889,14 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
             let q = match (r, aip) {
                 (Some(r), Some(a)) => {
                     let x = r.pooled.median / (a * 1e6);
+                    let out = !(1.0 / 3.0..=3.0).contains(&x);
+                    if out {
+                        e_flags.push(json!({"profile": profile.label(), "n": n, "ratio": x}));
+                    }
                     format!(
                         "{x:.2}{}",
-                        if !(1.0 / 3.0..=3.0).contains(&x) {
-                            " (outside 3×: investigate)"
+                        if out {
+                            " (**outside 3×: investigate before reporting**)"
                         } else {
                             ""
                         }
@@ -614,6 +915,7 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
         }
     }
     writeln!(w).unwrap();
+    js.insert("arm_e_outside_3x".into(), json!(e_flags));
 
     // ---- Q10 ----
     writeln!(w, "## Q10. Memory per entry\n").unwrap();
@@ -668,6 +970,29 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
         ),
     );
 
+    // ---- thermal ----
+    writeln!(w, "## Thermal state (frozen plan §5)\n").unwrap();
+    let throttled: Vec<&(String, String, String, bool)> = raw
+        .thermal
+        .iter()
+        .filter(|t| t.3 && !t.0.contains("-rerun"))
+        .collect();
+    let rerun_throttled: Vec<&(String, String, String, bool)> = raw
+        .thermal
+        .iter()
+        .filter(|t| t.3 && t.0.contains("-rerun"))
+        .collect();
+    writeln!(w, "{} thermal readings; {} throttled readings in the main runs (their configurations were re-run; see `BENCH_LOG.md`); {} throttled readings in the re-runs.\n",
+        raw.thermal.len(), throttled.len(), rerun_throttled.len()).unwrap();
+    for t in throttled.iter().chain(&rerun_throttled) {
+        writeln!(w, "- {} `{}` ({})", t.0, t.1, t.2).unwrap();
+    }
+    writeln!(w).unwrap();
+
+    // ---- claims ----
+    writeln!(w, "## Paper claims (SPEC §13.11)\n").unwrap();
+    writeln!(w, "Claims are evaluated against paper revision **2026-09-29**, the revision the plan is frozen against. `BENCHMARKS.md` gives each verdict, and says beside it if a later revision changed the claim.\n").unwrap();
+
     // ---- run-to-run ----
     writeln!(w, "## Run-to-run variation\n").unwrap();
     writeln!(
@@ -715,60 +1040,72 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
     .map_err(|e| e.to_string())
 }
 
-/// (arm, state) → (verifications, resolver calls, store calls), over runs.
-fn read_calls(raw: &Path) -> BTreeMap<(String, String), (u64, u64, u64)> {
-    let mut out: BTreeMap<(String, String), (u64, u64, u64)> = BTreeMap::new();
-    for e in fs::read_dir(raw).into_iter().flatten().flatten() {
-        let p = e.path();
-        if !p.to_string_lossy().ends_with("-calls.csv") {
-            continue;
-        }
-        let Ok(mut r) = csv::Reader::from_path(&p) else {
-            continue;
-        };
-        for rec in r.records().flatten() {
-            let n = |i: usize| rec.get(i).and_then(|x| x.parse::<u64>().ok()).unwrap_or(0);
-            let e = out
-                .entry((
-                    rec.get(1).unwrap_or("").into(),
-                    rec.get(2).unwrap_or("").into(),
-                ))
-                .or_default();
-            e.0 += n(5);
-            e.1 += n(6);
-            e.2 += n(7);
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn r(lo: f64, hi: f64) -> Ratio {
+        Ratio {
+            value: (lo + hi) / 2.0,
+            ci: (lo, hi),
         }
     }
-    out
-}
 
-/// Per run: (run, accepted/s, p99 ns).
-type ThroughputRuns = Vec<(usize, f64, f64)>;
-
-/// (arm, threads) → per-run throughput.
-fn read_throughput(raw: &Path) -> BTreeMap<(String, usize), ThroughputRuns> {
-    let mut out: BTreeMap<(String, usize), ThroughputRuns> = BTreeMap::new();
-    for e in fs::read_dir(raw).into_iter().flatten().flatten() {
-        let p = e.path();
-        if !p.to_string_lossy().ends_with("-throughput.csv") {
-            continue;
-        }
-        let Ok(mut r) = csv::Reader::from_path(&p) else {
-            continue;
-        };
-        for rec in r.records().flatten() {
-            let f = |i: usize| {
-                rec.get(i)
-                    .and_then(|x| x.parse::<f64>().ok())
-                    .unwrap_or(f64::NAN)
-            };
-            let run = f(0) as usize;
-            let accepted = f(4);
-            let wall = f(5);
-            out.entry((rec.get(1).unwrap_or("").into(), f(2) as usize))
-                .or_default()
-                .push((run, accepted / (wall / 1e9), f(7)));
-        }
+    fn runs(v: &[f64]) -> BTreeMap<usize, f64> {
+        v.iter().enumerate().map(|(i, x)| (i + 1, *x)).collect()
     }
-    out
+
+    #[test]
+    fn the_margin_rule() {
+        assert_eq!(
+            verdict(&r(0.70, 0.89), &runs(&[0.8, 0.8, 0.85])),
+            "net benefit"
+        );
+        assert_eq!(
+            verdict(&r(1.11, 1.30), &runs(&[1.2, 1.2, 1.2])),
+            "not a net benefit"
+        );
+        assert_eq!(
+            verdict(&r(0.95, 1.05), &runs(&[1.0, 0.97, 1.02])),
+            "no material difference"
+        );
+        // The CI straddles a margin edge.
+        assert_eq!(
+            verdict(&r(0.85, 0.95), &runs(&[0.9, 0.9, 0.9])),
+            "inconclusive"
+        );
+        assert_eq!(
+            verdict(&r(0.95, 1.15), &runs(&[1.0, 1.0, 1.0])),
+            "inconclusive"
+        );
+    }
+
+    #[test]
+    fn runs_must_agree() {
+        assert_eq!(
+            verdict(&r(0.70, 0.89), &runs(&[0.8, 0.8, 0.92])),
+            "inconclusive (runs disagree)"
+        );
+        assert_eq!(
+            verdict(&r(1.11, 1.30), &runs(&[1.2, 1.05, 1.2])),
+            "inconclusive (runs disagree)"
+        );
+        assert_eq!(
+            verdict(&r(0.95, 1.05), &runs(&[1.0, 1.12, 1.0])),
+            "inconclusive (runs disagree)"
+        );
+    }
+
+    #[test]
+    fn break_even_is_the_first_crossing() {
+        let pts = [
+            (1, 500.0, 400.0),
+            (2, 520.0, 500.0),
+            (3, 540.0, 600.0),
+            (4, 560.0, 700.0),
+        ];
+        assert!(break_even(&pts).starts_with("N = 3: A is smaller"));
+        let none = [(1, 300.0, 400.0), (2, 320.0, 500.0)];
+        assert!(break_even(&none).starts_with("none in range"));
+    }
 }

@@ -15,4 +15,5 @@ pub mod plan;
 pub mod qos;
 pub mod report;
 pub mod stats;
+pub mod thermal;
 pub mod workload;

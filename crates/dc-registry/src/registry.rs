@@ -67,12 +67,20 @@ struct Pending {
     used: bool,
 }
 
+/// A certificate as the resolver keeps it, with its validity window.
+struct Stored {
+    nbf: u64,
+    exp: u64,
+    cert: Certificate,
+}
+
 #[derive(Default)]
 struct State {
     pending: HashMap<[u8; 16], Pending>,
     next_serial: u64,
-    /// Latest certificate binding each (identifier, key), for resolution.
-    latest: HashMap<(String, Vec<u8>), Certificate>,
+    /// Every certificate binding each (identifier, key), oldest first, for
+    /// resolution (D-26).
+    certs: HashMap<(String, Vec<u8>), Vec<Stored>>,
     /// Every issued certificate body, by serial.
     issued: HashMap<u64, CertBody>,
     /// Revoked bindings, which are never certified again (D-65).
@@ -230,10 +238,14 @@ impl<S: SigScheme, C: Clock> Registry<S, C> {
             serial,
         };
         let cert = self.sign_cert(&body)?;
-        st.latest.insert(
-            (body.identifier.as_str().to_owned(), body.pk.clone()),
-            cert.clone(),
-        );
+        st.certs
+            .entry((body.identifier.as_str().to_owned(), body.pk.clone()))
+            .or_default()
+            .push(Stored {
+                nbf,
+                exp,
+                cert: cert.clone(),
+            });
         st.issued.insert(serial, body);
         Ok(cert)
     }
@@ -296,28 +308,38 @@ impl<S: SigScheme, C: Clock> Registry<S, C> {
         self.sign_cert(body).expect("encodable body")
     }
 
-    /// Registers a certificate made outside `register`, so that the resolver
-    /// serves it. Used with [`Registry::root_sign_arbitrary`].
+    /// Registers a certificate made outside `register` as the binding's only
+    /// certificate, so that the resolver serves it whatever its content.
+    /// Used with [`Registry::root_sign_arbitrary`].
     #[cfg(feature = "test-hooks")]
     pub fn publish_arbitrary(&self, identifier: &Principal, pk: &[u8], cert: Certificate) {
+        let stored = Stored {
+            // Never "valid at t", which does not matter for an only entry.
+            nbf: u64::MAX,
+            exp: 0,
+            cert,
+        };
         self.state
             .write()
             .unwrap()
-            .latest
-            .insert((identifier.as_str().to_owned(), pk.to_vec()), cert);
+            .certs
+            .insert((identifier.as_str().to_owned(), pk.to_vec()), vec![stored]);
     }
 }
 
 impl<S: SigScheme, C: Clock> Resolver for Registry<S, C> {
-    /// The most recently issued certificate binding `id` to `pk`, valid or
-    /// not (D-26). `t` is not consulted: validity is line 27's job.
-    fn resolve(&self, id: &Principal, pk: &[u8], _t: u64) -> Option<Certificate> {
-        self.state
-            .read()
-            .unwrap()
-            .latest
-            .get(&(id.as_str().to_owned(), pk.to_vec()))
-            .cloned()
+    /// The newest certificate binding `id` to `pk` that is valid at `t`
+    /// (`nbf ≤ t ≤ exp`, D-35) if there is one, and otherwise the newest,
+    /// valid or not, so that line 27 can still reject an expired or
+    /// not-yet-valid binding (D-26 as revised for P-30).
+    fn resolve(&self, id: &Principal, pk: &[u8], t: u64) -> Option<Certificate> {
+        let st = self.state.read().unwrap();
+        let list = st.certs.get(&(id.as_str().to_owned(), pk.to_vec()))?;
+        list.iter()
+            .rev()
+            .find(|c| c.nbf <= t && t <= c.exp)
+            .or_else(|| list.last())
+            .map(|c| c.cert.clone())
     }
 }
 

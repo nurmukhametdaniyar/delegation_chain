@@ -18,9 +18,10 @@
 //!
 //! Interleaved events, as `cache_equivalence.rs` (SPEC §11.3, D-65):
 //! revocations followed by emergency rotation, certificate expiry (clock
-//! advances), new-key rotations, same-key renewals, renewals followed by
-//! revocation of the older or the newer certificate; plus pin changes: P2
-//! is pinned at 1/2 of the run, unpinned at 3/4 and pinned again at 7/8.
+//! advances), new-key rotations, same-key renewals (from now, future-dated,
+//! and shortening; P-30), renewals followed by revocation of the older or
+//! the newer certificate; plus pin changes: P2 is pinned at 1/2 of the run,
+//! unpinned at 3/4 and pinned again at 7/8.
 //!
 //! `DC_EQUIV_CHAINS` sets the number of chains per family (default
 //! 10,000); `DC_EQUIV_REPORT_DIR` names a directory for one JSON report per
@@ -207,6 +208,30 @@ fn run<C: ChainScheme>(family: &str, seed: u64, make: impl FnOnce(&ArmSuite<C>) 
                         .or_default() += 1
                 }
                 Err(e) => panic!("renewal: {e}"),
+            }
+        }
+        for (kind, per_mille) in [("future-dated renewal", 3), ("shortening renewal", 3)] {
+            // P-30: renewals whose window starts later, or ends early.
+            if chance(&mut rng, per_mille) {
+                let ids: Vec<String> = keys.keys().cloned().collect();
+                let id = pick(&mut rng, &ids).clone();
+                let label = pick(&mut rng, &keys[&id]).clone();
+                let t = s.now();
+                let (nbf, exp) = if kind == "future-dated renewal" {
+                    let nbf = t + 1 + rng.next_u64() % 3000;
+                    (nbf, nbf + 20_000)
+                } else {
+                    (t, t + 50 + rng.next_u64() % 2000)
+                };
+                match s.w.enroll_window(&id, &label, nbf, exp) {
+                    Ok(_) => *events.entry(kind).or_default() += 1,
+                    Err(ChainError::Registry(RegistryError::RevokedBinding)) => {
+                        *events
+                            .entry("renewal refused (revoked binding)")
+                            .or_default() += 1
+                    }
+                    Err(e) => panic!("{kind}: {e}"),
+                }
             }
         }
         if chance(&mut rng, 3) {

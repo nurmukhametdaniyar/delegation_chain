@@ -201,12 +201,21 @@ Why: The paper asks for the remaining validity window plus a clock-skew toleranc
 Affects benchmarks: Q10 memory, and the constant cost of the insert in every arm.
 Paper status (revision 2026-09-29): consistent. §4.6 ("Replay protection") and Theorem 5 now say that line 13 applies no tolerance, and that the TTL's added term must be at least the clock disagreement among the instances sharing the cache. Here one instance holds the cache, so 60 s satisfies that (P-07 resolved).
 
-## D-26 — Resolution returns the latest certificate for (id, pk), valid or not
-Spec section: §6.6     Paper section: §5.4, Algorithm 1 lines 23 and 27 (P-18)
-Decision: `resolve(id, pk, t)` returns the most recently issued certificate binding `id` to `pk`, whether or not it is currently valid. Validity and revocation are rejected at line 27.
-Why: If resolution filtered out invalid certificates, line 27 could never fire, and tests could not tell "unknown" from "expired".
-Affects benchmarks: no
-Paper status (revision 2026-09-29): adopted verbatim. §5.4: "Resolution returns the most recently issued certificate binding that identifier to that key, whether or not it is currently valid", with validity decided at line 27 (P-18 resolved). This was a departure from revision 2026-09-28, which said "returns the valid certificate"; it no longer departs.
+## D-26 — Resolution returns the newest certificate for (id, pk) valid at t, or else the newest
+Spec section: §6.6     Paper section: §5.4, Algorithm 1 lines 23 and 27 (P-18, P-30)
+Decision:
+- `resolve(id, pk, t)` returns the newest certificate binding `id` to `pk` that is valid at t (`nbf ≤ t ≤ exp`, D-35) if there is one. Otherwise it returns the newest certificate, valid or not.
+- Validity and revocation are still rejected at line 27.
+- The test hook `publish_arbitrary` makes its certificate the binding's only one, so that the security suite's forged and malformed certificates are served whatever their content.
+Why:
+- Returning an expired or not-yet-valid binding lets line 27 fire. If resolution filtered such bindings out, tests could not tell "unknown" from "expired".
+- Preferring a valid certificate is P-30's fix. Under "newest, valid or not", a future-dated same-key renewal shadowed the older, valid certificate for an uncached verifier. After a shortening renewal expired, it ended the binding for an uncached verifier while a caching one still accepted. So caches changed outcomes, contrary to paper §4.6.
+- With the fix, `future_dated_renewal_agrees` and `shortening_renewal_agrees` pass, and both renewal kinds are in the §11.3 event list.
+Affects benchmarks: no. The workloads renew no certificates, and each binding has one certificate.
+Paper status (revision 2026-09-29): ahead of the paper since 2026-09-30, agreed with the author under the SPEC §2 exception.
+- Revision 2026-09-29's §5.4 reads: "Resolution returns the most recently issued certificate binding that identifier to that key, whether or not it is currently valid". This decision's first version adopted that verbatim (P-18 resolved).
+- The revision for P-30 prefers a valid certificate.
+History: until 2026-09-30, "the latest certificate for (id, pk), valid or not", with `t` ignored.
 
 ## D-27 — An unresolvable approver is rejected at line 41
 Spec section: §10.2, §11.2     Paper section: Algorithm 2 lines 41–42 (P-14)
@@ -323,7 +332,7 @@ Decision:
 - A certificate enters the cache after line 24 verifies its signature; lines 25–27 are then checked on every use.
 - A policy enters the cache after its hash and well-formedness check (D-12).
 - A chain rejected later may leave cache entries behind.
-- Line 50 is the only mutation that can change a later decision. §11.3's equivalence test checks that the caches never change one. The exception found since is P-30: a same-key renewal that does not cover the older certificate's window. It is documented by probe tests and kept out of the §11.3 run.
+- Line 50 is the only mutation that can change a later decision. §11.3's equivalence test checks that the caches never change one. The exception found since, P-30 (a same-key renewal that does not cover the older certificate's window), is fixed by D-26 as revised, and both renewal kinds are in the §11.3 run.
 Why: §5.4 describes resolution caches that fill on use, which contradicts §4.6's "leaves the verifier exactly as it found it".
 Affects benchmarks: yes. It defines what the warm state has cached.
 Paper status (revision 2026-09-29): adopted. §4.6: "The only decision-relevant state the procedure changes is the nonce cache … Resolution and policy loading may fill caches"; the Figure 2 caption says the same (P-20 resolved).
@@ -658,7 +667,7 @@ Decision:
   - every prefix certificate's `exp`;
   - each prefix certificate's certificate-cache lifetime, which is the time it was resolved plus the TTL (one hour by default).
 
-  The last bound is not in SPEC §12.1. It keeps a prefix entry from holding a resolution result longer than the certificate cache itself may (paper §5.4). Without it, warm+prefix could keep using a certificate that warm would have re-resolved. It binds nothing in the benchmark, whose runs are much shorter than an hour of verifier-clock time.
+  The last bound was not in SPEC §12.1; the author approved it at the M8 checkpoint, and SPEC §12.1 now includes it. It keeps a prefix entry from holding a resolution result longer than the certificate cache itself may (paper §5.4). Without it, warm+prefix could keep using a certificate that warm would have re-resolved. It binds nothing in the benchmark, whose runs are much shorter than an hour of verifier-clock time.
 - **Invalidation.**
   - Revocation evicts every entry that lists the binding (D-65). Any pin or unpin clears the cache.
   - Ordering: revocation and pin changes update their own state, then take the entries' lock. An insert checks the revocation set and the pins while holding that lock. So a verification that began before a revocation or unpin cannot leave a stale entry behind.
@@ -804,3 +813,25 @@ Decision:
 - **A failing property, corrected.** The third property first compared decoded `Value`s. It failed at once, because for input whose map keys are out of order (a recorded violation) the decoder keeps the input order, while the encoder writes canonical order. So the values differ in map order only. The property was wrong, not the decoder, and it now compares bytes (the fixed point). The failing input is kept as the corpus seed `regress-unsorted-map-keys`.
 Why: the author asked for a decoder fuzz target before M9. SPEC §11.4 requires no panics and no accepted mutation.
 Affects benchmarks: no
+
+## D-75 — Benchmark method changes from the M8 checkpoint
+Spec section: §13.5, §13.6, §13.8, §13.9     Paper section: not applicable (method)
+Decision: the author's changes to the frozen plan, and the details this implementation chose for them.
+- **Verdicts.** Every ratio verdict uses a ±10% margin on the pooled 95% CI, and needs all three runs' own ratios of medians on the same side (`report::verdict`, with unit tests). Otherwise the verdict is "inconclusive (runs disagree)".
+- **Bytes.** Q2's primary comparison is A against C. `dc-bench bytes` measures every N from 1 to 10, so that the break-even N is exact. A against A-ind is the aggregation ablation, and medium-approval rows are included.
+- **Thermal state.**
+  - `pmset -g therm` is read before and after every configuration and every Q6 row, into `run*-thermal.csv`.
+  - A reading counts as throttled if `CPU_Speed_Limit` < 100, or if it records a thermal or performance warning level. This Mac reports no `CPU_Speed_Limit`, only "no warning level recorded" notes, so the warning levels are the signal that can actually fire here. That was decided before any measurement.
+  - Throttled configurations are re-run after the main runs (`dc-bench run --rerun --only …`), their samples replace that run's, and an entry is appended to `BENCH_LOG.md` whatever the result.
+- **Machine state.**
+  - AC power (`pmset -g batt`) and High Power mode (`powermode 2`) are required before anything is built.
+  - An idle machine means a 1-minute load average below 2.0 and no other process above 25% of a core (`ps`). It is required after the harness's own builds, with up to 10 minutes for it to hold, because XProtect scans newly built binaries. It is checked again at the start of every run process.
+  - `env.json` records the three checks (`m9_requirements`), and `all` aborts unless they all pass.
+- **Raw data.**
+  - `dc-bench archive` compresses each file in `results/raw/` with zstd (level 10) into `results/archive/`, and writes `MANIFEST.sha256` over the archives.
+  - The report generator reads raw data only from archives whose SHA-256 matches the manifest; a missing manifest or a mismatch stops it.
+  - The raw CSVs and archives are out of git; the manifest, `summary.md` and `summary.json` are committed.
+- **Claims** are evaluated against paper revision 2026-09-29.
+- **Arm E's 3× sanity rule** is flagged in the summary: an arm E ratio to AIP outside 3× must be investigated before arm E is reported.
+Why: the author's conditions for approving the plan (M8 checkpoint); the details fill what those conditions leave open.
+Affects benchmarks: yes (verdicts, re-runs, the preconditions of a run).

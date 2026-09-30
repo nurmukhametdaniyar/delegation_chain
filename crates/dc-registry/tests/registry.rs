@@ -305,7 +305,49 @@ fn nonces_are_reproducible_from_the_seed() {
     }
 }
 
-// ---- rotation and resolution (paper §5.5; D-26) ----
+// ---- rotation and resolution (paper §5.5; D-26, revised for P-30) ----
+
+/// P-30: a future-dated renewal does not shadow the valid older
+/// certificate, and a shortening renewal does not end the binding early.
+#[test]
+fn resolution_prefers_the_newest_certificate_valid_at_t() {
+    let f = fixture::<Bls>("orga");
+    let id = p("orga:agent:payer");
+    let sk = key::<Bls>("payer");
+    let pk_ = pk::<Bls>(&sk);
+    let serial = |c: &Certificate| parsed::<Bls>(c).body.serial;
+    let first = enroll_with_validity(&f.reg, &id, &sk, T0, T0 + 1000).unwrap();
+    // Future-dated renewal, valid from T0 + 500.
+    let future = enroll_with_validity(&f.reg, &id, &sk, T0 + 500, T0 + 5000).unwrap();
+    assert_eq!(
+        serial(&f.reg.resolve(&id, &pk_, T0 + 100).unwrap()),
+        serial(&first)
+    );
+    assert_eq!(
+        serial(&f.reg.resolve(&id, &pk_, T0 + 500).unwrap()),
+        serial(&future)
+    );
+    // Shortening renewal, valid T0 + 600 … T0 + 700.
+    let short = enroll_with_validity(&f.reg, &id, &sk, T0 + 600, T0 + 700).unwrap();
+    assert_eq!(
+        serial(&f.reg.resolve(&id, &pk_, T0 + 650).unwrap()),
+        serial(&short)
+    );
+    // After it expires, the older, still-valid renewal is served.
+    assert_eq!(
+        serial(&f.reg.resolve(&id, &pk_, T0 + 701).unwrap()),
+        serial(&future)
+    );
+    // Nothing valid: the newest (the shortening renewal).
+    assert_eq!(
+        serial(&f.reg.resolve(&id, &pk_, T0 + 6000).unwrap()),
+        serial(&short)
+    );
+    assert_eq!(
+        serial(&f.reg.resolve(&id, &pk_, T0 - 1).unwrap()),
+        serial(&short)
+    );
+}
 
 #[test]
 fn scheduled_rotation_yields_two_resolvable_certificates() {
@@ -322,8 +364,10 @@ fn scheduled_rotation_yields_two_resolvable_certificates() {
     assert_eq!(c_new.body.pk, pk::<Bls>(&new));
 }
 
+/// With no certificate valid at t, the newest is returned, valid or not
+/// (D-26), so that line 27 can reject it.
 #[test]
-fn resolution_returns_the_latest_certificate_valid_or_not() {
+fn resolution_returns_the_newest_certificate_when_none_is_valid() {
     let f = fixture::<Bls>("orga");
     let id = p("orga:agent:payer");
     let sk = key::<Bls>("payer");

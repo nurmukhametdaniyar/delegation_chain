@@ -7,3 +7,8 @@ __pycache__/
 results/dry-run/
 fuzz/corpus-work/
 fuzz/artifacts/
+# Raw benchmark data stays out of git: the archives are kept by the author,
+# and archive/MANIFEST.sha256 (committed) pins them (frozen plan §5).
+results/raw/
+results/archive/*.zst
+results/criterion/

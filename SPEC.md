@@ -8,6 +8,18 @@ Put this file in the repository root as `SPEC.md`.
 
 ## Changelog
 
+**2026-09-30 (M8 checkpoint) — P-30 resolved ahead of the paper; D-67 approved; benchmark plan changes.** Agreed with the author at the M8 checkpoint.
+- **Resolution (§6.6).** `resolve(id, pk, t)` returns the newest certificate for the binding that is valid at t if there is one, and otherwise the newest, so that line 27 still rejects an expired or not-yet-valid binding. D-26 is revised; the §2 exception now also covers P-30.
+- **Tests (§11.3).** Future-dated and shortening same-key renewals join the interleaved events. The two P-30 probes became equivalence tests.
+- **Prefix cache (§12.1).** An entry's window is also capped at the certificate cache's TTL from the time each prefix certificate was resolved (D-67, approved).
+- **Benchmark plan (§13, `BENCH_PLAN_FROZEN.md`):**
+  - a ±10% practical-significance margin on every ratio verdict, and agreement of all three runs;
+  - Q2's primary comparison is A against C, with the break-even N;
+  - `pmset -g therm` is recorded before and after every configuration, and throttled configurations are re-run;
+  - claims are evaluated against paper revision 2026-09-29;
+  - M9 requires AC power, High Power mode and an idle machine, confirmed in `env.json`;
+  - raw CSVs are archived with zstd outside git, under a committed SHA-256 manifest that the report generator verifies.
+
 **2026-09-29 (M6 checkpoint) — P-29 resolved ahead of the paper (D-65).** Agreed with the author at the M6 checkpoint. The §2 exception is reopened for this one point.
 - **Identity (§6.5).**
   - A revocation assertion names a binding. Its body gains `4: identifier` and `5: pk`, and keeps the serial for audit.
@@ -89,7 +101,9 @@ If this spec contradicts the paper, the paper wins. Log the contradiction as a `
 
 **Exception (agreed 2026-09-28, closed 2026-09-29).** For P-15 (D-28), P-16 (D-36) and P-17 (D-35), this spec ran ahead of paper revision 2026-09-28 and took precedence on those points. Revision 2026-09-29 adopts all three.
 
-**Exception (agreed 2026-09-29, open).** For P-29 (D-65), this spec runs ahead of paper revision 2026-09-29. Revocation names a binding (an identifier and key), not a certificate (§6.5, §10.2). This spec takes precedence on that point until a paper revision adopts it or the author decides otherwise. Everywhere else, the paper wins.
+**Exception (agreed 2026-09-29, open; extended 2026-09-30).** This spec runs ahead of paper revision 2026-09-29 on two points, and takes precedence on them until a paper revision adopts them or the author decides otherwise. Everywhere else, the paper wins.
+- **P-29 (D-65).** Revocation names a binding (an identifier and key), not a certificate (§6.5, §10.2).
+- **P-30 (D-26, revised).** Resolution returns the newest certificate for the binding that is valid at t, if there is one (§6.6).
 
 ---
 
@@ -450,9 +464,11 @@ trait PolicyStore{ fn load(&self, policy_hash: &[u8; 32]) -> Option<Vec<u8>>; }
 
 - **In-process implementations.** Both accept an optional injected latency (a sleep per call) for cold-path experiments (§13.4).
 - **Resolution is by identifier and key** (paper §5.4, Algorithm 1 line 23). Every body names its signer's key, so during a scheduled rotation, when two certificates for one identifier are valid at once, the key selects between them. This applies to issuers, agents and approvers alike. Implement scheduled rotation with overlapping certificates (§11.2 has a test for it).
-- **`resolve` returns the most recently issued certificate binding `id` to `pk`, whether or not it is currently valid** (**D-26**). Expiry and revocation are then rejected at line 27, where the paper checks them. If `resolve` filtered them out instead, line 27 would never fire and a test could not tell the two failures apart.
-  - Paper §5.4 (revision 2026-09-29) says the same. Revision 2026-09-28 said "resolution returns the valid certificate" (P-18, resolved).
-  - Line 27 checks `t ∈ [nbf, exp]` and revocation (D-35, P-17).
+- **`resolve(id, pk, t)` returns the newest certificate binding `id` to `pk` that is valid at t (`nbf ≤ t ≤ exp`), if there is one, and otherwise the newest, valid or not** (**D-26**, revised for P-30; ahead of the paper, §2 exception).
+  - An expired or not-yet-valid binding is therefore still resolved, and rejected at line 27, where the paper checks validity. If `resolve` filtered such bindings out, line 27 would never fire and a test could not tell the two failures apart.
+  - Preferring a valid certificate means a future-dated or shortening same-key renewal neither shadows nor cuts short an older, valid certificate. Without it, caching changed outcomes (P-30).
+  - Paper §5.4 (revision 2026-09-29) says "the most recently issued certificate … whether or not it is currently valid". Revision 2026-09-28 said "resolution returns the valid certificate" (P-18).
+  - Line 27 checks `t ∈ [nbf, exp]` and revocation (D-35, D-65).
 - **Content addressing.** `load` returns bytes; the verifier accepts them only if `SHA256(bytes) == policy_hash` and the bytes decode as a well-formed policy (§9.3). A malformed policy is treated as _unavailable_ (line 31) (**D-12**).
 
 ---
@@ -993,9 +1009,9 @@ Unless a row says otherwise, give every body the same `exp`, set every `hop_inde
   - certificate expiry, by advancing the injected clock;
   - new pins;
   - new-key rotations;
-  - same-key renewals;
+  - same-key renewals: from now, future-dated, and shortening (P-30);
   - renewals followed by revocation of the older or the newer certificate (D-65).
-- **Renewal windows:** renewals start now and use the registry's default lifetime, so they never shorten or defer a binding's validity. Renewals that do diverge under paper §5.4 (P-30). Probe tests record them; they are not in this run.
+- **Renewal windows:** besides renewals from now with the default lifetime, the events include future-dated renewals (starting up to 3,000 s later) and shortening renewals (ending 50–2,050 s from now). Under D-26 as revised, these no longer make the caches change outcomes (P-30).
 - **Assertion:** the uncached verifier and every cached configuration (warm; warm+prefix for arms B and D) return the same accept/reject decision, and the same reject variant.
 
 ### 11.4 Fuzzing (optional; do it if time allows)
@@ -1041,7 +1057,7 @@ A-mt needs a separate build, because Cargo unifies features and `no-threads` can
   - the prefix's hop and session checks (line 11) and expiry checks (line 15 for k < N)
   - arm B: the Miller-loop product P (§5.7)
   - arm D: the verified prefix signature bytes `σ_0 … σ_{N−1}`. A hit additionally requires the received prefix signatures to be byte-identical to them; otherwise treat it as a miss. Without this, a chain with valid prefix bodies but garbage prefix signatures would be accepted on a hit and rejected on a miss, and §11.3's equivalence test would rightly fail. Arm B needs no such rule, because its full pairing equation covers every signature.
-- **Entry validity:** from the latest prefix-certificate `nbf` to the earliest of every prefix body's `exp` and every prefix certificate's `exp` (D-35). Outside that window, treat a lookup as a miss.
+- **Entry validity:** from the latest prefix-certificate `nbf` to the earliest of every prefix body's `exp`, every prefix certificate's `exp` (D-35), and each prefix certificate's certificate-cache lifetime, meaning its resolution time plus the TTL (D-67, approved 2026-09-30). Outside that window, treat a lookup as a miss.
 - **Invalidation:** evict on revocation of any listed binding (D-65), and on a change to the pins.
 
 **Hit path**, in Algorithm order:
@@ -1458,12 +1474,12 @@ Configurations re-run: <list>
 - **P-28. Cold verifiers pair before phase 8** (found at M6). Line 24's certificate verifications are pairings under BLS roots, and phase 5 precedes phase 6, so Figure 2's "no pairing before phase 7" holds only for cached certificates.
   - Successful verifications are cached per binding, so real identities force at most one pairing check per distinct binding per cache lifetime, and at most N + 1 per chain.
   - Failures are not cached, so an adversary on the resolution channel can force a line-24 pairing on every attempt.
-- **P-30. "Most recent certificate" resolution and caching disagree on a renewal that does not cover the older certificate's window** (found while resolving P-29). A future-dated or shortening same-key renewal makes an uncached verifier reject at line 27, while a verifier caching the older, valid certificate accepts.
 - **P-26. Line 27 does not state its boundary.** "Not yet valid, expired" does not say whether validity is closed at `nbf` and `exp`, while lines 13 and 44 use closed intervals. The implementation uses the closed interval (D-35). Found in revision 2026-09-29.
 
 **Resolved ahead of the paper** (this spec takes precedence, §2):
 
 - **P-29. Serial revocation, "most recent certificate" resolution and caching disagree when a key is renewed** (found at M6). Fixed by revoking bindings, not certificates (D-65).
+- **P-30. "Most recent certificate" resolution and caching disagree on a renewal that does not cover the older certificate's window** (found while resolving P-29). Fixed by resolving to the newest certificate valid at t, if there is one (D-26, revised).
 
 **Resolved in revision 2026-09-29** (logged at M0, then marked resolved):
 

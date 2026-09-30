@@ -326,3 +326,39 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
 - **Environment note:** the machine was on battery for the dry run. The frozen plan requires AC power for full runs.
 - **Decisions added:** D-71 to D-74.
 - **Paper issues found:** none.
+
+## Pre-freeze changes from the M8 checkpoint (2026-09-30)
+
+- **P-30 resolved ahead of the paper** (D-26, revised).
+  - Resolution returns the newest certificate for the binding that is valid at t, and otherwise the newest.
+  - `publish_arbitrary` makes its certificate the binding's only one, so the security suite still receives its forged and malformed certificates.
+  - `future_dated_renewal_diverges` and `shortening_renewal_diverges` became `future_dated_renewal_agrees` and `shortening_renewal_agrees`, and a registry test covers both renewal kinds.
+- **§11.3 equivalence with future-dated and shortening renewals** (`docs/test-reports/cache-equivalence-p30*.json`): 10,000 chains per run, no disagreement in any.
+  - **arm A, uncached against warm**:
+    - outcomes: L02 810, L08 272, L09 62, L11 863, L13 819, L15 11, L17 71, L18 339, L20 131, L23 67, L27 1263, L30 721, L32 103, L34 337, L37 1167, L40 1, L41 6, L43 14, L49 374, accept 2569;
+    - events: clock advance 207, future-dated renewal 28, new pin 1, renewal 42, renewal refused (revoked binding) 8, renewal then revocation of the newer certificate 16, renewal then revocation of the older certificate 18, revocation 26, rotation 64, shortening renewal 29.
+  - **bls-aggregate** (A uncached, A warm, B warm+prefix):
+    - outcomes: L02 612, L08 298, L09 44, L11 649, L13 583, L15 597, L17 95, L18 401, L20 534, L23 64, L27 846, L30 810, L32 62, L34 371, L37 1084, L40 34, L41 5, L43 9, L49 320, accept 2582;
+    - prefix-cache hits: B warm+prefix 3079;
+    - events: clock advance 180, future-dated renewal 33, invocation on a stored prefix 7281, new prefix 2393, pin P2 1, pin P2 again 1, renewal 47, renewal refused (revoked binding) 4, renewal then revocation of the newer certificate 17, renewal then revocation of the older certificate 13, replay 326, revocation 27, rotation 55, shortening renewal 27, unpin P2 1.
+  - **bls-list** (A-ind uncached, A-ind warm):
+    - outcomes: L02 1106, L08 269, L09 39, L11 318, L13 615, L15 594, L17 63, L18 214, L20 557, L23 34, L27 960, L30 810, L32 57, L34 283, L37 1186, L40 23, L41 2, L43 4, L49 320, accept 2546;
+    - events: clock advance 193, future-dated renewal 24, invocation on a stored prefix 7311, new prefix 2417, pin P2 1, pin P2 again 1, renewal 48, renewal refused (revoked binding) 7, renewal then revocation of the newer certificate 17, renewal then revocation of the older certificate 20, replay 272, revocation 23, rotation 54, shortening renewal 22, unpin P2 1.
+  - **ed25519-list** (C uncached, C warm, C-batch uncached, C-batch warm, D warm+prefix):
+    - outcomes: L02 986, L08 286, L09 48, L11 336, L13 588, L15 562, L17 73, L18 196, L20 525, L23 25, L27 1304, L30 795, L32 80, L34 353, L37 1058, L40 33, L41 2, L43 15, L49 390, accept 2345;
+    - prefix-cache hits: D warm+prefix 2574;
+    - events: clock advance 212, future-dated renewal 29, invocation on a stored prefix 7293, new prefix 2405, pin P2 1, pin P2 again 1, renewal 63, renewal refused (revoked binding) 8, renewal then revocation of the newer certificate 9, renewal then revocation of the older certificate 12, replay 302, revocation 21, rotation 54, shortening renewal 31, unpin P2 1.
+- **D-67 approved;** SPEC §12.1 now includes the TTL cap.
+- **Plan changes (D-75, `BENCH_PLAN_FROZEN.md`):**
+  - a ±10% margin on every ratio verdict, and agreement of all three runs;
+  - Q2: A against C with the break-even N, at every N from 1 to 10, medium-approval included;
+  - `pmset -g therm` before and after every configuration, with throttled configurations re-run and logged;
+  - claims judged against revision 2026-09-29;
+  - arm E's 3× sanity rule;
+  - AC power, High Power mode and an idle machine, required and recorded in `env.json`;
+  - raw CSVs archived with zstd outside git, under a committed SHA-256 manifest that the report verifies.
+- **Checked on a dry run:**
+  - thermal CSVs for all 239 configurations;
+  - archives that verify with `shasum -a 256 -c`;
+  - a forced thermal re-run, which replaced its configuration's samples and was marked;
+  - a tampered archive, which stopped the report.

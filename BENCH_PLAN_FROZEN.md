@@ -1,6 +1,6 @@
 # Frozen benchmark plan
 
-**Status: DRAFT for the author's approval (M8 checkpoint).** It is not frozen and not tagged. Once approved, it is committed and tagged `bench-freeze` (SPEC §13.9), and from then on any deviation is logged in `BENCH_LOG.md` and repeated in `BENCHMARKS.md` under "Deviations from the frozen plan".
+**Status: approved by the author at the M8 checkpoint (2026-09-30), with the changes requested there. Frozen at the tag `bench-freeze`** (SPEC §13.9). From the tag on, any deviation is logged in `BENCH_LOG.md` and repeated in `BENCHMARKS.md` under "Deviations from the frozen plan".
 
 The grid, counts and seeds below are those of `crates/dc-bench/src/plan.rs`, which the harness runs; `cargo run --release -p dc-bench -- plan` prints them. The workloads are those of `crates/dc-bench/src/workload.rs` (D-71).
 
@@ -8,7 +8,7 @@ The grid, counts and seeds below are those of `crates/dc-bench/src/plan.rs`, whi
 
 Is BLS aggregation a net benefit for DelegationChain once caching is accounted for? "No" is an acceptable answer and will be reported as such.
 
-The answer rests on two comparisons, decided by the rules in §6:
+The answer rests on two comparisons, decided by the rules in §6 (a ±10% margin, and agreement of all three runs):
 - **The deployment pattern:** arm B (BLS aggregate with pairing and prefix caches) against arm D (Ed25519 with prefix cache), warm+prefix. One delegation carries many invocations here, and paper §8.3 says a comparison without caching "would not reflect how verifiers are built".
 - **Every call a new chain:** arm A (the protocol) against arms C and C-batch, warm.
 
@@ -68,7 +68,7 @@ That is 231 latency configurations per run.
   - 100 prefixes × 1,000 invocations, after 1,000 warm-up chains.
   - One shared verifier per (arm, threads).
   - Reported: wall time, accepted/s, and p99 per call under load.
-- **Q2 (bytes).** Every arm, N and profile, from 20 sampled chains per cell. Also the certificate size in this encoding, and each chain's size with N+1 certificates carried inline (§13.7).
+- **Q2 (bytes).** Arms A, A-ind and C (whose wire format C-batch and D share) at every N from 1 to 10, in every profile including medium-approval; arm E on the grid's N. 20 sampled chains per cell. Also the certificate size in this encoding, and each chain's size with N+1 certificates carried inline (§13.7).
 - **Q10 (memory).** 100,000 entries each: the nonce cache (both key sizes), the certificate cache (BLS and Ed25519) and the prefix cache (B and D at N = 3, medium). Measured with `stats_alloc`, by difference (D-41, D-72).
 - **Q7, Q8, primitives.** Criterion 0.5.1 with default settings (100 samples; 3 s warm-up; 5 s measurement), one pass per full run (D-73):
   - BLS: sign, verify, `aggregate_verify` over 2–11 messages, the hash-to-G2 proxy, the Miller loop, the final exponentiation;
@@ -80,38 +80,66 @@ That is 231 latency configurations per run.
 ## 5. Method
 
 - **Isolation.** Every chain is generated before measurement starts. Each timed operation is exactly one `verify(&bytes)` call, timed with `Instant` and recorded in nanoseconds; every sample goes to CSV. Any rejection, or any unexpected hit or miss, aborts the run (D-72).
+- **Thermal state.** `pmset -g therm` is read before and after every configuration, Q6's included, and written to `run*-thermal.csv`. This rule is fixed now, before any numbers exist:
+  - **When a reading counts as throttled.** It reports a CPU speed limit below 100, or it records a thermal or performance warning level. On this machine `pmset -g therm` does not report `CPU_Speed_Limit` at all, only "no warning level has been recorded" notes, so the warning levels are the operative signal here.
+  - **Re-runs.** Any configuration with a throttled reading before or after it is re-run after the main runs, and logged in `BENCH_LOG.md` whatever the re-run's result. The report uses the re-run's samples for that run, and marks the configuration.
 - **Runs.** 3 full runs, each in its own process, each preceded by chain generation and a 30 s settle. Configurations run in a random order per run, seeded by the order seeds `0xdc2dc30928`, `0xdc2dc3092b` and `0xdc2dc3092a` for runs 1–3. A-mt runs in its own process after each main run.
 - **Build.** Release profile per SPEC §3.3 (`lto = "fat"`, `codegen-units = 1`, `panic = "abort"`), with `RUSTFLAGS="-C target-cpu=native"` for all arms; `env.json` records the flags. Rust 1.97.1. The measurement-affecting crates are pinned exactly (D-47): blst 0.3.17, ed25519-dalek 2.2.0 (curve25519-dalek 4.1.3), sha2 0.10.9, biscuit-auth 6.0.0.
 - **Machine** (D-45): Apple M4 Max, 10 performance + 4 efficiency cores, macOS.
   - No governor or turbo control, and no core pinning. Every measuring thread sets QoS user-interactive (D-42), and the harness records whether that succeeded.
-  - **Full runs need AC power** and an otherwise idle machine. `env.json` records the power source and power mode. The M8 dry run ran on battery; it is not reported.
+  - **Required machine state; any failure aborts, and nothing is run.**
+    - AC power (`pmset -g batt`).
+    - High Power mode (`pmset -g` `powermode 2`).
+    - An idle machine: a 1-minute load average below 2.0, and no other process using more than 25% of a core.
+  - **When it is checked.** AC power and High Power mode are checked before anything is built. Idleness is checked after the harness's own builds, with up to 10 minutes allowed for it to hold, then again at the start of every run process. `env.json` must confirm all three, or `all` aborts.
+  - The M8 dry runs ran on battery; they are not reported.
+- **Raw data.** Raw CSVs stay out of git. After the runs, every file in `results/raw/` is compressed with zstd into `results/archive/`, and `results/archive/MANIFEST.sha256` (SHA-256 of each archive, `shasum -a 256 -c` format) is committed with `summary.json` and `summary.md`. The report generator verifies every archive against the manifest before it reads any raw data, and reads raw data only from the verified archives. The author keeps the archives.
 - **One command.** `RUSTFLAGS="-C target-cpu=native" cargo run --release -p dc-bench -- all` produces `results/raw/*.csv`, `env.json`, `bytes.json`, `memory.json`, `summary.md`, `summary.json` and `plots/`.
 
 ## 6. Statistics and decision rules (SPEC §13.6)
 
 - **Per configuration.** Median, mean, SD, p95, p99, min and max, with a bootstrap 95% CI for the median (10,000 resamples, seeded per configuration). Samples are pooled over the 3 runs, and each run's median is reported for run-to-run variation.
-- **Ratios.** Ratios of medians, with a paired-draw bootstrap CI.
-  - **A ratio is "lower" or "higher" only if its whole 95% CI lies below or above 1.** Otherwise the comparison is reported as no detectable difference.
-  - A run-to-run spread larger than the effect is reported alongside the result.
-- **Q3.** OLS over the per-N medians of arm A (warm and cold, per profile). α, β and 10β/α come with bootstrap CIs, plus R² and residuals.
-  - The per-hop term is said to dominate by N = 10 if 10β/α's CI lies above 1, the fixed term if it lies below, and neither otherwise. The crossover is N = α/β.
+- **Ratios.** Every ratio is the aggregating arm's median over the non-aggregating arm's (B/D, A/C, A/C-batch; A/A-ind in Q4), with a bootstrap 95% CI whose draws are paired by index.
+
+### Verdict rule for every ratio
+
+There is a practical-significance margin of ±10% around 1. From the pooled 95% CI [lo, hi]:
+
+| Verdict | Condition |
+|---|---|
+| **net benefit** | hi < 0.90 |
+| **not a net benefit** | lo > 1.10 |
+| **no material difference** | 0.90 ≤ lo and hi ≤ 1.10 |
+| **inconclusive** | otherwise |
+
+**Run agreement.** A net benefit, not a net benefit, or no material difference verdict stands only if each of the three runs' own ratio of medians falls on the same side of the margin: below 0.90, above 1.10, or within [0.90, 1.10], respectively. Otherwise the verdict is **inconclusive (runs disagree)**.
+
+The rule applies to:
+- §1's verdict;
+- every per-N and per-profile repetition of it;
+- A against C and against C-batch.
+
+It also applies to B/D in prefix-miss and to Q4's A/A-ind, as secondary verdicts.
+
+### Q3
+
+OLS over the per-N medians of arm A, warm and cold, per profile. α, β and 10β/α come with bootstrap CIs, plus R² and residuals. The per-hop term is said to dominate by N = 10 if 10β/α's CI lies above 1, the fixed term if it lies below, and neither otherwise. The crossover is N = α/β.
 
 ### Primary outcomes
 
-- **Q1.** Warm median latency. The headlines are at N = 3, medium:
+- **Q1.** Warm median latency, with verdicts by the rule above. The headlines are at N = 3, medium:
   - **B/D (warm+prefix)**, the deployment pattern: this answers §1;
   - **A/C and A/C-batch (warm)**: every call a new chain.
 
-  Also reported: the same ratios at every N and profile, B/D in prefix-miss, and cold latency.
-- **Q2.** Bytes per chain by arm, N and profile, with the signature share, and the bytes aggregation saves (A against A-ind).
+  The same verdicts are given at every N and profile. Also reported: B/D in prefix-miss, and cold latency.
+- **Q2.** Bytes per chain.
+  - **The primary comparison is A against C**, per N and profile, including medium-approval, where the receipt's key and signature sizes also differ (48 + 96 bytes under BLS against 32 + 64 under Ed25519). Each profile states its **break-even N**: the first N in 1–10 at which A and C swap order, or "none in range".
+  - A against A-ind stays as the aggregation ablation.
+  - Bytes are exact means, not samples, so no margin applies.
 
 ### Verdict on §1
 
-- **Net benefit:** B/D's CI lies below 1 at N = 3, medium.
-- **Not a net benefit:** it lies above 1.
-- **Inconclusive:** it straddles 1.
-
-The verdict is repeated for each N and profile, then for A against C and C-batch; the bytes (Q2) are reported beside it. If the latency and bytes answers disagree, both are stated; neither is traded against the other.
+B/D (warm+prefix) at N = 3, medium, by the rule above: net benefit, not a net benefit, no material difference, inconclusive, or inconclusive (runs disagree). It is repeated for each N and profile, then for A against C and C-batch; Q2's comparison is reported beside it. If the latency and bytes answers disagree, both are stated; neither is traded against the other.
 
 ## 7. Paper claims to check (SPEC §13.11; a verdict for each)
 
@@ -125,16 +153,20 @@ The verdict is repeated for each N and profile, then for A against C and C-batch
 | Cheap checks reject hostile chains before any pairing | §4.6, Figure 2 | `count-ops` ordering tests. **Separate verdicts for warm and cold verifiers** (P-28, D-61) |
 | The case for aggregation must be settled against a non-aggregating baseline | §4.6, §8.3 | Q1: A and B against C, C-batch and D |
 
+Claims are evaluated **against paper revision 2026-09-29**, the revision this plan is frozen against. If a later revision changes a claim, `BENCHMARKS.md` says so beside the verdict.
+
 Verdicts are supported, not supported, or partially supported, each with its numbers. If no check contradicts the paper, the report says explicitly that each one was checked.
 
 ## 8. Threats to validity, known before the run
 
 - **P-28.** A cold verifier pays N+1 certificate pairings at line 24; the cold rows include them.
-- **P-30.** Caches can change outcomes on non-monotone renewals. The workloads have none.
+- **P-30.** Fixed before the freeze (D-26, revised). The workloads renew no certificates anyway.
 - **D-66.** C-batch's semantics differ from C's at the edges.
 - **D-67.** Prefix entries live no longer than the certificate cache TTL; SPEC §12.1 gives no such bound. It binds nothing in these runs, which take far less than an hour of verifier time.
 - **Rust-only flags.** `target-cpu=native` reaches the Rust arms but not `blst`'s C and assembly (§3.3).
 - **Arm E** lacks resolution, PoP, revocation, receipts, nonces and parameter binding. It is compared with AIP's published figures only as labelled reference numbers from other hardware, not re-checked against arXiv:2603.24775 (§13.10).
+  - **Sanity rule** (SPEC §13.10): if arm E differs from AIP's published figures by more than about 3× at matching depth (DC's N against Biscuit depth N − 1), that is investigated before anything about arm E is reported.
+  - Reports note that the hardware differs: an M4 Max here, an M3 Max in AIP.
 - **Machine.** No pinning or frequency control on macOS; the timer is `mach_absolute_time`.
 - **Q5.** Injected sleeps are "at least" the delay.
 

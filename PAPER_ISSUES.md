@@ -10,8 +10,8 @@ Problems in the paper, _DelegationChain: Aggregatable Capability Chains for Cros
 - **Sources:** P-03 to P-14 come from SPEC Appendix C; P-01, P-02, P-04, P-11 and P-13 were resolved before 2026-09-28 and are not logged. P-15 to P-25 were found in the pre-M0 review (2026-09-28). P-26 was found while reconciling revision 2026-09-29, P-27 during M4, P-28 and P-29 during M6, and P-30 while resolving P-29.
 - **Status after revision 2026-09-29:**
   - resolved: P-03, P-07, P-09, P-10, P-14, and P-15 to P-25;
-  - resolved ahead of the paper: P-29 (D-65);
-  - open: P-05, P-06, P-08, P-12, P-26, P-27, P-28, P-30.
+  - resolved ahead of the paper: P-29 (D-65), P-30 (D-26, revised);
+  - open: P-05, P-06, P-08, P-12, P-26, P-27, P-28.
 - "Location" and "Evidence" below refer to revision 2026-09-28, where the issue was found. Each `Status` line says where revision 2026-09-29 addresses it.
 
 ---
@@ -323,12 +323,15 @@ Problem:
 - In both cases the caches change outcomes, contrary to §4.6. The problem does not involve revocation, so D-65 does not fix it.
 - Without any cache, a pre-issued renewal shadows the older, valid certificate: the binding cannot be used until the renewal's nbf. Pre-issuing renewals before expiry is common practice.
 Evidence: `tests/cache_equivalence.rs::future_dated_renewal_diverges` and `::shortening_renewal_diverges`. In both, the uncached verifier rejects at L27 and the warm verifier accepts.
-What the implementation does: The paper as written (D-26); the probe tests record the divergence.
+What the implementation does: Since 2026-09-30, the first option below, ahead of the paper: resolution returns the newest certificate valid at t if there is one, and otherwise the newest (D-26, revised).
+- The probes became equivalence tests (`future_dated_renewal_agrees`, `shortening_renewal_agrees`).
+- The §11.3 runs include both renewal kinds, with no disagreement in 10,000 chains per family (`docs/test-reports/cache-equivalence-p30*.json`).
+- The notes below record the state before the fix.
 - The §11.3 run renews from the current time with the registry's default lifetime (24 hours). Every earlier certificate was issued earlier with a lifetime of at most 24 hours, so those renewals never shorten or defer a binding's validity, and the caches are transparent for them.
 - Future-dated and shortening renewals are left out of the run, and this entry is the record of why.
 Suggested fix to the paper: Author to decide. Options:
-- resolution returns the most recent certificate valid at t if there is one, and otherwise the most recent certificate, so line 27 still fires for expired or not-yet-valid bindings;
+- resolution returns the most recent certificate valid at t if there is one, and otherwise the most recent certificate, so line 27 still fires for expired or not-yet-valid bindings (implemented, D-26 revised);
 - require renewals to be monotone: nbf no later than issuance, and exp no earlier than that of every unexpired certificate for the binding. This rules out pre-issued renewals;
 - state the exception in §4.6.
 Severity: liveness and clarity. The warm verifier accepts only under a certificate that is valid and unrevoked. The uncached verifier rejects a binding that has one. The §4.6 claim that caches do not change outcomes is false for these renewals.
-Status: open in revision 2026-09-29.
+Status: resolved ahead of the paper (D-26, revised 2026-09-30). Open in revision 2026-09-29, whose §5.4 returns the most recent certificate "whether or not it is currently valid".

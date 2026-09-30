@@ -1,22 +1,25 @@
-//! `dc-bench`: the benchmark harness (SPEC §13).
+//! `dc-bench`: the benchmark harness (SPEC §13; the frozen plan).
 //!
 //! ```text
-//! dc-bench all    [--mode full|dry] [--out DIR]    everything, as SPEC §13.8 asks
-//! dc-bench run    --run R [--mode M] [--out DIR] [--arm A]... [--no-throughput]
-//! dc-bench bytes  [--mode M] [--out DIR]           Q2
-//! dc-bench env    [--out DIR]                      results/env.json
-//! dc-bench report [--out DIR] [--criterion DIR] [--dry]
-//! dc-bench plan   [--mode M]                       the grid, for BENCH_PLAN_FROZEN.md
+//! dc-bench all     [--mode full|dry] [--out DIR]    everything (SPEC §13.8)
+//! dc-bench run     --run R [--mode M] [--out DIR] [--arm A]... [--only ID]... [--rerun] [--no-throughput]
+//! dc-bench bytes   [--mode M] [--out DIR]           Q2
+//! dc-bench env     [--out DIR]                      results/env.json
+//! dc-bench archive [--mode M] [--out DIR]           zstd archives of raw/ and their SHA-256 manifest
+//! dc-bench report  [--mode M] [--out DIR] [--criterion DIR]
+//! dc-bench plan    [--mode M]                       the grid, as the frozen plan states it
 //! ```
 //!
 //! `--mode dry` is M8's dry run: 10 iterations per configuration, written to
-//! `results/dry-run/`. Its numbers are never reported.
+//! `results/dry-run/`. Its numbers are never reported, and it does not
+//! require the machine state that a full run does.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use dc_bench::arms::{Arm, Family, State, Worlds};
 use dc_bench::harness::{BytesRow, SetKey, SetStore, bytes_row, generate, measure, throughput};
@@ -25,11 +28,11 @@ use dc_bench::plan::{
     throughput_counts,
 };
 use dc_bench::workload::{Layout, Profile, hop_agent, p};
-use dc_bench::{env, qos, report};
+use dc_bench::{env, qos, report, thermal};
 use dc_registry::Resolver;
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
-use serde_json::json;
+use serde_json::{Value, json};
 
 struct Args {
     cmd: String,
@@ -37,25 +40,27 @@ struct Args {
     out: Option<PathBuf>,
     run: usize,
     arms: Vec<Arm>,
+    only: Vec<String>,
+    rerun: bool,
     throughput: bool,
     criterion: Option<PathBuf>,
-    dry_flag: bool,
 }
 
 fn parse() -> Result<Args, String> {
     let mut it = std::env::args().skip(1);
     let cmd = it
         .next()
-        .ok_or("usage: dc-bench <all|run|bytes|env|report|plan> [options]")?;
+        .ok_or("usage: dc-bench <all|run|bytes|env|archive|report|plan> [options]")?;
     let mut a = Args {
         cmd,
         mode: Mode::Full,
         out: None,
         run: 1,
         arms: vec![],
+        only: vec![],
+        rerun: false,
         throughput: true,
         criterion: None,
-        dry_flag: false,
     };
     while let Some(flag) = it.next() {
         let mut val = || it.next().ok_or(format!("{flag} needs a value"));
@@ -74,9 +79,10 @@ fn parse() -> Result<Args, String> {
                 a.arms
                     .push(Arm::parse(&s).ok_or(format!("unknown arm {s}"))?);
             }
+            "--only" => a.only.push(val()?),
+            "--rerun" => a.rerun = true,
             "--no-throughput" => a.throughput = false,
             "--criterion" => a.criterion = Some(PathBuf::from(val()?)),
-            "--dry" => a.dry_flag = true,
             f => return Err(format!("unknown option {f}")),
         }
     }
@@ -117,9 +123,10 @@ fn main() -> ExitCode {
     };
     let r = match a.cmd.as_str() {
         "plan" => cmd_plan(&a),
-        "env" => cmd_env(&a),
+        "env" => cmd_env(&a).map(|_| ()),
         "run" => cmd_run(&a),
         "bytes" => cmd_bytes(&a),
+        "archive" => archive(&out_dir(&a)),
         "report" => cmd_report(&a),
         "all" => cmd_all(&a),
         c => Err(format!("unknown command {c}")),
@@ -160,7 +167,7 @@ fn cmd_plan(a: &Args) -> Result<(), String> {
     Ok(())
 }
 
-fn cmd_env(a: &Args) -> Result<(), String> {
+fn cmd_env(a: &Args) -> Result<Value, String> {
     let out = out_dir(a);
     fs::create_dir_all(&out).map_err(|e| e.to_string())?;
     let v = env::capture(&root());
@@ -168,10 +175,62 @@ fn cmd_env(a: &Args) -> Result<(), String> {
         out.join("env.json"),
         serde_json::to_string_pretty(&v).unwrap() + "\n",
     )
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+    Ok(v)
+}
+
+/// The frozen plan's machine state for a full run: AC power and High Power
+/// mode at once, and an idle machine within 10 minutes (the harness's own
+/// builds can leave the machine busy for a while). A dry run only warns.
+fn require(mode: Mode) -> Result<Value, String> {
+    let mut r = env::requirements();
+    if mode == Mode::Dry {
+        if r["ok"] != json!(true) {
+            eprintln!("dc-bench: dry run on a machine that a full run would refuse: {r}");
+        }
+        return Ok(r);
+    }
+    if r["ac_power"] != json!(true) || r["high_power_mode"] != json!(true) {
+        return Err(format!(
+            "aborting: a full run needs AC power and High Power mode: {r}"
+        ));
+    }
+    let deadline = Instant::now() + Duration::from_secs(600);
+    while r["ok"] != json!(true) {
+        if Instant::now() > deadline {
+            return Err(format!(
+                "aborting: the machine did not become idle within 10 minutes: {r}"
+            ));
+        }
+        eprintln!(
+            "dc-bench: waiting for the machine to become idle: {}",
+            r["idle"]
+        );
+        std::thread::sleep(Duration::from_secs(15));
+        r = env::requirements();
+    }
+    Ok(r)
+}
+
+/// The id of a Q6 configuration, as `--only` names it.
+fn q6_id(arm: Arm, t: usize) -> String {
+    format!("Q6 {} x{t}", arm.label())
+}
+
+fn write_thermal(
+    w: &mut csv::Writer<fs::File>,
+    run: usize,
+    id: &str,
+    phase: &str,
+    r: &thermal::Reading,
+) -> Result<(), String> {
+    let [limit, tw, pw, throttled] = r.fields();
+    w.write_record([&run.to_string(), id, phase, &limit, &tw, &pw, &throttled])
+        .map_err(|e| e.to_string())
 }
 
 fn cmd_run(a: &Args) -> Result<(), String> {
+    let requirements = require(a.mode)?;
     let out = out_dir(a);
     let raw = out.join("raw");
     fs::create_dir_all(&raw).map_err(|e| e.to_string())?;
@@ -190,11 +249,25 @@ fn cmd_run(a: &Args) -> Result<(), String> {
             .into_iter()
             .filter(|c| c.arm.matches_build())
             .filter(|c| a.arms.is_empty() || a.arms.contains(&c.arm))
+            .filter(|c| a.only.is_empty() || a.only.contains(&c.id()))
             .collect(),
         a.run,
     );
-    let do_throughput = a.throughput && !dc_crypto::BLST_THREADED;
     let (pre, per, warm_n) = throughput_counts(a.mode);
+    let mut tp_order: Vec<(Arm, usize)> = if a.throughput && !dc_crypto::BLST_THREADED {
+        THROUGHPUT_ARMS
+            .iter()
+            .flat_map(|&arm| THREADS.iter().map(move |&t| (arm, t)))
+            .filter(|&(arm, t)| a.only.is_empty() || a.only.contains(&q6_id(arm, t)))
+            .collect()
+    } else {
+        vec![]
+    };
+    let mut rng = ChaCha20Rng::seed_from_u64(order_seed(a.run) ^ 0x7_4600);
+    for i in (1..tp_order.len()).rev() {
+        let j = (rng.next_u64() % (i as u64 + 1)) as usize;
+        tp_order.swap(i, j);
+    }
     let tp_key = |family: Family| SetKey {
         family,
         profile: Profile::Medium,
@@ -210,35 +283,36 @@ fn cmd_run(a: &Args) -> Result<(), String> {
         count: warm_n,
     };
     let mut keys: Vec<SetKey> = configs.iter().map(SetKey::of).collect();
-    if do_throughput {
-        for f in [Family::BlsAggregate, Family::Ed25519List] {
-            keys.push(tp_key(f));
-            keys.push(tp_warm(f));
-        }
+    let tp_families: BTreeSet<Family> = tp_order.iter().map(|(arm, _)| arm.family()).collect();
+    for &f in &tp_families {
+        keys.push(tp_key(f));
+        keys.push(tp_warm(f));
     }
-    let set_dir = root().join("target/dc-bench-sets").join(format!(
-        "{}-run{}-{build}",
-        a.mode.label(),
-        a.run
-    ));
-    eprintln!("run {}: generating {} chain sets…", a.run, keys.len());
+    let stem = format!(
+        "run{}{}{}",
+        a.run,
+        if dc_crypto::BLST_THREADED { "-amt" } else { "" },
+        if a.rerun { "-rerun" } else { "" }
+    );
+    let set_dir = root()
+        .join("target/dc-bench-sets")
+        .join(format!("{}-{stem}-{build}", a.mode.label()));
+    eprintln!("{stem}: generating {} chain sets…", keys.len());
     let gen_started = Instant::now();
     let store = SetStore::build(&worlds, &keys, &set_dir, threads()).map_err(|e| e.to_string())?;
     let generation_s = gen_started.elapsed().as_secs_f64();
     // Let the machine settle after generating on every core (D-72).
-    std::thread::sleep(std::time::Duration::from_secs(if a.mode == Mode::Full {
+    std::thread::sleep(Duration::from_secs(if a.mode == Mode::Full {
         30
     } else {
         1
     }));
 
-    let suffix = if dc_crypto::BLST_THREADED { "-amt" } else { "" };
-    let mut lat = csv::Writer::from_path(raw.join(format!("run{}{suffix}.csv", a.run)))
-        .map_err(|e| e.to_string())?;
+    let csv_w = |name: String| csv::Writer::from_path(raw.join(name)).map_err(|e| e.to_string());
+    let mut lat = csv_w(format!("{stem}.csv"))?;
     lat.write_record(["run", "arm", "state", "N", "profile", "iter", "ns"])
         .map_err(|e| e.to_string())?;
-    let mut calls = csv::Writer::from_path(raw.join(format!("run{}{suffix}-calls.csv", a.run)))
-        .map_err(|e| e.to_string())?;
+    let mut calls = csv_w(format!("{stem}-calls.csv"))?;
     calls
         .write_record([
             "run",
@@ -251,11 +325,25 @@ fn cmd_run(a: &Args) -> Result<(), String> {
             "store_calls",
         ])
         .map_err(|e| e.to_string())?;
+    let mut therm = csv_w(format!("{stem}-thermal.csv"))?;
+    therm
+        .write_record([
+            "run",
+            "config",
+            "phase",
+            "cpu_speed_limit",
+            "thermal_warning",
+            "performance_warning",
+            "throttled",
+        ])
+        .map_err(|e| e.to_string())?;
     let mut timings = vec![];
     for (i, c) in configs.iter().enumerate() {
         let t = Instant::now();
         let chains = store.load(&SetKey::of(c)).map_err(|e| e.to_string())?;
+        write_thermal(&mut therm, a.run, &c.id(), "before", &thermal::read())?;
         let m = measure(&worlds, c, &chains)?;
+        write_thermal(&mut therm, a.run, &c.id(), "after", &thermal::read())?;
         drop(chains);
         let (arm, state, n, profile) = (
             c.arm.label(),
@@ -291,6 +379,7 @@ fn cmd_run(a: &Args) -> Result<(), String> {
                 .map_err(|e| e.to_string())?;
         }
         lat.flush().map_err(|e| e.to_string())?;
+        therm.flush().map_err(|e| e.to_string())?;
         let secs = t.elapsed().as_secs_f64();
         timings.push(json!({"config": c.id(), "seconds": secs}));
         eprintln!("[{}/{}] {} ({secs:.1} s)", i + 1, configs.len(), c.id());
@@ -298,35 +387,34 @@ fn cmd_run(a: &Args) -> Result<(), String> {
     calls.flush().map_err(|e| e.to_string())?;
 
     let mut tp_rows = vec![];
-    if do_throughput {
-        let mut w = csv::Writer::from_path(raw.join(format!("run{}-throughput.csv", a.run)))
-            .map_err(|e| e.to_string())?;
+    if !tp_order.is_empty() {
+        let mut w = csv_w(format!("{stem}-throughput.csv"))?;
         w.write_record([
             "run", "arm", "threads", "chains", "accepted", "wall_ns", "p50_ns", "p99_ns", "qos_ok",
         ])
         .map_err(|e| e.to_string())?;
-        let mut order: Vec<(Arm, usize)> = THROUGHPUT_ARMS
-            .iter()
-            .flat_map(|&arm| THREADS.iter().map(move |&t| (arm, t)))
-            .collect();
-        let mut rng = ChaCha20Rng::seed_from_u64(order_seed(a.run) ^ 0x7_4600);
-        for i in (1..order.len()).rev() {
-            let j = (rng.next_u64() % (i as u64 + 1)) as usize;
-            order.swap(i, j);
-        }
         // Per family: the warm-up chains and the measured chains.
         type Sets = Vec<(Family, Vec<Vec<u8>>, Vec<Vec<u8>>)>;
-        let sets: Sets = [Family::BlsAggregate, Family::Ed25519List]
-            .into_iter()
-            .map(|f| Ok((f, store.load(&tp_warm(f))?, store.load(&tp_key(f))?)))
+        let sets: Sets = tp_families
+            .iter()
+            .map(|&f| Ok((f, store.load(&tp_warm(f))?, store.load(&tp_key(f))?)))
             .collect::<std::io::Result<_>>()
             .map_err(|e| e.to_string())?;
-        for (arm, t) in order {
+        for (arm, t) in tp_order {
             let (_, warm, chains) = sets.iter().find(|s| s.0 == arm.family()).expect("family");
+            write_thermal(
+                &mut therm,
+                a.run,
+                &q6_id(arm, t),
+                "before",
+                &thermal::read(),
+            )?;
             let r = throughput(&worlds, arm, t, warm, chains)?;
+            write_thermal(&mut therm, a.run, &q6_id(arm, t), "after", &thermal::read())?;
+            therm.flush().map_err(|e| e.to_string())?;
             eprintln!(
-                "Q6 {} × {t}: {:.0} accepted/s",
-                arm.label(),
+                "{}: {:.0} accepted/s",
+                q6_id(arm, t),
                 r.accepted as f64 / (r.wall_ns as f64 / 1e9)
             );
             w.write_record([
@@ -351,7 +439,10 @@ fn cmd_run(a: &Args) -> Result<(), String> {
         "run": a.run,
         "mode": a.mode.label(),
         "build": build,
+        "rerun": a.rerun,
+        "only": a.only,
         "blst_threaded": dc_crypto::BLST_THREADED,
+        "requirements_at_start": requirements,
         "qos_user_interactive_main_thread": qos_main,
         "order_seed": order_seed(a.run),
         "order": configs.iter().map(Config::id).collect::<Vec<_>>(),
@@ -362,7 +453,7 @@ fn cmd_run(a: &Args) -> Result<(), String> {
         "rustflags_at_build": env!("DC_BENCH_RUSTFLAGS"),
     });
     fs::write(
-        raw.join(format!("run{}{suffix}-meta.json", a.run)),
+        raw.join(format!("{stem}-meta.json")),
         serde_json::to_string_pretty(&meta).unwrap() + "\n",
     )
     .map_err(|e| e.to_string())
@@ -374,30 +465,36 @@ fn cmd_bytes(a: &Args) -> Result<(), String> {
     let w = Worlds::new();
     let sample = 20;
     let mut rows: Vec<BytesRow> = vec![];
-    let mut cells: Vec<(usize, Profile)> = NS
-        .iter()
-        .flat_map(|&n| PROFILES.iter().map(move |&p| (n, p)))
-        .collect();
-    cells.push((3, Profile::MediumApproval));
-    for (n, profile) in cells {
-        for (label, family, envelope) in [
-            ("A (also B, A-mt)", Family::BlsAggregate, true),
-            ("A-ind", Family::BlsList, true),
-            ("C (also C-batch, D)", Family::Ed25519List, true),
-            ("E", Family::Biscuit, false),
-        ] {
-            if family == Family::Biscuit && profile == Profile::MediumApproval {
-                continue;
+    // Every N from 1 to 10, so that the A-against-C break-even is exact
+    // (frozen plan §6); arm E on the grid's N.
+    for profile in Profile::ALL {
+        for n in 1..=10 {
+            for (label, family) in [
+                ("A (also B, A-mt)", Family::BlsAggregate),
+                ("A-ind", Family::BlsList),
+                ("C (also C-batch, D)", Family::Ed25519List),
+            ] {
+                let key = SetKey {
+                    family,
+                    profile,
+                    n,
+                    layout: Layout::Fresh,
+                    count: sample,
+                };
+                rows.push(bytes_row(label, n, profile, &generate(&w, &key), true));
             }
+        }
+    }
+    for profile in PROFILES {
+        for n in NS {
             let key = SetKey {
-                family,
+                family: Family::Biscuit,
                 profile,
                 n,
                 layout: Layout::Fresh,
                 count: sample,
             };
-            let set = generate(&w, &key);
-            rows.push(bytes_row(label, n, profile, &set, envelope));
+            rows.push(bytes_row("E", n, profile, &generate(&w, &key), false));
         }
     }
     // Certificate sizes, from the registries (§13.7).
@@ -405,14 +502,18 @@ fn cmd_bytes(a: &Args) -> Result<(), String> {
     let bls_cert = w
         .bls
         .directory()
-        .resolve(&p(&agent), &w.bls.world.pk(&agent), 0)
+        .resolve(&p(&agent), &w.bls.world.pk(&agent), dc_bench::workload::T0)
         .ok_or("no BLS certificate")?;
     let ed_cert = w
         .ed25519
         .directory()
-        .resolve(&p(&agent), &w.ed25519.world.pk(&agent), 0)
+        .resolve(
+            &p(&agent),
+            &w.ed25519.world.pk(&agent),
+            dc_bench::workload::T0,
+        )
         .ok_or("no Ed25519 certificate")?;
-    let inline: Vec<serde_json::Value> = rows
+    let inline: Vec<Value> = rows
         .iter()
         .filter(|r| r.arm.starts_with('A') || r.arm.starts_with('C'))
         .map(|r| {
@@ -438,15 +539,42 @@ fn cmd_bytes(a: &Args) -> Result<(), String> {
     .map_err(|e| e.to_string())
 }
 
+/// Compresses every file in `raw/` with zstd into `archive/`, and writes
+/// `archive/MANIFEST.sha256` (`shasum -a 256 -c` format) over the archives.
+/// The archives stay out of git; the manifest is committed (frozen plan §5).
+fn archive(out: &Path) -> Result<(), String> {
+    let raw = out.join("raw");
+    let dir = out.join("archive");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let mut names: Vec<String> = fs::read_dir(&raw)
+        .map_err(|e| format!("{}: {e}", raw.display()))?
+        .filter_map(|e| e.ok()?.file_name().into_string().ok())
+        .collect();
+    names.sort();
+    let mut manifest = String::new();
+    for name in names {
+        let target = dir.join(format!("{name}.zst"));
+        let st = Command::new("zstd")
+            .args(["-q", "-f", "-10", "-o"])
+            .arg(&target)
+            .arg(raw.join(&name))
+            .status()
+            .map_err(|e| format!("zstd: {e}"))?;
+        if !st.success() {
+            return Err(format!("zstd failed on {name}"));
+        }
+        let bytes = fs::read(&target).map_err(|e| e.to_string())?;
+        let h = dc_types::digest::sha256(&[&bytes]);
+        let hex: String = h.iter().map(|b| format!("{b:02x}")).collect();
+        manifest.push_str(&format!("{hex}  {name}.zst\n"));
+    }
+    fs::write(dir.join("MANIFEST.sha256"), manifest).map_err(|e| e.to_string())
+}
+
 fn cmd_report(a: &Args) -> Result<(), String> {
     let out = out_dir(a);
     let criterion = a.criterion.clone().unwrap_or_else(|| out.join("criterion"));
-    report::report(
-        &out,
-        &criterion,
-        threads(),
-        a.dry_flag || a.mode == Mode::Dry,
-    )
+    report::report(&out, &criterion, threads(), a.mode == Mode::Dry)
 }
 
 fn run_child(cmd: &mut Command, what: &str) -> Result<(), String> {
@@ -459,7 +587,94 @@ fn run_child(cmd: &mut Command, what: &str) -> Result<(), String> {
     }
 }
 
-/// Everything SPEC §13.8 lists, from one command.
+/// (run, A-mt build?) → configurations with a throttled thermal reading.
+fn throttled(raw: &Path) -> BTreeMap<(usize, bool), BTreeSet<String>> {
+    let mut out: BTreeMap<(usize, bool), BTreeSet<String>> = BTreeMap::new();
+    for e in fs::read_dir(raw).into_iter().flatten().flatten() {
+        let name = e.file_name().to_string_lossy().to_string();
+        if !name.ends_with("-thermal.csv") || name.contains("-rerun") {
+            continue;
+        }
+        let amt = name.contains("-amt");
+        let Ok(mut r) = csv::Reader::from_path(e.path()) else {
+            continue;
+        };
+        for rec in r.records().flatten() {
+            if rec.get(6) == Some("true") {
+                let run: usize = rec.get(0).and_then(|x| x.parse().ok()).unwrap_or(0);
+                out.entry((run, amt))
+                    .or_default()
+                    .insert(rec.get(1).unwrap_or("").to_owned());
+            }
+        }
+    }
+    out
+}
+
+/// Appends a BENCH_LOG.md entry for each thermal re-run (SPEC Appendix B),
+/// with the medians of the original and the re-run, read from the CSVs.
+fn log_reruns(
+    log: &Path,
+    raw: &Path,
+    reruns: &BTreeMap<(usize, bool), BTreeSet<String>>,
+) -> Result<(), String> {
+    if reruns.is_empty() {
+        return Ok(());
+    }
+    let median_of = |file: &Path, id: &str| -> Option<f64> {
+        let mut r = csv::Reader::from_path(file).ok()?;
+        let mut v: Vec<f64> = r
+            .records()
+            .flatten()
+            .filter(|rec| format!("{} {} N={} {}", &rec[1], &rec[2], &rec[3], &rec[4]) == id)
+            .filter_map(|rec| rec[6].parse().ok())
+            .collect();
+        if v.is_empty() {
+            return None;
+        }
+        v.sort_by(f64::total_cmp);
+        Some(dc_bench::stats::quantile_sorted(&v, 0.5))
+    };
+    let date = Command::new("date")
+        .args(["-u", "+%Y-%m-%d"])
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+        .unwrap_or_default();
+    let mut f = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log)
+        .map_err(|e| e.to_string())?;
+    for ((run, amt), ids) in reruns {
+        let stem = format!("run{run}{}", if *amt { "-amt" } else { "" });
+        let mut lines = vec![];
+        for id in ids {
+            let before = median_of(&raw.join(format!("{stem}.csv")), id);
+            let after = median_of(&raw.join(format!("{stem}-rerun.csv")), id);
+            lines.push(format!(
+                "- `{id}`: original median {} ns, re-run median {} ns{}",
+                before.map_or("n/a".into(), |x| format!("{x:.0}")),
+                after.map_or("n/a".into(), |x| format!("{x:.0}")),
+                if id.starts_with("Q6 ") {
+                    " (Q6: see the throughput CSVs)"
+                } else {
+                    ""
+                }
+            ));
+        }
+        writeln!(
+            f,
+            "\n## {date} — thermal re-run, run {run}{}\nReason: `pmset -g therm` reported a CPU speed limit below 100 or a recorded warning level before or after these configurations (frozen plan §5). They were re-run after the main runs; the report uses the re-run samples, and the originals stay in the archive.\nConfigurations re-run:\n{}",
+            if *amt { " (A-mt build)" } else { "" },
+            lines.join("\n")
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Everything the frozen plan lists, from one command.
 fn cmd_all(a: &Args) -> Result<(), String> {
     let out = out_dir(a);
     let root = root();
@@ -469,11 +684,22 @@ fn cmd_all(a: &Args) -> Result<(), String> {
     let mode = a.mode.label();
     let outs = out.to_string_lossy().to_string();
     if !env!("DC_BENCH_RUSTFLAGS").contains("target-cpu=native") {
-        eprintln!(
-            "dc-bench: warning: not built with RUSTFLAGS=\"-C target-cpu=native\" (SPEC §3.3); env.json records it"
-        );
+        let msg = "not built with RUSTFLAGS=\"-C target-cpu=native\" (SPEC §3.3)";
+        if a.mode == Mode::Full {
+            return Err(format!("aborting: {msg}"));
+        }
+        eprintln!("dc-bench: warning: {msg}");
     }
-    cmd_env(a)?;
+    // AC power and High Power mode are checked before anything is built.
+    if a.mode == Mode::Full {
+        let r = env::requirements();
+        if r["ac_power"] != json!(true) || r["high_power_mode"] != json!(true) {
+            cmd_env(a)?;
+            return Err(format!(
+                "aborting: a full run needs AC power and High Power mode: {r}"
+            ));
+        }
+    }
     // The supplementary A-mt build: blst with its thread pool (D-29).
     run_child(
         Command::new(&cargo)
@@ -500,6 +726,15 @@ fn cmd_all(a: &Args) -> Result<(), String> {
         ]),
         "build dc-bench binaries",
     )?;
+    // env.json records the machine once it is idle, before the first run.
+    require(a.mode)?;
+    let env = cmd_env(a)?;
+    if a.mode == Mode::Full && env["m9_requirements"]["ok"] != json!(true) {
+        return Err(
+            "aborting: env.json does not confirm AC power, High Power mode and an idle machine"
+                .into(),
+        );
+    }
     let amt = root.join("target/a-mt/release/dc-bench");
     let runs = if a.mode == Mode::Dry { 1 } else { RUNS };
     for r in 1..=runs {
@@ -513,6 +748,33 @@ fn cmd_all(a: &Args) -> Result<(), String> {
             &format!("run {r}, A-mt"),
         )?;
     }
+    // Thermal re-runs (frozen plan §5), whatever their result.
+    let raw = out.join("raw");
+    let reruns = throttled(&raw);
+    for ((run, is_amt), ids) in &reruns {
+        let rs = run.to_string();
+        let bin = if *is_amt { &amt } else { &me };
+        let mut c = Command::new(bin);
+        c.args([
+            "run", "--run", &rs, "--mode", mode, "--out", &outs, "--rerun",
+        ]);
+        for id in ids {
+            c.args(["--only", id]);
+        }
+        run_child(
+            &mut c,
+            &format!(
+                "thermal re-run, run {run}{}",
+                if *is_amt { ", A-mt" } else { "" }
+            ),
+        )?;
+    }
+    let log = if a.mode == Mode::Full {
+        root.join("BENCH_LOG.md")
+    } else {
+        out.join("BENCH_LOG.dry.md")
+    };
+    log_reruns(&log, &raw, &reruns)?;
     cmd_bytes(a)?;
     let memory = me.with_file_name("dc-bench-memory");
     run_child(
@@ -536,6 +798,7 @@ fn cmd_all(a: &Args) -> Result<(), String> {
         ]);
     }
     run_child(&mut bench, "criterion benches (Q7, Q8, primitives)")?;
+    archive(&out)?;
     report::report(&out, &crit_dir, threads(), a.mode == Mode::Dry)?;
     let plot = root.join("scripts/plot.sh");
     if let Err(e) = run_child(Command::new("bash").arg(plot).arg(&out), "plots") {
@@ -546,6 +809,11 @@ fn cmd_all(a: &Args) -> Result<(), String> {
         .append(true)
         .open(out.join("runs.log"))
         .map_err(|e| e.to_string())?;
-    writeln!(f, "all ({mode}) finished").map_err(|e| e.to_string())?;
+    writeln!(
+        f,
+        "all ({mode}) finished; thermal re-runs: {}",
+        reruns.values().map(BTreeSet::len).sum::<usize>()
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }

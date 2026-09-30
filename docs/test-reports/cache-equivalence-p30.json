@@ -1,0 +1,39 @@
+{
+  "chains": 10000,
+  "events": {
+    "clock advance": 207,
+    "future-dated renewal": 28,
+    "new pin": 1,
+    "renewal": 42,
+    "renewal refused (revoked binding)": 8,
+    "renewal then revocation of the newer certificate": 16,
+    "renewal then revocation of the older certificate": 18,
+    "revocation": 26,
+    "rotation": 64,
+    "shortening renewal": 29
+  },
+  "label": "SPEC §11.3 cache equivalence, warm state; test statistics",
+  "outcomes": {
+    "L02": 810,
+    "L08": 272,
+    "L09": 62,
+    "L11": 863,
+    "L13": 819,
+    "L15": 11,
+    "L17": 71,
+    "L18": 339,
+    "L20": 131,
+    "L23": 67,
+    "L27": 1263,
+    "L30": 721,
+    "L32": 103,
+    "L34": 337,
+    "L37": 1167,
+    "L40": 1,
+    "L41": 6,
+    "L43": 14,
+    "L49": 374,
+    "accept": 2569
+  },
+  "warm_cached_certificates_at_end": 84
+}

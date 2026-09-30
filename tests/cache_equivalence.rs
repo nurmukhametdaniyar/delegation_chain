@@ -2,7 +2,8 @@
 //! and policy caches, paper §5.4) must return the same decision, and the same
 //! reject variant, on 10,000 randomized chains, valid and mutated. Interleaved
 //! events: revocations, certificate expiry (by advancing the clock), new pins,
-//! new-key rotations, same-key renewals, and renewals followed by revocation
+//! new-key rotations, same-key renewals (from now with the default lifetime,
+//! future-dated, and shortening; P-30), and renewals followed by revocation
 //! of either the older or the newer certificate (D-65). The other arms, and
 //! the warm+prefix configurations of arms B and D, are in
 //! `prefix_equivalence.rs`.
@@ -121,6 +122,43 @@ fn uncached_and_warm_verifiers_agree() {
                         .or_default() += 1
                 }
                 Err(e) => panic!("renewal: {e}"),
+            }
+        }
+        if chance(&mut rng, 3) {
+            // Future-dated renewal (P-30): the new certificate for the same
+            // key starts up to 3,000 s from now.
+            let ids: Vec<String> = keys.keys().cloned().collect();
+            let id = pick(&mut rng, &ids).clone();
+            let label = pick(&mut rng, &keys[&id]).clone();
+            let nbf = s.now() + 1 + rng.next_u64() % 3000;
+            match s.w.enroll_window(&id, &label, nbf, nbf + 20_000) {
+                Ok(_) => *events.entry("future-dated renewal").or_default() += 1,
+                Err(ChainError::Registry(RegistryError::RevokedBinding)) => {
+                    *events
+                        .entry("renewal refused (revoked binding)")
+                        .or_default() += 1
+                }
+                Err(e) => panic!("future-dated renewal: {e}"),
+            }
+        }
+        if chance(&mut rng, 3) {
+            // Shortening renewal (P-30): the new certificate for the same key
+            // ends 50–2,050 s from now, possibly before the older one.
+            let ids: Vec<String> = keys.keys().cloned().collect();
+            let id = pick(&mut rng, &ids).clone();
+            let label = pick(&mut rng, &keys[&id]).clone();
+            let t = s.now();
+            match s
+                .w
+                .enroll_window(&id, &label, t, t + 50 + rng.next_u64() % 2000)
+            {
+                Ok(_) => *events.entry("shortening renewal").or_default() += 1,
+                Err(ChainError::Registry(RegistryError::RevokedBinding)) => {
+                    *events
+                        .entry("renewal refused (revoked binding)")
+                        .or_default() += 1
+                }
+                Err(e) => panic!("shortening renewal: {e}"),
             }
         }
         if chance(&mut rng, 3) {
@@ -342,14 +380,13 @@ fn renewal_then_revocation_of_the_older_certificate_rejects_in_both() {
     renewal_then_revocation(true);
 }
 
-/// A probe beyond SPEC §11.3 (P-30): a same-key renewal whose validity
-/// window does not start now. Resolution returns the most recent certificate
-/// (paper §5.4; D-26), so the uncached verifier sees the renewal, not yet
-/// valid, and rejects at line 27. The warm verifier holds the older, valid
-/// certificate for the same binding and accepts. The caches are not
-/// transparent. This test records the behaviour; it does not endorse it.
+/// P-30, resolved ahead of the paper (D-26 as revised): a same-key renewal
+/// whose window starts later. Resolution serves the newest certificate valid
+/// at t, so before the renewal's nbf the uncached verifier gets the older,
+/// valid certificate, as the warm one does. Formerly
+/// `future_dated_renewal_diverges` (uncached L27, warm accept).
 #[test]
-fn future_dated_renewal_diverges() {
+fn future_dated_renewal_agrees() {
     let mut s = Suite::new();
     let uncached = s.verifier_as(PAYMENTS, VerifierConfig::uncached());
     let warm = s.verifier();
@@ -357,23 +394,20 @@ fn future_dated_renewal_diverges() {
     let now = s.now();
     s.w.enroll_window(&agent(2), &agent(2), now + 600, now + 48 * 3600)
         .unwrap();
-    let c = s.chain(3).to_bytes();
-    assert_eq!(
-        uncached.verify(&c),
-        Err(dc_verifier::Reject::L27CertificateNotValid { k: 2 })
-    );
-    assert!(
-        warm.verify(&c).is_ok(),
-        "warm verifier used the older certificate"
-    );
+    for advance in [0, 700] {
+        s.w.clock().advance(advance);
+        let c = s.chain(3).to_bytes();
+        assert!(uncached.verify(&c).is_ok(), "uncached, +{advance} s");
+        assert!(warm.verify(&c).is_ok(), "warm, +{advance} s");
+    }
 }
 
 /// P-30, second form: a same-key renewal that ends before the older
-/// certificate does. Once the renewal expires, the uncached verifier rejects
-/// at line 27; the warm verifier still holds the older certificate, within
-/// its cache TTL, and accepts.
+/// certificate does. After it expires, resolution serves the older, still
+/// valid certificate, so both verifiers accept. Formerly
+/// `shortening_renewal_diverges` (uncached L27, warm accept).
 #[test]
-fn shortening_renewal_diverges() {
+fn shortening_renewal_agrees() {
     let mut s = Suite::new();
     let uncached = s.verifier_as(PAYMENTS, VerifierConfig::uncached());
     let warm = s.verifier();
@@ -381,14 +415,11 @@ fn shortening_renewal_diverges() {
     let now = s.now();
     s.w.enroll_window(&agent(2), &agent(2), now, now + 100)
         .unwrap();
-    s.w.clock().advance(200);
-    let c = s.chain(3).to_bytes();
-    assert_eq!(
-        uncached.verify(&c),
-        Err(dc_verifier::Reject::L27CertificateNotValid { k: 2 })
-    );
-    assert!(
-        warm.verify(&c).is_ok(),
-        "warm verifier used the older certificate"
-    );
+    // Inside the short window, and after it.
+    for advance in [50, 150] {
+        s.w.clock().advance(advance);
+        let c = s.chain(3).to_bytes();
+        assert!(uncached.verify(&c).is_ok(), "uncached, +{advance} s");
+        assert!(warm.verify(&c).is_ok(), "warm, +{advance} s");
+    }
 }
