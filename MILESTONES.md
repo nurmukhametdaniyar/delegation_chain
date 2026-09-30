@@ -371,3 +371,20 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
   - `powermode 0` (automatic), not 2 (High Power);
   - not idle: a 1-minute load average of 4.09, and XprotectService at 38% CPU.
 - No measured number exists. M9 resumes with `RUSTFLAGS="-C target-cpu=native" cargo run --release -p dc-bench -- all` once the machine is on AC power, in High Power mode, and idle. M10 waits for M9's results.
+
+## Pre-measurement amendments, `bench-freeze-2` (2026-09-30)
+
+- **Amendment 1: the calibration probe** (D-76, frozen plan §5).
+  - The workload: 100 BLS verifications and 1,000 Ed25519 `verify_strict` calls on fixed inputs.
+  - A baseline of 5 probes after the settle; probes before and after every configuration, Q6 included.
+  - A configuration is flagged if a probe is more than 5% slower than the baseline, or if pmset records a warning.
+  - Flagged configurations are re-run and logged, naming the signal and whether the re-run was flagged again.
+  - The safety valve: more than 10% flagged aborts the run.
+  - Every probe time is in `run*-thermal.csv`, and the summary counts flagged configurations by signal.
+- **Amendment 2:** the stale §8 line on D-67 is corrected.
+- **Both are logged in `BENCH_LOG.md`** as made before any measurement. The plan's status line names `bench-freeze-2`, and `bench-freeze` is unchanged.
+- **Dry run on battery** (numbers not reported). The probe path, the re-runs, the BENCH_LOG entries (written to `results/dry-run/BENCH_LOG.dry.md`) and the summary all worked. One systematic effect, for the author:
+  - The "after" probe that follows a Q5 injected-latency configuration (1, 20 or 80 ms per call; the measuring thread mostly sleeps) ran 9–39% slower than the baseline. That flagged 5 of the 239 main-run configurations, and their re-runs were flagged again, by the probe only.
+  - Every other probe in the main run was within 4% of the baseline (462 probes, median 0.993).
+  - This looks like the CPU ramping back up from idle, not throttling. Under the rule as frozen, Q5's sleep-dominated configurations will be re-run in every run, and flagged again. That stays well under the 10% valve, but it is wasted time and it muddies the flag counts.
+  - The rule was left as the author specified it.

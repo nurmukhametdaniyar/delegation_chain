@@ -835,3 +835,24 @@ Decision: the author's changes to the frozen plan, and the details this implemen
 - **Arm E's 3× sanity rule** is flagged in the summary: an arm E ratio to AIP outside 3× must be investigated before arm E is reported.
 Why: the author's conditions for approving the plan (M8 checkpoint); the details fill what those conditions leave open.
 Affects benchmarks: yes (verdicts, re-runs, the preconditions of a run).
+
+## D-76 — The calibration probe and the safety valve
+Spec section: §13.5     Paper section: not applicable (method)
+Decision: the author's amendment before any measurement (frozen plan §5), with these details.
+- **Probe** (`crates/dc-bench/src/probe.rs`).
+  - 100 BLS verifications and 1,000 Ed25519 `verify_strict` calls, cycling over 8 fixed, valid (key, message, signature) triples of each scheme.
+  - The triples are built once from fixed seeds, outside any timing.
+  - Each call goes through `std::hint::black_box`, and a probe panics if any verification fails.
+  - It uses the same crates and build as the arms.
+- **Placement.** On the measuring thread, which has QoS user-interactive.
+  - Before a configuration: pmset, then the probe. After it: the probe, then pmset.
+  - For Q6 the probe runs single-threaded on the measuring thread, between thread counts.
+- **Baseline.** The median of 5 probes after the 30 s settle, recorded as rows `baseline-1` … `baseline-5` of `run*-thermal.csv`.
+- **Columns.** Every row carries the probe time, the baseline, `probe_slow` (probe > 1.05 × baseline), `pmset_warning`, and `throttled` (either).
+- **Valve.** It counts flagged configurations in a main run process, whose population is the process's latency configurations plus its Q6 rows. Once more than 10% are flagged, the process stops. It writes its partial CSVs and a meta file giving the reason, and exits with an error, which stops `all` before anything else runs.
+  - A re-run process records its flags but has no valve, since its whole population is flagged configurations.
+  - The dry run uses the same code.
+- **Reporting.** `BENCH_LOG.md`'s re-run entries name the signal that flagged each configuration, and whether its re-run was flagged again. The summary counts flagged configurations per run process, by signal.
+Why: `pmset -g therm` on this Mac cannot report a CPU speed limit. A fixed probe measures what matters directly: how fast this machine runs the arms' own primitives, compared with the start of the run.
+Affects benchmarks: yes (which configurations are re-run, and whether a run is usable at all).
+

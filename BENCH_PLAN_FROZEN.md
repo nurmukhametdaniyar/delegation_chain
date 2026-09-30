@@ -1,6 +1,6 @@
 # Frozen benchmark plan
 
-**Status: approved by the author at the M8 checkpoint (2026-09-30), with the changes requested there. Frozen at the tag `bench-freeze`** (SPEC §13.9). From the tag on, any deviation is logged in `BENCH_LOG.md` and repeated in `BENCHMARKS.md` under "Deviations from the frozen plan".
+**Status: approved by the author at the M8 checkpoint (2026-09-30), with the changes requested there. Frozen at the tag `bench-freeze-2`** (SPEC §13.9). That is the plan first frozen at `bench-freeze`, plus two amendments the author made before any measurement existed: the calibration probe in §5, and the corrected §8 line on D-67. Both are logged in `BENCH_LOG.md`. The tag `bench-freeze` stays where it was. From `bench-freeze-2` on, any deviation is logged in `BENCH_LOG.md` and repeated in `BENCHMARKS.md` under "Deviations from the frozen plan".
 
 The grid, counts and seeds below are those of `crates/dc-bench/src/plan.rs`, which the harness runs; `cargo run --release -p dc-bench -- plan` prints them. The workloads are those of `crates/dc-bench/src/workload.rs` (D-71).
 
@@ -80,9 +80,14 @@ That is 231 latency configurations per run.
 ## 5. Method
 
 - **Isolation.** Every chain is generated before measurement starts. Each timed operation is exactly one `verify(&bytes)` call, timed with `Instant` and recorded in nanoseconds; every sample goes to CSV. Any rejection, or any unexpected hit or miss, aborts the run (D-72).
-- **Thermal state.** `pmset -g therm` is read before and after every configuration, Q6's included, and written to `run*-thermal.csv`. This rule is fixed now, before any numbers exist:
-  - **When a reading counts as throttled.** It reports a CPU speed limit below 100, or it records a thermal or performance warning level. On this machine `pmset -g therm` does not report `CPU_Speed_Limit` at all, only "no warning level has been recorded" notes, so the warning levels are the operative signal here.
-  - **Re-runs.** Any configuration with a throttled reading before or after it is re-run after the main runs, and logged in `BENCH_LOG.md` whatever the re-run's result. The report uses the re-run's samples for that run, and marks the configuration.
+- **Throttling and interference.** Two signals are read before and after every configuration, Q6's included, and every reading goes to `run*-thermal.csv`. These rules are fixed before any numbers exist.
+  - **pmset.** `pmset -g therm` counts as throttled if it reports a CPU speed limit below 100, or records a thermal or performance warning level. On this machine it reports no `CPU_Speed_Limit` at all, only "no warning level has been recorded" notes.
+  - **Calibration probe** (amendment of 2026-09-30, D-76). A fixed, deterministic, CPU-bound probe of about 100 ms: 100 BLS verifications plus 1,000 Ed25519 `verify_strict` calls, on fixed valid inputs. It runs on the measuring thread, with the same QoS, before and after every configuration; for Q6 it runs single-threaded on that thread.
+  - **Baseline.** The median of 5 probes at the start of each run process, after the settle.
+  - **Flagging.** A configuration is flagged if either of its probes is more than 5% slower than the run's baseline, or if pmset records a warning before or after it.
+  - **Re-runs.** Flagged configurations are re-run after the main runs, and logged in `BENCH_LOG.md` whatever the re-run's result. The report uses the re-run's samples for that run, and marks the configuration.
+  - **Safety valve.** If more than 10% of a run's configurations are flagged, the run aborts and is reported instead of being re-run: the machine is not in a usable state. A re-run process records its flags but has no valve.
+  - **Reporting.** The report states how many configurations were flagged, and by which signal.
 - **Runs.** 3 full runs, each in its own process, each preceded by chain generation and a 30 s settle. Configurations run in a random order per run, seeded by the order seeds `0xdc2dc30928`, `0xdc2dc3092b` and `0xdc2dc3092a` for runs 1–3. A-mt runs in its own process after each main run.
 - **Build.** Release profile per SPEC §3.3 (`lto = "fat"`, `codegen-units = 1`, `panic = "abort"`), with `RUSTFLAGS="-C target-cpu=native"` for all arms; `env.json` records the flags. Rust 1.97.1. The measurement-affecting crates are pinned exactly (D-47): blst 0.3.17, ed25519-dalek 2.2.0 (curve25519-dalek 4.1.3), sha2 0.10.9, biscuit-auth 6.0.0.
 - **Machine** (D-45): Apple M4 Max, 10 performance + 4 efficiency cores, macOS.
@@ -162,7 +167,7 @@ Verdicts are supported, not supported, or partially supported, each with its num
 - **P-28.** A cold verifier pays N+1 certificate pairings at line 24; the cold rows include them.
 - **P-30.** Fixed before the freeze (D-26, revised). The workloads renew no certificates anyway.
 - **D-66.** C-batch's semantics differ from C's at the edges.
-- **D-67.** Prefix entries live no longer than the certificate cache TTL; SPEC §12.1 gives no such bound. It binds nothing in these runs, which take far less than an hour of verifier time.
+- **D-67.** Prefix entries live no longer than the certificate cache TTL. SPEC §12.1 includes this cap since the M8 checkpoint (D-67, approved). It binds nothing in these runs, which take far less than an hour of verifier time.
 - **Rust-only flags.** `target-cpu=native` reaches the Rust arms but not `blst`'s C and assembly (§3.3).
 - **Arm E** lacks resolution, PoP, revocation, receipts, nonces and parameter binding. It is compared with AIP's published figures only as labelled reference numbers from other hardware, not re-checked against arXiv:2603.24775 (§13.10).
   - **Sanity rule** (SPEC §13.10): if arm E differs from AIP's published figures by more than about 3× at matching depth (DC's N against Biscuit depth N − 1), that is investigated before anything about arm E is reported.

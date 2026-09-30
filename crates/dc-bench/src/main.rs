@@ -27,6 +27,7 @@ use dc_bench::plan::{
     Config, Mode, NS, PROFILES, RUNS, THREADS, THROUGHPUT_ARMS, grid, order_seed, shuffled,
     throughput_counts,
 };
+use dc_bench::probe::{self, Probe};
 use dc_bench::workload::{Layout, Profile, hop_agent, p};
 use dc_bench::{env, qos, report, thermal};
 use dc_registry::Resolver;
@@ -217,16 +218,136 @@ fn q6_id(arm: Arm, t: usize) -> String {
     format!("Q6 {} x{t}", arm.label())
 }
 
-fn write_thermal(
-    w: &mut csv::Writer<fs::File>,
+/// The thermal and calibration-probe readings around each configuration,
+/// and the safety valve (frozen plan §5).
+///
+/// - **Rows.** Every reading goes to `run*-thermal.csv`, including the 5
+///   baseline probes.
+/// - **Flags.** A configuration is flagged if pmset records a warning, or if
+///   either of its probes is more than 5% slower than the run's baseline.
+/// - **The valve.** In a main run process, once more than 10% of the
+///   process's configurations are flagged, the run aborts rather than
+///   re-running them. A re-run process records its flags but has no valve.
+struct Monitor {
+    w: csv::Writer<fs::File>,
     run: usize,
-    id: &str,
-    phase: &str,
-    r: &thermal::Reading,
-) -> Result<(), String> {
-    let [limit, tw, pw, throttled] = r.fields();
-    w.write_record([&run.to_string(), id, phase, &limit, &tw, &pw, &throttled])
-        .map_err(|e| e.to_string())
+    probe: Probe,
+    baseline: u64,
+    total: usize,
+    valve: bool,
+    /// (configuration, signal) of each flagged configuration.
+    flagged: Vec<(String, &'static str)>,
+}
+
+impl Monitor {
+    fn new(
+        mut w: csv::Writer<fs::File>,
+        run: usize,
+        total: usize,
+        valve: bool,
+    ) -> Result<Self, String> {
+        w.write_record([
+            "run",
+            "config",
+            "phase",
+            "cpu_speed_limit",
+            "thermal_warning",
+            "performance_warning",
+            "pmset_warning",
+            "probe_ns",
+            "baseline_ns",
+            "probe_slow",
+            "throttled",
+        ])
+        .map_err(|e| e.to_string())?;
+        let probe = Probe::new();
+        let (baseline, samples) = probe.baseline();
+        let mut m = Monitor {
+            w,
+            run,
+            probe,
+            baseline,
+            total,
+            valve,
+            flagged: vec![],
+        };
+        let pm = thermal::read();
+        for (k, ns) in samples.iter().enumerate() {
+            m.row("baseline", &format!("baseline-{}", k + 1), &pm, *ns, false)?;
+        }
+        eprintln!("run {run}: probe baseline {:.1} ms", baseline as f64 / 1e6);
+        Ok(m)
+    }
+
+    fn row(
+        &mut self,
+        id: &str,
+        phase: &str,
+        pm: &thermal::Reading,
+        probe_ns: u64,
+        judged: bool,
+    ) -> Result<(), String> {
+        let [limit, tw, pw, pm_flag] = pm.fields();
+        let slow = judged && probe::slow(probe_ns, self.baseline);
+        let throttled = judged && (pm.throttled() || slow);
+        self.w
+            .write_record([
+                &self.run.to_string(),
+                id,
+                phase,
+                &limit,
+                &tw,
+                &pw,
+                &pm_flag,
+                &probe_ns.to_string(),
+                &self.baseline.to_string(),
+                &slow.to_string(),
+                &throttled.to_string(),
+            ])
+            .map_err(|e| e.to_string())?;
+        self.w.flush().map_err(|e| e.to_string())
+    }
+
+    /// Readings before a configuration: pmset, then the probe.
+    fn before(&mut self, id: &str) -> Result<(thermal::Reading, u64), String> {
+        let pm = thermal::read();
+        let ns = self.probe.run_ns();
+        self.row(id, "before", &pm, ns, true)?;
+        Ok((pm, ns))
+    }
+
+    /// Readings after it: the probe, then pmset. Returns the abort reason if
+    /// the safety valve trips.
+    fn after(
+        &mut self,
+        id: &str,
+        before: (thermal::Reading, u64),
+    ) -> Result<Option<String>, String> {
+        let ns = self.probe.run_ns();
+        let pm = thermal::read();
+        self.row(id, "after", &pm, ns, true)?;
+        let pmset = before.0.throttled() || pm.throttled();
+        let slow = probe::slow(before.1, self.baseline) || probe::slow(ns, self.baseline);
+        let signal = match (pmset, slow) {
+            (true, true) => Some("pmset and probe"),
+            (true, false) => Some("pmset"),
+            (false, true) => Some("probe"),
+            (false, false) => None,
+        };
+        if let Some(sig) = signal {
+            self.flagged.push((id.to_owned(), sig));
+            eprintln!("run {}: {id} flagged ({sig})", self.run);
+        }
+        if self.valve && self.flagged.len() * 10 > self.total {
+            return Ok(Some(format!(
+                "aborting run {}: {} of its {} configurations are flagged (more than 10%); the machine is not in a usable state (frozen plan §5)",
+                self.run,
+                self.flagged.len(),
+                self.total
+            )));
+        }
+        Ok(None)
+    }
 }
 
 fn cmd_run(a: &Args) -> Result<(), String> {
@@ -307,6 +428,15 @@ fn cmd_run(a: &Args) -> Result<(), String> {
     } else {
         1
     }));
+    // The probe baseline, after the settle, on this measuring thread.
+    let mut monitor = Monitor::new(
+        csv::Writer::from_path(raw.join(format!("{stem}-thermal.csv")))
+            .map_err(|e| e.to_string())?,
+        a.run,
+        configs.len() + tp_order.len(),
+        !a.rerun,
+    )?;
+    let mut abort: Option<String> = None;
 
     let csv_w = |name: String| csv::Writer::from_path(raw.join(name)).map_err(|e| e.to_string());
     let mut lat = csv_w(format!("{stem}.csv"))?;
@@ -325,25 +455,13 @@ fn cmd_run(a: &Args) -> Result<(), String> {
             "store_calls",
         ])
         .map_err(|e| e.to_string())?;
-    let mut therm = csv_w(format!("{stem}-thermal.csv"))?;
-    therm
-        .write_record([
-            "run",
-            "config",
-            "phase",
-            "cpu_speed_limit",
-            "thermal_warning",
-            "performance_warning",
-            "throttled",
-        ])
-        .map_err(|e| e.to_string())?;
     let mut timings = vec![];
     for (i, c) in configs.iter().enumerate() {
         let t = Instant::now();
         let chains = store.load(&SetKey::of(c)).map_err(|e| e.to_string())?;
-        write_thermal(&mut therm, a.run, &c.id(), "before", &thermal::read())?;
+        let before = monitor.before(&c.id())?;
         let m = measure(&worlds, c, &chains)?;
-        write_thermal(&mut therm, a.run, &c.id(), "after", &thermal::read())?;
+        abort = monitor.after(&c.id(), before)?;
         drop(chains);
         let (arm, state, n, profile) = (
             c.arm.label(),
@@ -379,15 +497,17 @@ fn cmd_run(a: &Args) -> Result<(), String> {
                 .map_err(|e| e.to_string())?;
         }
         lat.flush().map_err(|e| e.to_string())?;
-        therm.flush().map_err(|e| e.to_string())?;
         let secs = t.elapsed().as_secs_f64();
         timings.push(json!({"config": c.id(), "seconds": secs}));
         eprintln!("[{}/{}] {} ({secs:.1} s)", i + 1, configs.len(), c.id());
+        if abort.is_some() {
+            break;
+        }
     }
     calls.flush().map_err(|e| e.to_string())?;
 
     let mut tp_rows = vec![];
-    if !tp_order.is_empty() {
+    if !tp_order.is_empty() && abort.is_none() {
         let mut w = csv_w(format!("{stem}-throughput.csv"))?;
         w.write_record([
             "run", "arm", "threads", "chains", "accepted", "wall_ns", "p50_ns", "p99_ns", "qos_ok",
@@ -402,16 +522,10 @@ fn cmd_run(a: &Args) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
         for (arm, t) in tp_order {
             let (_, warm, chains) = sets.iter().find(|s| s.0 == arm.family()).expect("family");
-            write_thermal(
-                &mut therm,
-                a.run,
-                &q6_id(arm, t),
-                "before",
-                &thermal::read(),
-            )?;
+            // The probe runs single-threaded on this thread (frozen plan §5).
+            let before = monitor.before(&q6_id(arm, t))?;
             let r = throughput(&worlds, arm, t, warm, chains)?;
-            write_thermal(&mut therm, a.run, &q6_id(arm, t), "after", &thermal::read())?;
-            therm.flush().map_err(|e| e.to_string())?;
+            abort = monitor.after(&q6_id(arm, t), before)?;
             eprintln!(
                 "{}: {:.0} accepted/s",
                 q6_id(arm, t),
@@ -430,6 +544,9 @@ fn cmd_run(a: &Args) -> Result<(), String> {
             ])
             .map_err(|e| e.to_string())?;
             tp_rows.push(r);
+            if abort.is_some() {
+                break;
+            }
         }
         w.flush().map_err(|e| e.to_string())?;
     }
@@ -449,6 +566,10 @@ fn cmd_run(a: &Args) -> Result<(), String> {
         "generation_seconds": generation_s,
         "config_seconds": timings,
         "throughput_qos_ok": tp_rows.iter().all(|r| r.qos_ok),
+        "probe_baseline_ns": monitor.baseline,
+        "configurations_in_process": monitor.total,
+        "flagged": monitor.flagged.iter().map(|(id, sig)| json!({"config": id, "signal": sig})).collect::<Vec<_>>(),
+        "aborted": abort,
         "total_seconds": started.elapsed().as_secs_f64(),
         "rustflags_at_build": env!("DC_BENCH_RUSTFLAGS"),
     });
@@ -456,7 +577,11 @@ fn cmd_run(a: &Args) -> Result<(), String> {
         raw.join(format!("{stem}-meta.json")),
         serde_json::to_string_pretty(&meta).unwrap() + "\n",
     )
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+    match abort {
+        Some(reason) => Err(reason),
+        None => Ok(()),
+    }
 }
 
 fn cmd_bytes(a: &Args) -> Result<(), String> {
@@ -600,7 +725,7 @@ fn throttled(raw: &Path) -> BTreeMap<(usize, bool), BTreeSet<String>> {
             continue;
         };
         for rec in r.records().flatten() {
-            if rec.get(6) == Some("true") {
+            if rec.get(10) == Some("true") {
                 let run: usize = rec.get(0).and_then(|x| x.parse().ok()).unwrap_or(0);
                 out.entry((run, amt))
                     .or_default()
@@ -609,6 +734,25 @@ fn throttled(raw: &Path) -> BTreeMap<(usize, bool), BTreeSet<String>> {
         }
     }
     out
+}
+
+/// Which signals flagged configuration `id` in a thermal CSV: "pmset",
+/// "probe", "pmset and probe", or "none".
+fn signals(file: &Path, id: &str) -> String {
+    let Ok(mut r) = csv::Reader::from_path(file) else {
+        return "none".into();
+    };
+    let (mut pm, mut pr) = (false, false);
+    for rec in r.records().flatten().filter(|rec| rec.get(1) == Some(id)) {
+        pm |= rec.get(6) == Some("true");
+        pr |= rec.get(9) == Some("true");
+    }
+    match (pm, pr) {
+        (true, true) => "pmset and probe".into(),
+        (true, false) => "pmset".into(),
+        (false, true) => "probe".into(),
+        (false, false) => "none".into(),
+    }
 }
 
 /// Appends a BENCH_LOG.md entry for each thermal re-run (SPEC Appendix B),
@@ -652,10 +796,13 @@ fn log_reruns(
         for id in ids {
             let before = median_of(&raw.join(format!("{stem}.csv")), id);
             let after = median_of(&raw.join(format!("{stem}-rerun.csv")), id);
+            let original = signals(&raw.join(format!("{stem}-thermal.csv")), id);
+            let again = signals(&raw.join(format!("{stem}-rerun-thermal.csv")), id);
             lines.push(format!(
-                "- `{id}`: original median {} ns, re-run median {} ns{}",
+                "- `{id}`: flagged by {original}; original median {} ns, re-run median {} ns; re-run {}{}",
                 before.map_or("n/a".into(), |x| format!("{x:.0}")),
                 after.map_or("n/a".into(), |x| format!("{x:.0}")),
+                if again == "none" { "not flagged".to_owned() } else { format!("flagged again, by {again}") },
                 if id.starts_with("Q6 ") {
                     " (Q6: see the throughput CSVs)"
                 } else {
@@ -665,7 +812,7 @@ fn log_reruns(
         }
         writeln!(
             f,
-            "\n## {date} — thermal re-run, run {run}{}\nReason: `pmset -g therm` reported a CPU speed limit below 100 or a recorded warning level before or after these configurations (frozen plan §5). They were re-run after the main runs; the report uses the re-run samples, and the originals stay in the archive.\nConfigurations re-run:\n{}",
+            "\n## {date} — throttling re-run, run {run}{}\nReason: before or after these configurations, `pmset -g therm` recorded a warning, or a calibration probe ran more than 5% slower than the run's baseline (frozen plan §5). They were re-run after the main runs; the report uses the re-run samples, and the originals stay in the archive.\nConfigurations re-run:\n{}",
             if *amt { " (A-mt build)" } else { "" },
             lines.join("\n")
         )

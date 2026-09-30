@@ -12,6 +12,7 @@ pub mod arms;
 pub mod env;
 pub mod harness;
 pub mod plan;
+pub mod probe;
 pub mod qos;
 pub mod report;
 pub mod stats;
