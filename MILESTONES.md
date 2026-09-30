@@ -362,3 +362,12 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
   - archives that verify with `shasum -a 256 -c`;
   - a forced thermal re-run, which replaced its configuration's samples and was marked;
   - a tampered archive, which stopped the report.
+
+## M9 — aborted before running (2026-09-30)
+
+- `bench-freeze` is tagged on `9e57e5c`.
+- The first `all` attempt aborted, as the frozen plan requires, before building or measuring anything. `dc-bench`'s check reported:
+  - power source Battery, not AC;
+  - `powermode 0` (automatic), not 2 (High Power);
+  - not idle: a 1-minute load average of 4.09, and XprotectService at 38% CPU.
+- No measured number exists. M9 resumes with `RUSTFLAGS="-C target-cpu=native" cargo run --release -p dc-bench -- all` once the machine is on AC power, in High Power mode, and idle. M10 waits for M9's results.
