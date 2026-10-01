@@ -346,7 +346,7 @@ impl Ctx<'_> {
     }
 }
 
-fn us(ns: f64) -> String {
+pub(crate) fn us(ns: f64) -> String {
     if ns >= 100_000.0 {
         format!("{:.0}", ns / 1000.0)
     } else {
@@ -400,12 +400,12 @@ pub const AIP_CHAINED_MS: [(usize, f64); 6] = [
     (5, 0.745),
 ];
 
-fn read_json(path: &Path) -> Option<Value> {
+pub(crate) fn read_json(path: &Path) -> Option<Value> {
     serde_json::from_str(&fs::read_to_string(path).ok()?).ok()
 }
 
 /// Criterion's estimates under `dir`: (benchmark id, median ns, CI).
-fn criterion_estimates(dir: &Path) -> Vec<(String, f64, (f64, f64))> {
+pub(crate) fn criterion_estimates(dir: &Path) -> Vec<(String, f64, (f64, f64))> {
     let mut out = vec![];
     let mut stack = vec![dir.to_owned()];
     while let Some(d) = stack.pop() {

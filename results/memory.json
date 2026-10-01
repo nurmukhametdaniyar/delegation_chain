@@ -1,0 +1,42 @@
+{
+  "label": "Q10 memory per entry; bytes retained (allocated − freed), by difference for the caches",
+  "mode": "full",
+  "rows": [
+    {
+      "bytes": 10734080,
+      "bytes_per_entry": 107.3408,
+      "entries": 100000,
+      "structure": "nonce cache (48-byte BLS invoker keys)"
+    },
+    {
+      "bytes": 9134080,
+      "bytes_per_entry": 91.3408,
+      "entries": 100000,
+      "structure": "nonce cache (32-byte Ed25519 invoker keys)"
+    },
+    {
+      "bytes": 65400904,
+      "bytes_per_entry": 654.0024999750002,
+      "entries": 100001,
+      "structure": "certificate cache, BLS (arms A, A-ind, B)"
+    },
+    {
+      "bytes": 70200952,
+      "bytes_per_entry": 702.0024999750002,
+      "entries": 100001,
+      "structure": "certificate cache, Ed25519 (arms C, C-batch, D)"
+    },
+    {
+      "bytes": 399623958,
+      "bytes_per_entry": 3996.23958,
+      "entries": 100000,
+      "structure": "prefix cache, arm B (N = 3, medium)"
+    },
+    {
+      "bytes": 363623958,
+      "bytes_per_entry": 3636.23958,
+      "entries": 100000,
+      "structure": "prefix cache, arm D (N = 3, medium)"
+    }
+  ]
+}

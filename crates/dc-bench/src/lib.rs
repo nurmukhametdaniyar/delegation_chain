@@ -9,6 +9,7 @@
 //! - [`qos`]: the one permitted `unsafe` call (D-42).
 
 pub mod arms;
+pub mod benchmarks;
 pub mod env;
 pub mod harness;
 pub mod plan;

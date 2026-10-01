@@ -8,6 +8,7 @@
 //! dc-bench archive [--mode M] [--out DIR]           zstd archives of raw/ and their SHA-256 manifest
 //! dc-bench report  [--mode M] [--out DIR] [--criterion DIR]
 //! dc-bench plan    [--mode M]                       the grid, as the frozen plan states it
+//! dc-bench benchmarks [--out DIR]                    BENCHMARKS.md from the verified results
 //! ```
 //!
 //! `all --resume` continues an interrupted `all`: it skips every run process
@@ -138,6 +139,17 @@ fn main() -> ExitCode {
         "bytes" => cmd_bytes(&a),
         "archive" => archive(&out_dir(&a)),
         "report" => cmd_report(&a),
+        "benchmarks" => {
+            let out = out_dir(&a);
+            let root = root();
+            dc_bench::benchmarks::render(
+                &out,
+                &a.criterion.clone().unwrap_or_else(|| out.join("criterion")),
+                &root.join("crates/dc-bench/BENCHMARKS.template.md"),
+                &root.join("BENCHMARKS.md"),
+                threads(),
+            )
+        }
         "all" => cmd_all(&a),
         c => Err(format!("unknown command {c}")),
     };

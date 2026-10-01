@@ -12,6 +12,7 @@ Problems in the paper, _DelegationChain: Aggregatable Capability Chains for Cros
   - resolved: P-03, P-07, P-09, P-10, P-14, and P-15 to P-25;
   - resolved ahead of the paper: P-29 (D-65), P-30 (D-26, revised);
   - open: P-05, P-06, P-08, P-12, P-26, P-27, P-28.
+- **Final status (M10, 2026-10-01).** The benchmarks found no new paper issue. They confirm P-28: §13.11's "cheap checks reject hostile chains before any pairing" is supported for warm verifiers and not supported for cold ones (`BENCHMARKS.md` §5). Every claim was evaluated against revision 2026-09-29.
 - "Location" and "Evidence" below refer to revision 2026-09-28, where the issue was found. Each `Status` line says where revision 2026-09-29 addresses it.
 
 ---
