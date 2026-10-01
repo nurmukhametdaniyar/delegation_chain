@@ -306,7 +306,7 @@ The per-hop term dominates by N = 10 if 10β/α's CI lies above 1, the fixed ter
 
 ## Q9. Arm E (Biscuit) against AIP's published figures
 
-AIP's figures are **published numbers from different hardware**: an Apple M3 Max under macOS 15.3, against this machine's M4 Max (SPEC §13.10). They are quoted from SPEC and not re-checked against arXiv:2603.24775. Arm E lacks registry resolution, PoP, revocation, receipts, the nonce cache and parameter binding (paper Table 1). **Sanity rule (frozen plan §8):** a ratio outside about 3× at matching depth is investigated before anything about arm E is reported.
+AIP's figures are **published numbers from different hardware**: an Apple M3 Max under macOS 15.3, against this machine's M4 Max (SPEC §13.10). They match arXiv:2603.24775v1, Table 5, and they time a different operation from arm E's (BENCHMARKS.md, Q9). Arm E lacks registry resolution, PoP, revocation, receipts, the nonce cache and parameter binding (paper Table 1). **Sanity rule (frozen plan §8):** a ratio outside about 3× at matching depth is investigated before anything about arm E is reported.
 
 | profile | N (depth N−1) | E here | AIP published (ms) | E / AIP |
 |---|---|---|---|---|

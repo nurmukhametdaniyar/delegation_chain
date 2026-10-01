@@ -24,7 +24,10 @@ use crate::report::{
 use crate::stats::{Ratio, quantile_sorted, ratio};
 
 /// AIP's published token sizes for biscuit-auth 6.0 chained mode (SPEC
-/// §13.10, quoted, not re-checked): depth → bytes.
+/// §13.10; arXiv:2603.24775v1, Table 5, "Size (Rust)", checked on
+/// 2026-10-01): depth → bytes. They are base64 string lengths: AIP's
+/// `bench_chained.rs` measures `to_base64().len()`. Arm E's sizes here are
+/// raw token bytes, so they are compared through [`base64_len`].
 pub const AIP_CHAINED_BYTES: [(usize, f64); 6] = [
     (0, 520.0),
     (1, 940.0),
@@ -35,6 +38,12 @@ pub const AIP_CHAINED_BYTES: [(usize, f64); 6] = [
 ];
 
 const NS: [usize; 5] = [1, 2, 3, 5, 10];
+
+/// The length of Biscuit's base64 form of `n` raw bytes: URL-safe, padded
+/// (biscuit-auth 6.0.0, `Biscuit::to_base64`).
+pub fn base64_len(n: usize) -> usize {
+    n.div_ceil(3) * 4
+}
 
 struct Doc<'a> {
     rows: &'a BTreeMap<Key, Row>,
@@ -474,6 +483,33 @@ impl Doc<'_> {
                 };
                 us((e(5)? - e(1)?) / 4.0)
             }
+            // E's per-block step plus one more `verify_strict`, as AIP's
+            // timed call checks every block's signature twice (Q9).
+            ["estep2", profile] => {
+                let e = |n| {
+                    self.row("E", "stateless", n, profile)
+                        .map(|r| r.pooled.median)
+                };
+                us((e(5)? - e(1)?) / 4.0 + self.crit("ed25519/verify_strict")?)
+            }
+            // AIP's published per-block step over E's, with `extra` more
+            // `verify_strict` calls per block added to E's.
+            ["estepgap", profile, extra] => {
+                let e = |n| {
+                    self.row("E", "stateless", n, profile)
+                        .map(|r| r.pooled.median)
+                };
+                let a = |d: usize| {
+                    AIP_CHAINED_MS
+                        .iter()
+                        .find(|x| x.0 == d)
+                        .map(|x| x.1 * 1e6)
+                        .ok_or(format!("no AIP figure at depth {d}"))
+                };
+                let step = (e(5)? - e(1)?) / 4.0
+                    + num::<f64>(extra)? * self.crit("ed25519/verify_strict")?;
+                f1((a(4)? - a(0)?) / 4.0 / step)
+            }
             ["aipstep"] => {
                 let a = |d: usize| {
                     AIP_CHAINED_MS
@@ -485,6 +521,16 @@ impl Doc<'_> {
                 us((a(4) - a(0)) / 4.0 * 1e6)
             }
             ["esize", n, profile] => format!("{:.0}", self.total("E", num(n)?, profile)?),
+            // Arm E's token in Biscuit's base64 form, the unit of AIP's
+            // published sizes. Every sampled token of a cell has one size.
+            ["esize64", n, profile] => {
+                let r = self.bytes_row("E", num(n)?, profile)?;
+                let (lo, hi) = (r["total_min"].as_u64(), r["total_max"].as_u64());
+                match (lo, hi) {
+                    (Some(lo), Some(hi)) if lo == hi => base64_len(lo as usize).to_string(),
+                    _ => return Err(format!("arm E's sizes vary at N={n} {profile}")),
+                }
+            }
             ["env", path] => Self::json_path(&self.env, path)?
                 .as_str()
                 .map(str::to_owned)

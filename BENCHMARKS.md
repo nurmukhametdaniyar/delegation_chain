@@ -8,7 +8,7 @@ By the frozen rule, BLS aggregation is **not a net benefit**. In the deployment 
 
 Aggregation saves bytes against Ed25519 only from N = 2 in the small profile, N = 2 in medium and N = 2 in large, and from N = 3 when the chain carries an approval receipt. At N = 1, A's chain is larger (+13 bytes, medium), because every body carries 48-byte BLS keys where Ed25519's are 32. The saving stays small. At N = 3 (medium), A's chain is 1826 bytes against C's 1881, 2.9% smaller, and 5.3% smaller at N = 10, because A's 96-byte aggregate is only 5.3% of the chain. Against individual BLS signatures, aggregation saves 98.0 bytes per hop, 13.9% of A-ind's chain at N = 3.
 
-Of the paper claims checked against revision 2026-09-29, one is **not supported**: that cheap checks reject hostile chains before any pairing. It holds only on a warm verifier, because a cold one first pays its N + 1 certificate pairings (P-28). The others are supported: aggregation's saving over individual BLS (A/A-ind 0.387–0.594 warm, N ≥ 2); the α + βN model (R² 0.9999, β ≈ 0.87 of one hash to G2 plus one Miller loop, and the per-hop term dominating beyond N ≈ 2.9); the constant 96-byte signature; inline certificates costing more per hop than aggregation saves (249 against 98.0 bytes); a registry-free steady state; and the need for a non-aggregating baseline, which, measured, decides against aggregation. Arm E (Biscuit) ran faster than AIP's published figures, beyond the sanity rule's 3× in the small profile at N = 1, 2, 3, 5 and the medium profile at N = 1. The harness was checked against D-68, and the gap is unexplained (Q9).
+Of the paper claims checked against revision 2026-09-29, one is **not supported**: that cheap checks reject hostile chains before any pairing. It holds only on a warm verifier, because a cold one first pays its N + 1 certificate pairings (P-28). The others are supported: aggregation's saving over individual BLS (A/A-ind 0.387–0.594 warm, N ≥ 2); the α + βN model (R² 0.9999, β ≈ 0.87 of one hash to G2 plus one Miller loop, and the per-hop term dominating beyond N ≈ 2.9); the constant 96-byte signature; inline certificates costing more per hop than aggregation saves (249 against 98.0 bytes); a registry-free steady state; and the need for a non-aggregating baseline, which, measured, decides against aggregation. Arm E (Biscuit) ran faster than AIP's published figures, beyond the sanity rule's 3× in the small profile at N = 1, 2, 3, 5 and the medium profile at N = 1. The harness measures what D-68 specifies, but AIP's published "verify" is a larger operation: it decodes base64, verifies every block's signature twice, and parses its authorizer from Datalog text. That explains the direction of the gap and part of its size; the rest is unexplained (Q9).
 
 ## 1. Environment
 
@@ -337,7 +337,7 @@ The per-hop term dominates by N = 10 if 10β/α's CI lies above 1, the fixed ter
 
 ### Q9. Arm E against AIP
 
-AIP's figures are **published numbers from different hardware**: an Apple M3 Max under macOS 15.3, against this machine's M4 Max (SPEC §13.10). They are quoted from SPEC and not re-checked against arXiv:2603.24775. Arm E lacks registry resolution, PoP, revocation, receipts, the nonce cache and parameter binding (paper Table 1). **Sanity rule (frozen plan §8):** a ratio outside about 3× at matching depth is investigated before anything about arm E is reported.
+AIP's figures are **published numbers from different hardware**: an Apple M3 Max under macOS 15.3, against this machine's M4 Max (SPEC §13.10). They match arXiv:2603.24775v1, Table 5, and they time a different operation from arm E's (BENCHMARKS.md, Q9). Arm E lacks registry resolution, PoP, revocation, receipts, the nonce cache and parameter binding (paper Table 1). **Sanity rule (frozen plan §8):** a ratio outside about 3× at matching depth is investigated before anything about arm E is reported.
 
 | profile | N (depth N−1) | E here | AIP published (ms) | E / AIP |
 |---|---|---|---|---|
@@ -801,14 +801,28 @@ The sleeps dominate. Verification is local only in the steady state, as paper §
 
 **Q9. Arm E on this hardware against AIP's published figures.** The sanity rule (frozen plan §8) is triggered.
 - **Where the gap lies.** E takes 0.26–0.29× of AIP's time in the small profile, 0.32–0.37× in the medium profile and 1.11–1.26× in the large profile. It is more than 3× faster in the small profile at N = 1, 2, 3, 5 and the medium profile at N = 1.
-- **What was checked**, following D-68:
+- **AIP's figures, checked.** SPEC §13.10's figures match arXiv:2603.24775v1, Table 5 ("Rust verify", "Size (Rust)"). AIP's evaluation text says only that chained mode ran 100 iterations per depth, on an Apple M3 Max under macOS 15.3, with biscuit-auth 6.0. What the timed "verify" contains is in AIP's code (github.com/sunilp/aip at `ad2faa6`, the commit that prepared the arXiv submission): `rust/aip-token/src/bin/bench_chained.rs` and `src/chained.rs`. Its committed results file, `paper/benchmarks/results/chained_rust.json`, holds the published figures.
+
+| | AIP's Rust "verify" (paper v1; code at `ad2faa6`) | Arm E (D-68) |
+|---|---|---|
+| Token decoding | Paper: not stated. Code: the token is a base64 string. `Biscuit::from_base64` decodes and deserializes it, and `authorize` then re-serializes it and deserializes it again. Block 0's Datalog source is printed and parsed back as text, for the issuer and the maximum depth. | Raw bytes, deserialized once by `Biscuit::from`. No base64, no printing. |
+| Signatures | Paper: the verifier "verifies all Ed25519 signatures" (§3.8). Code: every block's signature is verified twice, once in `from_base64` and again in `authorize`, and the root key is decoded from bytes twice. | Every block's signature once. The root key is parsed once, outside the timer. |
+| Identity or key resolution | Paper: the MCP binding resolves the issuer's identity document (§3.6); the micro-benchmark's text does not say. Code: none; the root key's bytes are passed in. | None. Biscuit has no registry (D-68's functional gaps). |
+| Authorizer and policy | Paper: not stated. Code: built on every call by parsing Datalog text (three facts and one policy), with the wall-clock time formatted into it. The token's checks are the Simple profile's: a tool set and an expiry check in the authority block, and a tool set and a budget check per delegation block. | Built from facts (`aud`, `tool`, `action`, `now`, and one per parameter); its two policies are parsed once, outside the timer. The token carries checks equivalent to DC's scopes, more per block than AIP's. |
+| Iterations and statistic | Paper: 100 iterations per depth; Table 5 does not name its statistic (Table 4 reports means). Code: the arithmetic mean of 100 single timings, with no warm-up. Each timing follows generating a key pair and creating and delegating a fresh token. | 1,000 warm-up and 10,000 measured calls per configuration, in each of three runs; the pooled median. |
+| Hardware and build | Paper: Apple M3 Max, macOS 15.3, biscuit-auth 6.0. Code: `biscuit-auth = "6"` with no lock file committed; the build profile and flags are not recorded. | Apple M4 Max, macOS 26.5.2; release, fat LTO, `target-cpu=native`; biscuit-auth 6.0.0, pinned. |
+
+- **Token sizes: a correction.** M10's version of this report said arm E's token sizes matched AIP's. The two are in different units: AIP's published sizes are base64 string lengths (`to_base64().len()`), and arm E's are raw bytes. In Biscuit's base64, arm E's small-profile token is 784 characters at depth 0 against AIP's 520, and 2928 against 2072 at depth 4. Arm E's tokens are the larger ones, and they still verify faster.
+- **What was checked in this harness**, following D-68:
   - **The mapping.** `crates/dc-baselines/tests/biscuit.rs` shows that arm E's tokens attenuate and agree with DC's Evaluate on the §6.2 policy family. Every measured verification was accepted.
-  - **The timed scope.** The harness times `BiscuitArm::verify`: `Biscuit::from` (which deserializes and calls `verify` on every block's signature), authorizer construction and `authorize`. The policies are parsed once, outside the timer, as D-68 says.
+  - **The timed scope.** The harness times `BiscuitArm::verify`: `Biscuit::from` (which deserializes the token and checks every block's signature with `verify_strict`), authorizer construction and `authorize`. The policies are parsed once, outside the timer, as D-68 says.
   - **The build.** The same release build as every arm, with `target-cpu=native`, biscuit-auth 6.0.0 with its default features minus `pem`.
-  - **The token sizes.** They match AIP's published sizes at the same depth: 586 bytes at depth 0 against AIP's 520, and 2194 against 2072 at depth 4.
-- **What the numbers show.** Each extra block costs E 32.8 µs, about one Ed25519 verification (20.6 µs) plus Datalog evaluation. AIP's published per-block cost is 109 µs.
-- **Conclusion.** The harness measures what D-68 specifies, and the difference lies in work AIP's figures include and this harness does not, or in their setup. Neither can be established without re-checking arXiv:2603.24775, which was not done.
-- **Caveats.** The mapping was not adjusted. The hardware differs (an M4 Max here, an M3 Max in AIP), but a generation's difference cannot account for a gap this size. Arm E remains a positioning reference, with the functional gaps of paper Table 1.
+- **What the numbers show.** Each extra block costs E 32.8 µs (small), about one Ed25519 `verify_strict` (20.6 µs) plus Datalog evaluation. AIP's published per-block cost is 109 µs, 3.3× E's. With a second `verify_strict` per block, as AIP's timed call makes, E's step would be 53.4 µs, and AIP's is still 2.0× that.
+- **Conclusion.** The harness measures what D-68 specifies. No bug was found, and nothing was changed.
+  - **The rule's premise does not hold.** The 3× rule assumes that the two figures time the same operation, and they do not. AIP's timed call does about twice arm E's decoding and signature work per block, plus fixed work that arm E's excludes: base64, a second root-key decode, Datalog parsing, and printing block 0.
+  - **What that explains.** The direction of the gap, and part of its size.
+  - **What it leaves unexplained.** The rest. AIP's timings are a mean of 100 single calls, each after creating a fresh token, on an older chip, and that could account for more; but none of it was measured here. Running AIP's own benchmark on this machine would settle it, and that was not done.
+- **Caveats.** The mapping was not adjusted. The hardware differs (an M4 Max here, an M3 Max in AIP). Arm E remains a positioning reference, with the functional gaps of paper Table 1.
 
 **Q10. Memory per entry** (100,000 entries each):
 - **The nonce cache:** 107 bytes (BLS invoker keys), 91 bytes (Ed25519).
@@ -845,7 +859,7 @@ Every claim is evaluated against paper revision 2026-09-29. No later revision wa
 
 - **The registry is in-process.** Resolution and policy loading are function calls. Q5 injects latency by sleeping at least the stated delay per call, not by networking.
 - **Synthetic policies.** The medium profile is the paper's §6.2 example; small and large are synthetic (D-71).
-- **Arm E is not full AIP.** It is a Biscuit mapping, without registry resolution, PoP, revocation, receipts, the nonce cache or parameter binding. It ran faster than AIP's published figures, beyond the sanity rule's 3× in the small profile (Q9).
+- **Arm E is not full AIP.** It is a Biscuit mapping, without registry resolution, PoP, revocation, receipts, the nonce cache or parameter binding. It ran faster than AIP's published figures, beyond the sanity rule's 3× in the small profile, and AIP's figures time a larger operation than arm E's (Q9).
 - **The CIs are narrow because of pooling.** They come from a bootstrap of the pooled samples, which treats the three runs' samples as independent, and `mach_absolute_time` ticks at this machine's 24 MHz timebase (`hw.tbfrequency`), every 41.7 ns. So they are often degenerately narrow, and they understate between-run variation. The run-agreement rule guards the verdicts against this: every verdict's three run ratios are listed, and runs differed by at most a few percent (§3).
 - **C-batch's semantics** differ from C's at the edges (D-66).
 - **Cold rows include P-28's certificate pairings,** by design.
@@ -862,6 +876,8 @@ Every claim is evaluated against paper revision 2026-09-29. No later revision wa
    - **What was redone.** Run 2's A-mt process, in full.
    - No latency result was opened before the decision.
 4. **2026-10-01, after runs 1 and 2:** a 200 ms busy spin before every probe. Probes after Q5's sleep-dominated configurations had measured the idle core's ramp-up. It applies from run 2's A-mt redo on.
+
+**Later BENCH_LOG.md entries (2026-10-01, after M10).** A correction to Q9 of this report (arm E's raw token sizes had been compared with AIP's base64 lengths). It changes no measurement and no verdict.
 
 **Every throttling re-run** (26; BENCH_LOG.md gives each one's original and re-run medians). Every flag was raised by the probe; pmset recorded none. The two configurations flagged again use their re-run samples, as every re-run does, and are marked †:
 

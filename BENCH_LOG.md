@@ -103,3 +103,12 @@ Configurations re-run:
 Reason: before or after these configurations, `pmset -g therm` recorded a warning, or a calibration probe ran more than 5% slower than the run's baseline (frozen plan §5). They were re-run after the main runs; the report uses the re-run samples, and the originals stay in the archive.
 Configurations re-run:
 - `A-mt warm N=2 medium`: flagged by probe; original median 502584 ns, re-run median 484583 ns; re-run not flagged
+
+## 2026-10-01 — Report correction after M10: arm E's token sizes in Q9
+Reason:
+- **The error.** M10's `BENCHMARKS.md` said that arm E's token sizes matched AIP's published sizes at the same depth. AIP's published sizes are base64 string lengths: its `bench_chained.rs` measures `to_base64().len()` (github.com/sunilp/aip at `ad2faa6`, the commit that prepared the arXiv submission). Arm E's are raw token bytes, so the M10 comparison set raw bytes against base64.
+- **How it was found.** The author asked for AIP's evaluation section to be checked against D-68's timed scope (Q9). The paper does not say what it measures, so its benchmark code was read too.
+- **The fix.** The report generator now converts arm E's sizes to Biscuit's base64 length (URL-safe, padded: 4·⌈n/3⌉) before comparing them with AIP's. Arm E's tokens turn out to be the larger ones. `summary.md`'s Q9 note now says the AIP figures were checked against arXiv:2603.24775v1 (they match SPEC §13.10), instead of "not re-checked".
+- **What did not change.** No measurement, statistic, verdict or harness path. Q9's latency figures and the 3× flags are unchanged.
+
+Configurations re-run: none.

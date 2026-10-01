@@ -704,6 +704,13 @@ Decision:
 - **Keys.** Deterministic: the root and per-block keys are derived from a seed. Tokens are therefore byte-reproducible.
 - **Limits.** The authorizer's time budget is one second instead of the default one millisecond, so that load (Q6) cannot turn into spurious rejections. Fact and iteration limits keep the library's defaults.
 - **The timed operation.** `Biscuit::from` (deserialize, verify every block), authorizer construction and `authorize`, as SPEC §12.3 specifies. Facts are built programmatically, and the policies are parsed once, outside the timed region.
+- **Checked against AIP (2026-10-01, after M10; BENCHMARKS.md Q9).** SPEC §13.10's figures match arXiv:2603.24775v1, Table 5. AIP's timed Rust "verify" is not this operation:
+  - it is `ChainedToken::from_base64` plus `authorize` (github.com/sunilp/aip at `ad2faa6`);
+  - it decodes base64, prints block 0's Datalog and parses it back, verifies every block's signature twice (once more in `authorize`, after re-serializing), and parses its authorizer from Datalog text;
+  - it reports the mean of 100 single timings with no warm-up;
+  - its published sizes are base64 lengths, so arm E's raw sizes are compared through their base64 length.
+  
+  The mapping and the timed scope were not changed.
 Why: SPEC §12.3 asks for the mapping to be recorded.
 Affects benchmarks: yes, for Q9 and every table that shows arm E, together with its functional gaps (SPEC §12.3).
 
@@ -864,4 +871,3 @@ Decision: the author's amendment before any measurement (frozen plan §5), with 
 - **Reporting.** `BENCH_LOG.md`'s re-run entries name the signal that flagged each configuration, and whether its re-run was flagged again. The summary counts flagged configurations per run process, by signal.
 Why: `pmset -g therm` on this Mac cannot report a CPU speed limit. A fixed probe measures what matters directly: how fast this machine runs the arms' own primitives, compared with the start of the run.
 Affects benchmarks: yes (which configurations are re-run, and whether a run is usable at all).
-

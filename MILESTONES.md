@@ -427,3 +427,19 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
 - **Committed results:** `results/archive/MANIFEST.sha256`, `summary.md`, `summary.json`, `plots/`, `bytes.json`, `memory.json`, `env.json`, `env-resume.json`. The raw CSVs and archives stay out of git; the author keeps them.
 - `PAPER_ISSUES.md` is final.
 
+
+## M10 follow-ups (2026-10-01)
+
+The author asked for three follow-ups.
+
+**1. Arm E against AIP (Q9).**
+- **AIP's figures, checked.** SPEC §13.10's figures match arXiv:2603.24775v1, Table 5. The paper's evaluation text names only the iterations (100 per depth), the hardware (M3 Max, macOS 15.3) and biscuit-auth 6.0.
+- **AIP's code.** It shows what the timed Rust "verify" contains (github.com/sunilp/aip at `ad2faa6`, the arXiv submission commit). Against D-68's timed scope, it:
+  - decodes base64;
+  - verifies every block's signature twice;
+  - prints block 0's Datalog and parses it back;
+  - parses the authorizer from Datalog text;
+  - reports the mean of 100 single timings, with no warm-up.
+- **No harness bug, and nothing changed.**
+- **One report error, corrected.** M10 compared arm E's raw token sizes with AIP's base64 lengths (BENCH_LOG.md).
+- **Verdict on the gap.** It is partly explained. AIP's per-block cost is still about twice E's once a second signature check per block is added. The rest is unattributed, and BENCHMARKS.md Q9 says so.

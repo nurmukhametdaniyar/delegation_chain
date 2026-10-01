@@ -389,8 +389,9 @@ fn fmt_verdict(v: &Option<Verdict>) -> String {
 }
 
 /// AIP's published Rust verify times for biscuit-auth 6.0 chained mode on
-/// an Apple M3 Max (Prakash 2026, arXiv:2603.24775, Tables 4–5, as quoted
-/// in SPEC §13.10; not re-checked against the paper). Depth → ms.
+/// an Apple M3 Max (Prakash 2026, arXiv:2603.24775v1, Table 5, "Rust
+/// verify", as quoted in SPEC §13.10; checked against the paper on
+/// 2026-10-01, and they match). Depth → ms.
 pub const AIP_CHAINED_MS: [(usize, f64); 6] = [
     (0, 0.188),
     (1, 0.292),
@@ -896,7 +897,7 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
         "## Q9. Arm E (Biscuit) against AIP's published figures\n"
     )
     .unwrap();
-    writeln!(w, "AIP's figures are **published numbers from different hardware**: an Apple M3 Max under macOS 15.3, against this machine's M4 Max (SPEC §13.10). They are quoted from SPEC and not re-checked against arXiv:2603.24775. Arm E lacks registry resolution, PoP, revocation, receipts, the nonce cache and parameter binding (paper Table 1). **Sanity rule (frozen plan §8):** a ratio outside about 3× at matching depth is investigated before anything about arm E is reported.\n").unwrap();
+    writeln!(w, "AIP's figures are **published numbers from different hardware**: an Apple M3 Max under macOS 15.3, against this machine's M4 Max (SPEC §13.10). They match arXiv:2603.24775v1, Table 5, and they time a different operation from arm E's (BENCHMARKS.md, Q9). Arm E lacks registry resolution, PoP, revocation, receipts, the nonce cache and parameter binding (paper Table 1). **Sanity rule (frozen plan §8):** a ratio outside about 3× at matching depth is investigated before anything about arm E is reported.\n").unwrap();
     writeln!(
         w,
         "| profile | N (depth N−1) | E here | AIP published (ms) | E / AIP |"
