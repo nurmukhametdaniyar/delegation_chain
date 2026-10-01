@@ -450,5 +450,14 @@ The author asked for three follow-ups.
 - **Generated.** BENCHMARKS.md §8 is generated from the archive once it exists.
 - **Not run yet.** The machine was on battery during this session, so the full run is waiting. Only a dry run, whose numbers are never reported, was made.
 
+**3. Paper artifacts (D-78).**
+- **The command.** `dc-bench paper` writes `paper/tables/*.tex` and `paper/figures/*.pdf`, all generated:
+  - the §1 verdicts, Q2's break-even, the claims, the primitives, the security suite and the M4 oracle;
+  - three vector figures.
+- **Reproduction.** ARTIFACT.md says how to reproduce them from the deposit.
+- **Checks.** The tables compile with pdflatex, and the figures regenerate byte-identically.
+
 **Other changes.**
+- **The security suite.** `t5c_expiry_and_not_yet_valid`'s loop became three explicit assertions; its last case now asserts L27 exactly.
 - **CI** lints the `phase-timing` build and runs its partition test.
+- **`report`** refuses to run without criterion's output, rather than rewrite `summary.json` without it.

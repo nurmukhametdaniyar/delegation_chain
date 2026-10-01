@@ -840,12 +840,19 @@ fn t5c_expiry_and_not_yet_valid() {
     // The boundaries are inside the window (P-26: closed interval).
     s.w.enroll_window("orga:agent:x3", "orga:agent:x3", now + 50, now + 60)
         .unwrap();
-    for (t, ok) in [(now + 50, true), (now + 60, true), (now + 61, false)] {
+    let at = |s: &mut Suite, t: u64| {
         s.w.clock().set(now);
-        let c = chain_via(&mut s, "orga:agent:x3");
+        let c = chain_via(s, "orga:agent:x3");
         s.w.clock().set(t);
-        assert_eq!(v.verify(&c.to_bytes()).is_ok(), ok, "t = now + {}", t - now);
-    }
+        v.verify(&c.to_bytes())
+    };
+    // t = nbf and t = exp are accepted; one second after exp is not.
+    assert!(at(&mut s, now + 50).is_ok());
+    assert!(at(&mut s, now + 60).is_ok());
+    assert_eq!(
+        at(&mut s, now + 61),
+        Err(Reject::L27CertificateNotValid { k: 2 })
+    );
 }
 
 #[test]

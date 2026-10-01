@@ -470,6 +470,14 @@ fn break_even(pts: &[(usize, f64, f64)]) -> String {
 
 /// Writes `summary.md` and `summary.json` into `results`.
 pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Result<(), String> {
+    // A full report without criterion's output would rewrite summary.json
+    // without its primitives (ARTIFACT.md); refuse before writing anything.
+    if !dry && criterion_estimates(criterion).is_empty() {
+        return Err(format!(
+            "no criterion estimates under {}: the full report needs criterion's output (ARTIFACT.md)",
+            criterion.display()
+        ));
+    }
     let raw = load_raw(results)?;
     let rows = rows(&raw, threads);
     let cx = Ctx { rows: &rows };

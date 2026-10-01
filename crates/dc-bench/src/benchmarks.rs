@@ -13,7 +13,8 @@
 //! never carry a number typed by hand.
 //!
 //! The exploratory phase breakdown (D-77) is read the same way, from its own
-//! verified archives under `results/exploratory/phases/`.
+//! verified archives under `results/exploratory/phases/`. [`Doc`] is shared
+//! with the paper tables ([`crate::paper`]).
 
 use std::collections::BTreeMap;
 use std::fs;

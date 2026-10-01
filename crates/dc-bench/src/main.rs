@@ -9,6 +9,7 @@
 //! dc-bench report  [--mode M] [--out DIR] [--criterion DIR]
 //! dc-bench plan    [--mode M]                       the grid, as the frozen plan states it
 //! dc-bench benchmarks [--out DIR]                    BENCHMARKS.md from the verified results
+//! dc-bench paper   [--out DIR]                      paper tables and figures (`paper/`)
 //! dc-bench phases  [--mode M] [--out DIR] [--resume] the exploratory phase breakdown (D-77)
 //! ```
 //!
@@ -63,7 +64,7 @@ struct Args {
 fn parse() -> Result<Args, String> {
     let mut it = std::env::args().skip(1);
     let cmd = it.next().ok_or(
-        "usage: dc-bench <all|run|bytes|env|archive|report|plan|benchmarks|phases> [options]",
+        "usage: dc-bench <all|run|bytes|env|archive|report|plan|benchmarks|paper|phases> [options]",
     )?;
     let mut a = Args {
         cmd,
@@ -152,6 +153,17 @@ fn main() -> ExitCode {
                 &a.criterion.clone().unwrap_or_else(|| out.join("criterion")),
                 &root.join("crates/dc-bench/BENCHMARKS.template.md"),
                 &root.join("BENCHMARKS.md"),
+                threads(),
+            )
+        }
+        "paper" => {
+            let out = out_dir(&a);
+            let root = root();
+            dc_bench::paper::render(
+                &out,
+                &a.criterion.clone().unwrap_or_else(|| out.join("criterion")),
+                &root,
+                &root.join("paper"),
                 threads(),
             )
         }

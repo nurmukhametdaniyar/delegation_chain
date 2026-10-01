@@ -5,6 +5,8 @@
 //! - [`plan`]: the grid, iteration counts and seeds.
 //! - [`harness`]: latency (Q1, Q3–Q5, Q9), throughput (Q6) and bytes (Q2).
 //! - [`stats`] and [`report`]: statistics and `results/summary.md`.
+//! - [`benchmarks`] and [`paper`]: `BENCHMARKS.md`, and the paper's tables
+//!   and figures, from the verified results.
 //! - [`phases`]: the exploratory phase breakdown (D-77), never a headline
 //!   run.
 //! - [`env`]: writes `results/env.json`.
@@ -14,6 +16,7 @@ pub mod arms;
 pub mod benchmarks;
 pub mod env;
 pub mod harness;
+pub mod paper;
 pub mod phases;
 pub mod plan;
 pub mod probe;
