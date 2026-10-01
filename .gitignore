@@ -21,3 +21,7 @@ results/aborted/
 results/exploratory/phases/raw/
 results/exploratory/phases/archive/*.zst
 results/exploratory/phases/aborted/
+# AIP's own benchmark run here (D-79): the same rule.
+results/exploratory/aip/raw/
+results/exploratory/aip/archive/*.zst
+results/exploratory/aip/aborted/

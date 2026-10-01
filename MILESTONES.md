@@ -461,3 +461,20 @@ The author asked for three follow-ups.
 - **The security suite.** `t5c_expiry_and_not_yet_valid`'s loop became three explicit assertions; its last case now asserts L27 exactly.
 - **CI** lints the `phase-timing` build and runs its partition test.
 - **`report`** refuses to run without criterion's output, rather than rewrite `summary.json` without it.
+
+## M10 follow-ups, second round (2026-10-01)
+
+- **Commits.** The first round was committed as three commits: the Q9 correction and AIP's scope; phase timing (D-77); the paper artifacts (D-78).
+- **Q9's table.** Its flag now reads "outside 3×: investigated, see text", and its headers carry units (µs here, ms for AIP).
+- **AIP's own benchmark** (D-79, exploratory).
+  - `dc-bench aip` runs `bench_chained` from AIP's arXiv commit on this machine.
+  - It runs two builds: the unmodified one, for AIP's mean, and a copy that only prints the timings, for the median.
+  - It records the versions Cargo resolves, and archives under a committed manifest.
+  - It appends its own BENCH_LOG.md entry.
+- **One script for the session.** `scripts/exploratory-session.sh` builds everything and then runs the phase breakdown and AIP's benchmark, each on M9's machine state. A dry run exercised it end to end; its numbers are never reported.
+- **BENCHMARKS.md §8, exploratory.**
+  - a positioning table: C (warm) and D (warm+prefix) against arm E, medium, at matching depth, with E's functional gaps in the caption;
+  - a ratio figure: A/C and B/D against N in every profile, with the ±10% band;
+  - the AIP run's block.
+- **Paper.** Caption macros for every figure (`paper/figures/captions.tex`), each saying what its error bars are. Also the positioning table and its caption, and the ratio figure.
+- **Waiting.** The session needs AC power. Until it runs, §8's phase and AIP blocks say "Not run yet".

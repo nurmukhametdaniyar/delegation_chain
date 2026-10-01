@@ -6,9 +6,14 @@
   N for B and D, medium profile, log scale.
 - bytes_medium.pdf: chain bytes against N for A, A-ind and C, medium profile,
   with Q2's break-even marked.
+- ratios.pdf (and ratios.png, for BENCHMARKS.md §8): exploratory. A/C (warm)
+  and B/D (warm+prefix) against N in the small, medium and large profiles, in
+  one panel, log scale, with a line at 1 and the frozen plan's ±10% band.
+- captions.tex: a caption macro per figure, saying what its error bars are.
 
-Points are pooled medians over the three runs; the bars span the three run
-medians (the pooled bootstrap CIs are degenerately narrow; BENCHMARKS.md §6).
+Points are pooled medians over the three runs, or ratios of them; the bars
+span the three runs' medians, or their ratios (the pooled bootstrap CIs are
+degenerately narrow; BENCHMARKS.md §6).
 The break-even is recomputed from the bytes rows with the report's rule and
 checked against summary.json's own statement of it.
 
@@ -25,6 +30,8 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.lines import Line2D  # noqa: E402
+from matplotlib.patches import Patch  # noqa: E402
 from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -34,6 +41,10 @@ import json  # noqa: E402
 
 NS = [1, 2, 3, 5, 10]
 PROFILE = "medium"
+PROFILES = ["small", "medium", "large"]
+# The frozen plan's practical-significance margin (§6): a ratio within
+# [0.90, 1.10] is no material difference.
+MARGIN = 0.10
 INK, MUTED, GRID = "#0b0b0b", "#6b6a66", "#dddcd5"
 
 plt.rcParams.update({
@@ -57,6 +68,7 @@ plt.rcParams.update({
 })
 SIZE = (3.4, 2.3)  # one column of a two-column paper, inches
 SAVE = {"format": "pdf", "bbox_inches": "tight", "metadata": {"CreationDate": None, "ModDate": None}}
+SAVE_PNG = {"format": "png", "dpi": 200, "bbox_inches": "tight", "metadata": {"Software": None}}
 
 
 def configurations(summary):
@@ -65,6 +77,13 @@ def configurations(summary):
         k = r["key"]
         out[(k["arm"], k["state"], k["n"], k["profile"])] = r
     return out
+
+
+def log125(ax):
+    """Plain-number labels at 1, 2 and 5 times each power of ten."""
+    ax.yaxis.set_major_locator(LogLocator(base=10, subs=(1.0, 2.0, 5.0)))
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
+    ax.yaxis.set_minor_formatter(NullFormatter())
 
 
 def floor125(x):
@@ -96,10 +115,7 @@ def latency_figure(summary, out, name, lines, ylabel, ncol=2):
     lowest = min(latency_series(ax, rs, arm, state, label) for arm, state, label in lines)
     ax.set_yscale("log")
     ax.set_ylim(bottom=floor125(lowest))
-    # Plain-number labels at 1, 2 and 5 times each power of ten.
-    ax.yaxis.set_major_locator(LogLocator(base=10, subs=(1.0, 2.0, 5.0)))
-    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
-    ax.yaxis.set_minor_formatter(NullFormatter())
+    log125(ax)
     ax.set_xticks(NS)
     ax.set_xlabel("N (bodies after the session body)")
     ax.set_ylabel(ylabel)
@@ -144,6 +160,86 @@ def bytes_figure(summary, out):
     ax.legend(loc="lower right", fontsize=7)
     fig.savefig(out / "bytes_medium.pdf", **SAVE)
     plt.close(fig)
+    return n_be
+
+
+RATIOS = [("a_over_c", "A", "A/C, warm"), ("b_over_d_hit", "B", "B/D, warm+prefix")]
+PROFILE_STYLE = {"small": ("o", "-"), "medium": ("s", "--"), "large": ("^", ":")}
+
+
+def ratio_figure(summary, out):
+    """Exploratory: every A/C and B/D ratio against N, in one panel. Returns
+    the smallest run ratio drawn."""
+    v = {(r["n"], r["profile"]): r for r in summary["verdicts"]}
+    fig, ax = plt.subplots(figsize=(3.4, 2.7))
+    ax.axhspan(1 - MARGIN, 1 + MARGIN, color=GRID, lw=0)
+    ax.axhline(1, color=MUTED, lw=0.8)
+    smallest = float("inf")
+    for key, arm, _ in RATIOS:
+        for p in PROFILES:
+            xs, ys, lo, hi = [], [], [], []
+            for n in NS:
+                r = v.get((n, p))
+                if r is None:
+                    sys.exit(f"summary.json has no verdict cell N={n} {p}")
+                runs = list(r[key]["runs"].values())
+                smallest = min(smallest, *runs)
+                xs.append(n)
+                ys.append(r[key]["ratio"]["value"])
+                lo.append(min(runs))
+                hi.append(max(runs))
+            marker, ls = PROFILE_STYLE[p]
+            # The bar is the range of the run ratios, drawn as it is: the
+            # ratio of pooled medians need not lie inside it.
+            ax.vlines(xs, lo, hi, color=COLOR[arm], lw=0.7)
+            for y in (lo, hi):
+                ax.hlines(y, [x - 0.08 for x in xs], [x + 0.08 for x in xs], color=COLOR[arm], lw=0.7)
+            ax.plot(xs, ys, color=COLOR[arm], marker=marker, ls=ls, ms=3.5)
+    ax.set_yscale("log")
+    ax.set_ylim(0.5, None)
+    log125(ax)
+    ax.set_xticks(NS)
+    ax.set_xlabel("N (bodies after the session body)")
+    ax.set_ylabel("latency ratio (log scale)")
+    handles = [Line2D([], [], color=COLOR[arm], lw=1.2, label=label) for _, arm, label in RATIOS]
+    handles += [Line2D([], [], color=MUTED, marker=PROFILE_STYLE[p][0], ls=PROFILE_STYLE[p][1], ms=3.5, label=p)
+                for p in PROFILES]
+    handles.append(Patch(color=GRID, label=f"±{MARGIN:.0%}: no material difference"))
+    ax.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=3, fontsize=6.5)
+    fig.savefig(out / "ratios.pdf", **SAVE)
+    fig.savefig(out / "ratios.png", **SAVE_PNG)
+    plt.close(fig)
+    return smallest
+
+
+ERRBARS = "error bars are the range of the three runs' medians"
+
+
+def captions(out, n_be, smallest):
+    above = smallest > 1 + MARGIN
+    lines = [
+        "% Generated by scripts/paper_figures.py from results/summary.json. Do not edit:",
+        "% regenerate it (ARTIFACT.md). One caption macro per figure in this directory.",
+        "\\newcommand{\\figcapLatencyWarm}{Warm median verification latency against $N$, medium profile,"
+        " log scale: arms A (aggregate BLS), A-ind (individual BLS), C (Ed25519) and C-batch (Ed25519,"
+        f" batch verification). Points are pooled medians of three runs; {ERRBARS}.}}",
+        "\\newcommand{\\figcapPrefixHit}{Median latency of a prefix-cache hit against $N$, medium profile,"
+        " log scale: arm B (BLS with pairing and prefix caches) and arm D (Ed25519 with a prefix cache)."
+        f" Points are pooled medians of three runs; {ERRBARS}.}}",
+        "\\newcommand{\\figcapBytes}{Chain size in bytes against $N$, medium profile: arms A, A-ind and C."
+        f" The dashed line marks the break-even: A's chain is smaller than C's from $N = {n_be}$. Sizes are"
+        " means over 20 sampled chains and do not vary between runs, so there are no error bars.}",
+        "\\newcommand{\\figcapRatios}{Exploratory (not pre-registered). Latency of the aggregating arm over"
+        " its Ed25519 counterpart against $N$: A/C (warm) and B/D (warm+prefix), in the small, medium and"
+        " large profiles, log scale. The line marks equal latency, and the band the frozen plan's"
+        f" $\\pm{MARGIN * 100:.0f}\\%$ margin of no material difference"
+        + ("; every run's ratio lies above it, so aggregation is not a net benefit at any point."
+           if above else ".")
+        + " Points are ratios of pooled medians; error bars are the range of the three runs' ratios of"
+        " medians.}",
+    ]
+    text = "\n".join(lines) + "\n"
+    (out / "captions.tex").write_text(text)
 
 
 def main():
@@ -161,8 +257,10 @@ def main():
                    [("B", "warm+prefix", "B (BLS; pairing and prefix caches)"),
                     ("D", "warm+prefix", "D (Ed25519; prefix cache)")],
                    "median latency of a hit, µs (log scale)", ncol=1)
-    bytes_figure(summary, out)
-    for f in sorted(out.glob("*.pdf")):
+    n_be = bytes_figure(summary, out)
+    smallest = ratio_figure(summary, out)
+    captions(out, n_be, smallest)
+    for f in sorted(list(out.glob("*.pdf")) + list(out.glob("*.png")) + [out / "captions.tex"]):
         print(f"paper: figures/{f.name}")
 
 

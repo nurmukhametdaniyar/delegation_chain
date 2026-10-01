@@ -26,7 +26,7 @@ use std::process::Command;
 
 use serde_json::Value;
 
-use crate::benchmarks::{Doc, cells};
+use crate::benchmarks::{Doc, POSITIONING_CAPTION, cells};
 use crate::report::us;
 
 /// LaTeX for a cell of `BENCHMARKS.md`: `**bold**` and `` `code` `` become
@@ -286,6 +286,41 @@ fn primitives(doc: &Doc) -> Result<String, String> {
         )?;
     }
     w.push_str("\\bottomrule\n\\end{tabular}\n");
+    Ok(w)
+}
+
+/// Exploratory: C (warm) and D (warm+prefix) against arm E, medium, at
+/// matching depth. Its caption, which lists E's functional gaps, is
+/// `\\tabcapPositioning` in `captions.tex`.
+fn positioning(doc: &Doc) -> Result<String, String> {
+    let mut w = String::from(HEADER);
+    w.push_str("% EXPLORATORY (not pre-registered): BENCHMARKS.md §8. Caption: \\tabcapPositioning (captions.tex).\n");
+    w.push_str("\\begin{tabular}{lrrrrr}\n\\toprule\n");
+    w.push_str("$N$ (Biscuit depth) & C, warm (\\textmu{}s) & D, warm+prefix (\\textmu{}s) & E (\\textmu{}s) & C $\\div$ E & D $\\div$ E \\\\\n\\midrule\n");
+    for (n, c, d, e) in doc.positioning()? {
+        let _ = writeln!(
+            w,
+            "{n} ({}) & {} & {} & {} & {:.2} & {:.2} \\\\",
+            n - 1,
+            us(c),
+            us(d),
+            us(e),
+            c / e,
+            d / e
+        );
+    }
+    w.push_str("\\bottomrule\n\\end{tabular}\n");
+    Ok(w)
+}
+
+/// Caption macros for the tables that need one.
+fn captions() -> Result<String, String> {
+    let mut w = String::from(HEADER);
+    let _ = writeln!(
+        w,
+        "\\newcommand{{\\tabcapPositioning}}{{{}}}",
+        tex(POSITIONING_CAPTION)?
+    );
     Ok(w)
 }
 
@@ -656,6 +691,8 @@ pub fn render(
         ("breakeven.tex", breakeven(&doc)?),
         ("claims.tex", claims(&doc, &template)?),
         ("primitives.tex", primitives(&doc)?),
+        ("positioning.tex", positioning(&doc)?),
+        ("captions.tex", captions()?),
         ("oracle.tex", oracle(root)?),
         ("security.tex", security(root)?),
     ] {

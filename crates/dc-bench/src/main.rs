@@ -11,7 +11,11 @@
 //! dc-bench benchmarks [--out DIR]                    BENCHMARKS.md from the verified results
 //! dc-bench paper   [--out DIR]                      paper tables and figures (`paper/`)
 //! dc-bench phases  [--mode M] [--out DIR] [--resume] the exploratory phase breakdown (D-77)
+//! dc-bench aip     [--mode M] [--out DIR] [--aip-dir DIR] AIP's own benchmark, here (D-79)
 //! ```
+//!
+//! `scripts/exploratory-session.sh` builds both exploratory runs and then
+//! runs `phases` and `aip`, one after the other, each on M9's machine state.
 //!
 //! `phases` needs a build with `--features phase-timing`, and such a build
 //! refuses `all` and `run`: phase timing never enters a headline run (SPEC
@@ -42,7 +46,7 @@ use dc_bench::plan::{
 };
 use dc_bench::probe::{self, Probe};
 use dc_bench::workload::{Layout, Profile, hop_agent, p};
-use dc_bench::{env, phases, qos, report, thermal};
+use dc_bench::{aip, env, phases, qos, report, thermal};
 use dc_registry::Resolver;
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
@@ -59,12 +63,13 @@ struct Args {
     resume: bool,
     throughput: bool,
     criterion: Option<PathBuf>,
+    aip_dir: Option<PathBuf>,
 }
 
 fn parse() -> Result<Args, String> {
     let mut it = std::env::args().skip(1);
     let cmd = it.next().ok_or(
-        "usage: dc-bench <all|run|bytes|env|archive|report|plan|benchmarks|paper|phases> [options]",
+        "usage: dc-bench <all|run|bytes|env|archive|report|plan|benchmarks|paper|phases|aip> [options]",
     )?;
     let mut a = Args {
         cmd,
@@ -77,6 +82,7 @@ fn parse() -> Result<Args, String> {
         resume: false,
         throughput: true,
         criterion: None,
+        aip_dir: None,
     };
     while let Some(flag) = it.next() {
         let mut val = || it.next().ok_or(format!("{flag} needs a value"));
@@ -100,6 +106,7 @@ fn parse() -> Result<Args, String> {
             "--resume" => a.resume = true,
             "--no-throughput" => a.throughput = false,
             "--criterion" => a.criterion = Some(PathBuf::from(val()?)),
+            "--aip-dir" => a.aip_dir = Some(PathBuf::from(val()?)),
             f => return Err(format!("unknown option {f}")),
         }
     }
@@ -170,6 +177,7 @@ fn main() -> ExitCode {
         "all" => cmd_all(&a),
         "phases" => cmd_phases(&a),
         "phases-run" => cmd_phases_run(&a),
+        "aip" => cmd_aip(&a),
         c => Err(format!("unknown command {c}")),
     };
     match r {
@@ -1402,6 +1410,246 @@ fn cmd_phases_run(a: &Args) -> Result<(), String> {
     fs::write(
         raw.join(format!("{stem}-meta.json")),
         serde_json::to_string_pretty(&meta).unwrap() + "\n",
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// Where AIP's run writes: `results/exploratory/aip/`, or under
+/// `results/dry-run/` for a dry run.
+fn aip_out(a: &Args) -> PathBuf {
+    a.out.clone().unwrap_or_else(|| match a.mode {
+        Mode::Full => root().join("results/exploratory/aip"),
+        Mode::Dry => root().join("results/dry-run/exploratory/aip"),
+    })
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    dc_types::digest::sha256(&[bytes])
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+/// AIP's own chained-mode benchmark, unmodified, on this machine (D-79;
+/// exploratory). `scripts/exploratory-session.sh` builds it first: an
+/// unmodified copy and a timings copy of AIP's `rust/` tree at
+/// [`aip::COMMIT`], under `--aip-dir`.
+fn cmd_aip(a: &Args) -> Result<(), String> {
+    let src = a
+        .aip_dir
+        .clone()
+        .unwrap_or_else(|| root().join("target/exploratory/aip"));
+    // Absolute, because each binary runs from its own directory.
+    let src = fs::canonicalize(&src).map_err(|e| format!("{}: {e}", src.display()))?;
+    let bin = |v: &str| src.join(v).join("rust/target/release/bench_chained");
+    for v in aip::VARIANTS {
+        if !bin(v).exists() {
+            return Err(format!(
+                "{} is missing; scripts/exploratory-session.sh builds it",
+                bin(v).display()
+            ));
+        }
+    }
+    // The unmodified copy must be the commit's own source.
+    let mut checked = vec![];
+    for f in [
+        "rust/aip-token/src/bin/bench_chained.rs",
+        "rust/aip-token/src/chained.rs",
+    ] {
+        let at_commit = Command::new("git")
+            .arg("-C")
+            .arg(src.join("repo"))
+            .args(["show", &format!("{}:{f}", aip::COMMIT)])
+            .output()
+            .map_err(|e| format!("git: {e}"))?;
+        let copy = fs::read(src.join("unmodified").join(f)).map_err(|e| format!("{f}: {e}"))?;
+        if !at_commit.status.success() || at_commit.stdout != copy {
+            return Err(format!(
+                "the unmodified copy's {f} is not the one at {}",
+                aip::COMMIT
+            ));
+        }
+        checked.push(f);
+    }
+    let out = aip_out(a);
+    let raw = out.join("raw");
+    if raw.join("meta.json").exists() {
+        return Err(format!(
+            "{} already holds a completed AIP run; refusing to overwrite measured data",
+            raw.display()
+        ));
+    }
+    if raw.exists() {
+        let mut k = 1;
+        let dest = loop {
+            let d = out.join("aborted").join(format!("attempt-{k}"));
+            if !d.exists() {
+                break d;
+            }
+            k += 1;
+        };
+        fs::create_dir_all(dest.parent().expect("parent")).map_err(|e| e.to_string())?;
+        fs::rename(&raw, &dest).map_err(|e| e.to_string())?;
+        eprintln!("aip: an unfinished attempt was moved to {}", dest.display());
+    }
+    if a.mode == Mode::Full {
+        let r = env::requirements();
+        if r["ac_power"] != json!(true) || r["high_power_mode"] != json!(true) {
+            return Err(format!(
+                "aborting: AIP's run needs M9's machine state, AC power and High Power mode: {r}"
+            ));
+        }
+    }
+    let requirements = require(a.mode)?;
+    fs::create_dir_all(&raw).map_err(|e| e.to_string())?;
+    let env = env::capture(&root());
+    fs::write(
+        out.join("env.json"),
+        serde_json::to_string_pretty(&env).unwrap() + "\n",
+    )
+    .map_err(|e| e.to_string())?;
+    if a.mode == Mode::Full && env["m9_requirements"]["ok"] != json!(true) {
+        return Err(
+            "aborting: env.json does not confirm AC power, High Power mode and an idle machine"
+                .into(),
+        );
+    }
+    let lock = fs::read_to_string(src.join("unmodified/rust/Cargo.lock"))
+        .map_err(|e| format!("AIP's resolved Cargo.lock: {e}"))?;
+    fs::write(raw.join("aip-Cargo.lock"), &lock).map_err(|e| e.to_string())?;
+    let toolchain = Command::new("rustc")
+        .arg("-V")
+        .current_dir(src.join("unmodified/rust"))
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+        .unwrap_or_default();
+    let patch = fs::read(root().join("scripts/aip-timings.patch")).map_err(|e| e.to_string())?;
+    let binaries: BTreeMap<&str, String> = aip::VARIANTS
+        .iter()
+        .map(|v| {
+            Ok((
+                *v,
+                sha256_hex(&fs::read(bin(v)).map_err(|e| e.to_string())?),
+            ))
+        })
+        .collect::<Result<_, String>>()?;
+    let started = Instant::now();
+    let qos_main = qos::set_user_interactive();
+    std::thread::sleep(Duration::from_secs(if a.mode == Mode::Full {
+        30
+    } else {
+        1
+    }));
+    let runs = if a.mode == Mode::Dry { 1 } else { aip::RUNS };
+    let mut monitor = Monitor::new(
+        csv::Writer::from_path(raw.join("thermal.csv")).map_err(|e| e.to_string())?,
+        0,
+        runs * aip::VARIANTS.len(),
+        0,
+        false,
+    )?;
+    let mut order = vec![];
+    for r in 1..=runs {
+        let mut vs = aip::VARIANTS.to_vec();
+        if r % 2 == 0 {
+            vs.reverse();
+        }
+        for v in vs {
+            let id = format!("AIP {v} run {r}");
+            let before = monitor.before(&id)?;
+            let t = Instant::now();
+            // As AIP runs it: the binary alone, default scheduling, no
+            // arguments.
+            let o = Command::new(bin(v))
+                .current_dir(src.join(v).join("rust"))
+                .output()
+                .map_err(|e| format!("{id}: {e}"))?;
+            let secs = t.elapsed().as_secs_f64();
+            monitor.after(&id, before)?;
+            if !o.status.success() {
+                return Err(format!(
+                    "{id} failed: {}\n{}",
+                    o.status,
+                    String::from_utf8_lossy(&o.stderr)
+                ));
+            }
+            fs::write(raw.join(format!("run{r}-{v}.json")), &o.stdout)
+                .map_err(|e| e.to_string())?;
+            fs::write(raw.join(format!("run{r}-{v}.stderr.txt")), &o.stderr)
+                .map_err(|e| e.to_string())?;
+            eprintln!("{id} ({secs:.1} s)");
+            order.push(json!({"run": r, "variant": v, "seconds": secs}));
+        }
+    }
+    let meta = json!({
+        "mode": a.mode.label(),
+        "exploratory": "not pre-registered (D-79)",
+        "url": aip::URL.trim_end_matches(".git"),
+        "commit": aip::COMMIT,
+        "source_check": format!("{} identical to the commit's", checked.join(" and ")),
+        "build": "`cargo build --release --bin bench_chained`, no RUSTFLAGS, one resolved Cargo.lock for both builds; the timings build adds `scripts/aip-timings.patch`",
+        "patch_sha256": sha256_hex(&patch),
+        "binaries_sha256": binaries,
+        "resolved": aip::lock_versions(&lock, &aip::CRATES),
+        "toolchain": toolchain,
+        "runs": runs,
+        "order": order,
+        "requirements_at_start": requirements,
+        "qos_user_interactive_probe_thread": qos_main,
+        "probe_baseline_ns": monitor.baseline,
+        "flagged": monitor.flagged.iter().map(|(id, sig)| json!({"config": id, "signal": sig})).collect::<Vec<_>>(),
+        "total_seconds": started.elapsed().as_secs_f64(),
+    });
+    fs::write(
+        raw.join("meta.json"),
+        serde_json::to_string_pretty(&meta).unwrap() + "\n",
+    )
+    .map_err(|e| e.to_string())?;
+    archive(&out)?;
+    let log = if a.mode == Mode::Full {
+        root().join("BENCH_LOG.md")
+    } else {
+        out.join("BENCH_LOG.dry.md")
+    };
+    log_aip(&log, &out)
+}
+
+/// Appends the BENCH_LOG.md entry of AIP's run, from its verified archives
+/// (D-79).
+fn log_aip(log: &Path, out: &Path) -> Result<(), String> {
+    let d = aip::load(out)?;
+    let m = &d.meta;
+    let s = |v: &Value| v.as_str().unwrap_or("?").to_owned();
+    let date = Command::new("date")
+        .args(["-u", "+%Y-%m-%d"])
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+        .unwrap_or_default();
+    let mut f = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log)
+        .map_err(|e| e.to_string())?;
+    writeln!(
+        f,
+        "\n## {date} — Exploratory run (not pre-registered): AIP's own benchmark on this machine\nReason: the author asked for AIP's chained-mode benchmark to be run unmodified here, to separate the hardware from the timed scope in Q9's gap.\n- **What ran.** `bench_chained` from {} at `{}`, {} each of the unmodified build and the timings build, alternating which went first. The timings build only prints each timing after the timed loop (`scripts/aip-timings.patch`, sha256 `{}`), for the median.\n- **The build.** {}. Cargo resolved biscuit-auth {}, ed25519-dalek {} and curve25519-dalek {}; toolchain {}. The unmodified source was checked: {}.\n- **Machine state.** M9's: AC power, High Power mode and an idle machine, checked before the run and recorded in `results/exploratory/aip/env.json`. It ran in the same session as the phase breakdown, from `scripts/exploratory-session.sh`.\n- **Thermal readings.** Recorded around each invocation, not acted on: {}.\n- **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only, never the summary or a verdict. The raw outputs and the resolved `Cargo.lock` are in {} archives under `results/exploratory/aip/archive/`, pinned by the committed `MANIFEST.sha256`.\n\nConfigurations re-run: none.",
+        s(&m["url"]),
+        &aip::COMMIT[..7],
+        match m["runs"].as_u64() {
+            Some(1) => "1 run".to_owned(),
+            Some(k) => format!("{k} runs"),
+            None => "? runs".to_owned(),
+        },
+        s(&m["patch_sha256"]),
+        s(&m["build"]),
+        s(&m["resolved"]["biscuit-auth"]),
+        s(&m["resolved"]["ed25519-dalek"]),
+        s(&m["resolved"]["curve25519-dalek"]),
+        s(&m["toolchain"]),
+        s(&m["source_check"]),
+        d.flags(),
+        d.archives
     )
     .map_err(|e| e.to_string())
 }

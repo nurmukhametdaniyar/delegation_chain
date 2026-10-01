@@ -22,11 +22,11 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::phases;
 use crate::report::{
     self, AIP_CHAINED_MS, Key, Raw, Row, criterion_estimates, read_json, us, verdict,
 };
 use crate::stats::{Ratio, quantile_sorted, ratio};
+use crate::{aip, phases};
 
 /// AIP's published token sizes for biscuit-auth 6.0 chained mode (SPEC
 /// §13.10; arXiv:2603.24775v1, Table 5, "Size (Rust)", checked on
@@ -50,6 +50,10 @@ pub fn base64_len(n: usize) -> usize {
     n.div_ceil(3) * 4
 }
 
+/// The caption of the exploratory positioning table (BENCHMARKS.md §8 and
+/// `paper/tables/positioning.tex`).
+pub const POSITIONING_CAPTION: &str = "Exploratory (not pre-registered). Medium profile, M9's pooled medians on this machine, in µs. DC's N corresponds to Biscuit depth N − 1. Arm E (Biscuit) is a positioning reference, not a like-for-like arm: it has no registry resolution, no proof of possession, no revocation, no approval receipts, no nonce cache and no parameter binding (paper Table 1).";
+
 /// Everything the generated documents draw on, loaded from verified
 /// archives and the files the harness wrote.
 pub struct Doc {
@@ -63,6 +67,8 @@ pub struct Doc {
     summary: String,
     /// The exploratory phase breakdown, once its archives exist (D-77).
     pub(crate) phases: Option<phases::Data>,
+    /// AIP's own benchmark run here, once its archives exist (D-79).
+    pub(crate) aip: Option<aip::Data>,
 }
 
 /// The two arms and states of each verdict kind.
@@ -111,6 +117,12 @@ impl Doc {
         } else {
             None
         };
+        let adir = results.join("exploratory/aip");
+        let aip = if adir.join("archive/MANIFEST.sha256").exists() {
+            Some(aip::load(&adir)?)
+        } else {
+            None
+        };
         Ok(Doc {
             rows,
             raw,
@@ -121,6 +133,7 @@ impl Doc {
             criterion: criterion_estimates(criterion),
             summary: fs::read_to_string(results.join("summary.md")).map_err(|e| e.to_string())?,
             phases,
+            aip,
         })
     }
 
@@ -308,6 +321,30 @@ impl Doc {
             .iter()
             .find(|(_, a, c)| (a - c).signum() != start && a != c)
             .map(|p| p.0))
+    }
+
+    /// The exploratory positioning rows (medium): N, C warm, D warm+prefix
+    /// and E, pooled medians in ns.
+    pub(crate) fn positioning(&self) -> Result<Vec<(usize, f64, f64, f64)>, String> {
+        NS.iter()
+            .map(|&n| {
+                let m = |arm: &str, state: &str| {
+                    self.row(arm, state, n, "medium").map(|r| r.pooled.median)
+                };
+                Ok((
+                    n,
+                    m("C", "warm")?,
+                    m("D", "warm+prefix")?,
+                    m("E", "stateless")?,
+                ))
+            })
+            .collect()
+    }
+
+    fn aip_data(&self) -> Result<&aip::Data, String> {
+        self.aip.as_ref().ok_or_else(|| {
+            "no verified AIP archive under results/exploratory/aip/archive/".to_owned()
+        })
     }
 
     fn phase_data(&self) -> Result<&phases::Data, String> {
@@ -620,6 +657,79 @@ impl Doc {
                 })?,
                 None => "_Not run yet: there is no verified archive under `results/exploratory/phases/archive/`._".into(),
             },
+            ["positioning"] => {
+                let mut w = format!(
+                    "**Table.** {POSITIONING_CAPTION}\n\n| N (Biscuit depth) | C, warm (µs) | D, warm+prefix (µs) | E (µs) | C ÷ E | D ÷ E |\n|---|---|---|---|---|---|\n"
+                );
+                for (n, c, d, e) in self.positioning()? {
+                    w.push_str(&format!(
+                        "| {n} ({}) | {} | {} | {} | {:.2} | {:.2} |\n",
+                        n - 1,
+                        us(c),
+                        us(d),
+                        us(e),
+                        c / e,
+                        d / e
+                    ));
+                }
+                w.trim_end().to_owned()
+            }
+            // AIP's own benchmark here (D-79). Without its archive, the
+            // block says so; every number in it needs the archive.
+            ["aip"] => match &self.aip {
+                Some(d) => d.markdown(
+                    &|profile, n| {
+                        self.row("E", "stateless", n, profile)
+                            .ok()
+                            .map(|r| r.pooled.median)
+                    },
+                    &|depth| {
+                        AIP_CHAINED_BYTES
+                            .iter()
+                            .find(|x| x.0 == depth)
+                            .map(|x| x.1)
+                    },
+                )?,
+                None => "_Not run yet: there is no verified archive under `results/exploratory/aip/archive/`._".into(),
+            },
+            // AIP here at a depth, in ms: "mean" (the median of the three
+            // unmodified runs' means) or "median" (of all timings).
+            ["aiphere", stat, depth] => {
+                let d = self.aip_data()?.depth(num(depth)?)?;
+                match *stat {
+                    "mean" => {
+                        let mut v: Vec<f64> = d.run_means.values().copied().collect();
+                        v.sort_by(f64::total_cmp);
+                        format!("{:.3}", quantile_sorted(&v, 0.5))
+                    }
+                    "median" => format!("{:.3}", d.median),
+                    _ => return Err(format!("unknown AIP statistic {stat}")),
+                }
+            }
+            // AIP here over AIP published, means, at a depth.
+            ["aipvspub", depth] => {
+                let depth: usize = num(depth)?;
+                let d = self.aip_data()?.depth(depth)?;
+                let mut v: Vec<f64> = d.run_means.values().copied().collect();
+                v.sort_by(f64::total_cmp);
+                let p = AIP_CHAINED_MS
+                    .iter()
+                    .find(|x| x.0 == depth)
+                    .ok_or(format!("no AIP figure at depth {depth}"))?
+                    .1;
+                format!("{:.2}", quantile_sorted(&v, 0.5) / p)
+            }
+            // Arm E over AIP here (medians), at DC's N = depth + 1.
+            ["eaiphere", profile, depth] => {
+                let depth: usize = num(depth)?;
+                let d = self.aip_data()?.depth(depth)?;
+                let e = self.row("E", "stateless", depth + 1, profile)?.pooled.median;
+                format!("{:.2}", e / 1e6 / d.median)
+            }
+            ["aipversion", krate] => self.aip_data()?.meta["resolved"][*krate]
+                .as_str()
+                .ok_or(format!("no resolved version of {krate}"))?
+                .to_owned(),
             ["phaseflags"] => self.phase_data()?.flags(),
             ["phaseruns"] => self.phase_data()?.metas.len().to_string(),
             ["phasearchives"] => self.phase_data()?.archives.to_string(),

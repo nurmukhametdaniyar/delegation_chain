@@ -1,0 +1,12 @@
+--- a/rust/aip-token/src/bin/bench_chained.rs
++++ b/rust/aip-token/src/bin/bench_chained.rs
+@@ -76,6 +76,9 @@
+         let avg_create: f64 = create_times.iter().sum::<f64>() / ITERATIONS as f64;
+         let avg_verify: f64 = verify_times.iter().sum::<f64>() / ITERATIONS as f64;
+         let avg_size: usize = token_sizes.iter().sum::<usize>() / ITERATIONS;
++        // dc-bench (D-79): every verify timing of this depth, in ms, on
++        // stderr, after the timed loop. Nothing that is timed changes.
++        eprintln!("verify_ms depth={} {:?}", depth, verify_times);
+ 
+         let comma = if depth < MAX_DEPTH { "," } else { "" };
+ 

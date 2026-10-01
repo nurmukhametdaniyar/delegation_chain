@@ -921,5 +921,42 @@ Decision:
   - The bytes figure marks the break-even, recomputed with the report's rule and checked against `summary.json`'s statement of it.
   - The PDFs embed TrueType fonts and carry no creation date, so the same `summary.json` gives byte-identical files.
 - **ARTIFACT.md** says how to reproduce every figure and table from the archives.
+- **Added after the author's review (2026-10-01).**
+  - **Captions.** `paper/figures/captions.tex` holds a caption macro per figure, generated with the figures. Each says what its error bars are: the range of the three runs' medians, or of their ratios for the ratio figure. The bytes figure has none, because sizes do not vary between runs. `paper/tables/captions.tex` holds the positioning table's caption.
+  - **The ratio figure** (`ratios.pdf`, plus `ratios.png` for BENCHMARKS.md §8) is exploratory. It shows A/C (warm) and B/D (warm+prefix) against N in the small, medium and large profiles, in one panel, on a log scale, with a line at 1 and the frozen plan's ±10% band.
+    - Colour is the comparison, and marker and line style are the profile.
+    - The bar is the range of the three runs' ratios of medians, drawn as it is: the ratio of pooled medians need not lie inside it.
+    - The caption says that every run ratio lies above the band only when that is true of the data.
+  - **The positioning table** (`positioning.tex`) is exploratory. It sets C (warm) and D (warm+prefix) against arm E at matching depth (medium), using M9's pooled medians, and its caption lists E's functional gaps (paper Table 1).
 Why: SPEC §0 rule 7 forbids typing measured numbers by hand, and the paper is being rewritten around these results.
 Affects benchmarks: no.
+
+## D-79 — AIP's own benchmark, run here (exploratory)
+Spec section: §12.3, §13.10     Paper section: not applicable (positioning)
+Decision:
+- **Why.** Q9's gap between arm E and AIP's published figures is only partly explained by the timed scope. The author asked for AIP's benchmark to be run unmodified on this machine, so that the hardware can be separated from the scope.
+- **The source.** `bench_chained` from github.com/sunilp/aip at `ad2faa6` (`aip::COMMIT`), the commit that prepared arXiv:2603.24775v1.
+  - `scripts/exploratory-session.sh` clones the repository and extracts its `rust/` tree twice under `target/exploratory/aip/`.
+  - `dc-bench aip` checks that the unmodified copy's `bench_chained.rs` and `chained.rs` are byte-identical to the commit's before it runs anything.
+- **The build.**
+  - `cargo build --release --bin bench_chained`, with no RUSTFLAGS, because AIP records no build flags.
+  - The toolchain is this repository's pinned one.
+  - AIP commits no `Cargo.lock`, so Cargo resolves one for the unmodified copy, and the timings copy reuses it (`--locked`). The resolved versions of biscuit-auth, ed25519-dalek and curve25519-dalek are recorded, and the lock file is archived.
+- **Two builds.**
+  - **Unmodified.** Its printed means are AIP's own statistic: the mean of 100 single timings per depth, after no warm-up.
+  - **Timings.** It adds `scripts/aip-timings.patch`: one `eprintln!` after the timed loop that prints the depth's 100 timings, for the median. Nothing timed changes; the median cannot be had without it, because the unmodified binary prints only means.
+- **The run.**
+  - Three runs of each build, alternating which goes first. Each binary runs as AIP runs it: no arguments, default scheduling, from its own directory.
+  - pmset and the calibration probe are read around each invocation and recorded, with no valve and no re-runs.
+  - It requires M9's machine state and records `env.json`.
+  - It runs in the same session as the phase breakdown, from one script.
+  - Raw outputs are archived with zstd under a committed manifest in `results/exploratory/aip/`, and the run appends its own BENCH_LOG.md entry.
+- **Reporting** (BENCHMARKS.md §8, exploratory), per depth:
+  - token size in base64 characters, here and as published;
+  - AIP's published mean;
+  - each unmodified run's mean, and each timings run's median;
+  - the median and mean of all timings;
+  - here ÷ published (the median of the runs' means);
+  - arm E's M9 median and E ÷ AIP here (medians), small and medium.
+Why: running the same code on this machine separates the hardware and build from the timed scope, which Q9 could only argue.
+Affects benchmarks: no headline result. BENCHMARKS.md §8 only.
