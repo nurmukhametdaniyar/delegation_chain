@@ -308,14 +308,14 @@ The per-hop term dominates by N = 10 if 10β/α's CI lies above 1, the fixed ter
 
 AIP's figures are **published numbers from different hardware**: an Apple M3 Max under macOS 15.3, against this machine's M4 Max (SPEC §13.10). They match arXiv:2603.24775v1, Table 5, and they time a different operation from arm E's (BENCHMARKS.md, Q9). Arm E lacks registry resolution, PoP, revocation, receipts, the nonce cache and parameter binding (paper Table 1). **Sanity rule (frozen plan §8):** a ratio outside about 3× at matching depth is investigated before anything about arm E is reported.
 
-| profile | N (depth N−1) | E here | AIP published (ms) | E / AIP |
+| profile | N (depth N−1) | E here, µs: median [95% CI] / p99 | AIP published, ms | E / AIP |
 |---|---|---|---|---|
-| small | 1 | 48.9 [48.9, 48.9] / 54.5 | 0.188 | 0.26 (**outside 3×: investigate before reporting**) |
-| small | 2 | 82.0 [81.9, 82.0] / 88.0 | 0.292 | 0.28 (**outside 3×: investigate before reporting**) |
-| small | 3 | 115 [115, 115] / 122 | 0.403 | 0.28 (**outside 3×: investigate before reporting**) |
-| small | 5 | 180 [180, 180] / 192 | 0.625 | 0.29 (**outside 3×: investigate before reporting**) |
+| small | 1 | 48.9 [48.9, 48.9] / 54.5 | 0.188 | 0.26 (**outside 3×: investigated, see text**) |
+| small | 2 | 82.0 [81.9, 82.0] / 88.0 | 0.292 | 0.28 (**outside 3×: investigated, see text**) |
+| small | 3 | 115 [115, 115] / 122 | 0.403 | 0.28 (**outside 3×: investigated, see text**) |
+| small | 5 | 180 [180, 180] / 192 | 0.625 | 0.29 (**outside 3×: investigated, see text**) |
 | small | 10 | 346 [346, 346] / 362 | — | — |
-| medium | 1 | 60.8 [60.8, 60.9] / 67.3 | 0.188 | 0.32 (**outside 3×: investigate before reporting**) |
+| medium | 1 | 60.8 [60.8, 60.9] / 67.3 | 0.188 | 0.32 (**outside 3×: investigated, see text**) |
 | medium | 2 | 104 [104, 104] / 112 | 0.292 | 0.36 |
 | medium | 3 | 147 [147, 147] / 156 | 0.403 | 0.37 |
 | medium | 5 | 232 [232, 232] / 246 | 0.625 | 0.37 |

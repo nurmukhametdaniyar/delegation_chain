@@ -908,7 +908,7 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
     writeln!(w, "AIP's figures are **published numbers from different hardware**: an Apple M3 Max under macOS 15.3, against this machine's M4 Max (SPEC §13.10). They match arXiv:2603.24775v1, Table 5, and they time a different operation from arm E's (BENCHMARKS.md, Q9). Arm E lacks registry resolution, PoP, revocation, receipts, the nonce cache and parameter binding (paper Table 1). **Sanity rule (frozen plan §8):** a ratio outside about 3× at matching depth is investigated before anything about arm E is reported.\n").unwrap();
     writeln!(
         w,
-        "| profile | N (depth N−1) | E here | AIP published (ms) | E / AIP |"
+        "| profile | N (depth N−1) | E here, µs: median [95% CI] / p99 | AIP published, ms | E / AIP |"
     )
     .unwrap();
     writeln!(w, "|---|---|---|---|---|").unwrap();
@@ -930,7 +930,7 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
                     format!(
                         "{x:.2}{}",
                         if out {
-                            " (**outside 3×: investigate before reporting**)"
+                            " (**outside 3×: investigated, see text**)"
                         } else {
                             ""
                         }
