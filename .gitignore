@@ -12,3 +12,7 @@ fuzz/artifacts/
 results/raw/
 results/archive/*.zst
 results/criterion/
+# Local copies of measured raw data (frozen plan §5); never committed.
+backups/
+# Measured data of aborted run processes, set aside before their redo (D-76).
+results/aborted/

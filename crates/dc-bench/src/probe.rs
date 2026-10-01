@@ -9,9 +9,15 @@
 //! calls on inputs derived from fixed seeds, all valid. It uses the same
 //! crates and build as the arms, and its inputs are built once, outside
 //! any timing.
+//!
+//! Every probe, baseline probes included, is preceded by a fixed busy spin
+//! of [`WARMUP`] on the same thread, outside the probe's timing, so that a
+//! probe never starts from an idle core. This was added after runs 1 and 2,
+//! because probes that followed Q5's sleep-dominated configurations ran up
+//! to 37% slow (BENCH_LOG.md, 2026-10-01; D-76).
 
 use std::hint::black_box;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use dc_crypto::{Bls, Dst, Ed25519, SigScheme};
 use dc_types::digest::sha256;
@@ -22,6 +28,29 @@ pub const ED25519_VERIFICATIONS: usize = 1_000;
 pub const SLOW: f64 = 1.05;
 /// Probes in a run's baseline.
 pub const BASELINE_PROBES: usize = 5;
+/// The busy spin before every probe.
+pub const WARMUP: Duration = Duration::from_millis(200);
+
+/// One probe: its time, and the busy spin that preceded it.
+#[derive(Clone, Copy, Debug)]
+pub struct Sample {
+    pub ns: u64,
+    pub warmup_ns: u64,
+}
+
+/// A fixed busy spin of [`WARMUP`] on the calling thread. Returns its
+/// duration in nanoseconds.
+pub fn spin() -> u64 {
+    let t = Instant::now();
+    let mut x: u64 = 0x9e37_79b9_7f4a_7c15;
+    while t.elapsed() < WARMUP {
+        for _ in 0..1000 {
+            x = black_box(x.rotate_left(5) ^ x.wrapping_mul(0x0100_0000_01b3));
+        }
+    }
+    black_box(x);
+    t.elapsed().as_nanos() as u64
+}
 
 type Triple<S> = (
     <S as SigScheme>::PublicKey,
@@ -50,9 +79,11 @@ impl Probe {
         }
     }
 
-    /// One probe, in nanoseconds. Panics if a verification fails, which
-    /// would mean the probe is not the fixed workload it claims to be.
-    pub fn run_ns(&self) -> u64 {
+    /// The busy spin, then one probe. Only the probe is timed. Panics if a
+    /// verification fails, which would mean the probe is not the fixed
+    /// workload it claims to be.
+    pub fn run(&self) -> Sample {
+        let warmup_ns = spin();
         let t = Instant::now();
         let mut ok = true;
         for i in 0..BLS_VERIFICATIONS {
@@ -65,13 +96,13 @@ impl Probe {
         }
         let ns = t.elapsed().as_nanos() as u64;
         assert!(ok, "the calibration probe's inputs must all verify");
-        ns
+        Sample { ns, warmup_ns }
     }
 
-    /// The median of `BASELINE_PROBES` probes.
-    pub fn baseline(&self) -> (u64, Vec<u64>) {
-        let mut v: Vec<u64> = (0..BASELINE_PROBES).map(|_| self.run_ns()).collect();
-        let samples = v.clone();
+    /// The median of `BASELINE_PROBES` probes, each after its spin.
+    pub fn baseline(&self) -> (u64, Vec<Sample>) {
+        let samples: Vec<Sample> = (0..BASELINE_PROBES).map(|_| self.run()).collect();
+        let mut v: Vec<u64> = samples.iter().map(|s| s.ns).collect();
         v.sort_unstable();
         (v[v.len() / 2], samples)
     }
@@ -91,6 +122,12 @@ pub fn slow(probe_ns: u64, baseline_ns: u64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_spin_lasts_the_warmup() {
+        let ns = spin();
+        assert!(ns >= WARMUP.as_nanos() as u64);
+    }
 
     #[test]
     fn five_percent_rule() {

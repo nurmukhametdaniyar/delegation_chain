@@ -1,7 +1,7 @@
 //! `dc-bench`: the benchmark harness (SPEC §13; the frozen plan).
 //!
 //! ```text
-//! dc-bench all     [--mode full|dry] [--out DIR]    everything (SPEC §13.8)
+//! dc-bench all     [--mode full|dry] [--out DIR] [--resume]   everything (SPEC §13.8)
 //! dc-bench run     --run R [--mode M] [--out DIR] [--arm A]... [--only ID]... [--rerun] [--no-throughput]
 //! dc-bench bytes   [--mode M] [--out DIR]           Q2
 //! dc-bench env     [--out DIR]                      results/env.json
@@ -9,6 +9,12 @@
 //! dc-bench report  [--mode M] [--out DIR] [--criterion DIR]
 //! dc-bench plan    [--mode M]                       the grid, as the frozen plan states it
 //! ```
+//!
+//! `all --resume` continues an interrupted `all`: it skips every run process
+//! and re-run that completed, redoes an aborted one (setting its files aside
+//! first), and records the machine at the restart in `env-resume.json`,
+//! keeping the first `env.json`. Without `--resume`, `all` refuses to start
+//! over measured data.
 //!
 //! `--mode dry` is M8's dry run: 10 iterations per configuration, written to
 //! `results/dry-run/`. Its numbers are never reported, and it does not
@@ -43,6 +49,7 @@ struct Args {
     arms: Vec<Arm>,
     only: Vec<String>,
     rerun: bool,
+    resume: bool,
     throughput: bool,
     criterion: Option<PathBuf>,
 }
@@ -60,6 +67,7 @@ fn parse() -> Result<Args, String> {
         arms: vec![],
         only: vec![],
         rerun: false,
+        resume: false,
         throughput: true,
         criterion: None,
     };
@@ -82,6 +90,7 @@ fn parse() -> Result<Args, String> {
             }
             "--only" => a.only.push(val()?),
             "--rerun" => a.rerun = true,
+            "--resume" => a.resume = true,
             "--no-throughput" => a.throughput = false,
             "--criterion" => a.criterion = Some(PathBuf::from(val()?)),
             f => return Err(format!("unknown option {f}")),
@@ -169,11 +178,25 @@ fn cmd_plan(a: &Args) -> Result<(), String> {
 }
 
 fn cmd_env(a: &Args) -> Result<Value, String> {
+    write_env(a, "env.json")
+}
+
+/// `env.json` at a fresh start; `env-resume.json` at a resume, keeping the
+/// first.
+fn env_name(a: &Args) -> &'static str {
+    if a.resume {
+        "env-resume.json"
+    } else {
+        "env.json"
+    }
+}
+
+fn write_env(a: &Args, name: &str) -> Result<Value, String> {
     let out = out_dir(a);
     fs::create_dir_all(&out).map_err(|e| e.to_string())?;
     let v = env::capture(&root());
     fs::write(
-        out.join("env.json"),
+        out.join(name),
         serde_json::to_string_pretty(&v).unwrap() + "\n",
     )
     .map_err(|e| e.to_string())?;
@@ -233,7 +256,12 @@ struct Monitor {
     run: usize,
     probe: Probe,
     baseline: u64,
+    /// The whole run's configurations: main and A-mt processes, Q6 included
+    /// (D-76, revised).
     total: usize,
+    /// Configurations already flagged in this run's other process (the main
+    /// process, when this is the A-mt process).
+    prior: usize,
     valve: bool,
     /// (configuration, signal) of each flagged configuration.
     flagged: Vec<(String, &'static str)>,
@@ -244,6 +272,7 @@ impl Monitor {
         mut w: csv::Writer<fs::File>,
         run: usize,
         total: usize,
+        prior: usize,
         valve: bool,
     ) -> Result<Self, String> {
         w.write_record([
@@ -258,6 +287,7 @@ impl Monitor {
             "baseline_ns",
             "probe_slow",
             "throttled",
+            "warmup_ns",
         ])
         .map_err(|e| e.to_string())?;
         let probe = Probe::new();
@@ -268,12 +298,19 @@ impl Monitor {
             probe,
             baseline,
             total,
+            prior,
             valve,
             flagged: vec![],
         };
         let pm = thermal::read();
-        for (k, ns) in samples.iter().enumerate() {
-            m.row("baseline", &format!("baseline-{}", k + 1), &pm, *ns, false)?;
+        for (k, sample) in samples.iter().enumerate() {
+            m.row(
+                "baseline",
+                &format!("baseline-{}", k + 1),
+                &pm,
+                *sample,
+                false,
+            )?;
         }
         eprintln!("run {run}: probe baseline {:.1} ms", baseline as f64 / 1e6);
         Ok(m)
@@ -284,9 +321,10 @@ impl Monitor {
         id: &str,
         phase: &str,
         pm: &thermal::Reading,
-        probe_ns: u64,
+        sample: probe::Sample,
         judged: bool,
     ) -> Result<(), String> {
+        let probe_ns = sample.ns;
         let [limit, tw, pw, pm_flag] = pm.fields();
         let slow = judged && probe::slow(probe_ns, self.baseline);
         let throttled = judged && (pm.throttled() || slow);
@@ -303,6 +341,7 @@ impl Monitor {
                 &self.baseline.to_string(),
                 &slow.to_string(),
                 &throttled.to_string(),
+                &sample.warmup_ns.to_string(),
             ])
             .map_err(|e| e.to_string())?;
         self.w.flush().map_err(|e| e.to_string())
@@ -311,9 +350,9 @@ impl Monitor {
     /// Readings before a configuration: pmset, then the probe.
     fn before(&mut self, id: &str) -> Result<(thermal::Reading, u64), String> {
         let pm = thermal::read();
-        let ns = self.probe.run_ns();
-        self.row(id, "before", &pm, ns, true)?;
-        Ok((pm, ns))
+        let sample = self.probe.run();
+        self.row(id, "before", &pm, sample, true)?;
+        Ok((pm, sample.ns))
     }
 
     /// Readings after it: the probe, then pmset. Returns the abort reason if
@@ -323,9 +362,10 @@ impl Monitor {
         id: &str,
         before: (thermal::Reading, u64),
     ) -> Result<Option<String>, String> {
-        let ns = self.probe.run_ns();
+        let sample = self.probe.run();
+        let ns = sample.ns;
         let pm = thermal::read();
-        self.row(id, "after", &pm, ns, true)?;
+        self.row(id, "after", &pm, sample, true)?;
         let pmset = before.0.throttled() || pm.throttled();
         let slow = probe::slow(before.1, self.baseline) || probe::slow(ns, self.baseline);
         let signal = match (pmset, slow) {
@@ -338,16 +378,73 @@ impl Monitor {
             self.flagged.push((id.to_owned(), sig));
             eprintln!("run {}: {id} flagged ({sig})", self.run);
         }
-        if self.valve && self.flagged.len() * 10 > self.total {
+        if self.valve && valve_trips(self.prior, self.flagged.len(), self.total) {
             return Ok(Some(format!(
-                "aborting run {}: {} of its {} configurations are flagged (more than 10%); the machine is not in a usable state (frozen plan §5)",
+                "aborting run {}: {} of the run's {} configurations are flagged ({} in this process, {} in its main process), more than 10%; the machine is not in a usable state (frozen plan §5; D-76)",
                 self.run,
+                self.prior + self.flagged.len(),
+                self.total,
                 self.flagged.len(),
-                self.total
+                self.prior
             )));
         }
         Ok(None)
     }
+}
+
+/// The safety valve, per run (D-76, revised): more than 10% of the run's
+/// configurations flagged, counting both of its processes.
+fn valve_trips(prior: usize, flagged: usize, total: usize) -> bool {
+    (prior + flagged) * 10 > total
+}
+
+/// Every configuration of run `r` in `mode`: the latency grid of both builds
+/// and the Q6 rows.
+fn run_total(mode: Mode) -> usize {
+    grid(mode).len() + THROUGHPUT_ARMS.len() * THREADS.len()
+}
+
+/// The files a run process writes, for stem `stem`.
+fn stem_files(stem: &str) -> [String; 5] {
+    [
+        format!("{stem}.csv"),
+        format!("{stem}-calls.csv"),
+        format!("{stem}-thermal.csv"),
+        format!("{stem}-throughput.csv"),
+        format!("{stem}-meta.json"),
+    ]
+}
+
+/// A process's state from its meta file: `None` if it never ran, else
+/// whether it completed (did not abort), and its flagged count.
+fn process_state(raw: &Path, stem: &str) -> Option<(bool, usize)> {
+    let m: Value =
+        serde_json::from_str(&fs::read_to_string(raw.join(format!("{stem}-meta.json"))).ok()?)
+            .ok()?;
+    let flagged = m["flagged"].as_array().map_or(0, Vec::len);
+    Some((m["aborted"].is_null(), flagged))
+}
+
+/// Moves an aborted process's files out of `raw/` into
+/// `results/aborted/<stem>-attempt-<k>/`, so that its redo cannot mix with
+/// them. They are kept, never read by the report.
+fn set_aside(out: &Path, stem: &str) -> Result<PathBuf, String> {
+    let mut k = 1;
+    let dest = loop {
+        let d = out.join("aborted").join(format!("{stem}-attempt-{k}"));
+        if !d.exists() {
+            break d;
+        }
+        k += 1;
+    };
+    fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
+    for f in stem_files(stem) {
+        let src = out.join("raw").join(&f);
+        if src.exists() {
+            fs::rename(&src, dest.join(&f)).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(dest)
 }
 
 fn cmd_run(a: &Args) -> Result<(), String> {
@@ -415,6 +512,24 @@ fn cmd_run(a: &Args) -> Result<(), String> {
         if dc_crypto::BLST_THREADED { "-amt" } else { "" },
         if a.rerun { "-rerun" } else { "" }
     );
+    // Measured data are never overwritten. A completed process is final; an
+    // aborted or partial one is set aside before its redo.
+    match process_state(&raw, &stem) {
+        Some((true, _)) => {
+            return Err(format!(
+                "{stem} already completed in {}; refusing to overwrite measured data (`all --resume` skips it)",
+                raw.display()
+            ));
+        }
+        _ if stem_files(&stem).iter().any(|f| raw.join(f).exists()) => {
+            let d = set_aside(&out, &stem)?;
+            eprintln!(
+                "{stem}: the earlier, unfinished attempt's files were moved to {}",
+                d.display()
+            );
+        }
+        _ => {}
+    }
     let set_dir = root()
         .join("target/dc-bench-sets")
         .join(format!("{}-{stem}-{build}", a.mode.label()));
@@ -433,7 +548,17 @@ fn cmd_run(a: &Args) -> Result<(), String> {
         csv::Writer::from_path(raw.join(format!("{stem}-thermal.csv")))
             .map_err(|e| e.to_string())?,
         a.run,
-        configs.len() + tp_order.len(),
+        if a.rerun {
+            configs.len() + tp_order.len()
+        } else {
+            run_total(a.mode)
+        },
+        // The A-mt process continues its run's count from the main process.
+        if dc_crypto::BLST_THREADED && !a.rerun {
+            process_state(&raw, &format!("run{}", a.run)).map_or(0, |s| s.1)
+        } else {
+            0
+        },
         !a.rerun,
     )?;
     let mut abort: Option<String> = None;
@@ -567,7 +692,9 @@ fn cmd_run(a: &Args) -> Result<(), String> {
         "config_seconds": timings,
         "throughput_qos_ok": tp_rows.iter().all(|r| r.qos_ok),
         "probe_baseline_ns": monitor.baseline,
-        "configurations_in_process": monitor.total,
+        "probe_warmup_ns": probe::WARMUP.as_nanos() as u64,
+        "configurations_in_run": monitor.total,
+        "flagged_earlier_in_run": monitor.prior,
         "flagged": monitor.flagged.iter().map(|(id, sig)| json!({"config": id, "signal": sig})).collect::<Vec<_>>(),
         "aborted": abort,
         "total_seconds": started.elapsed().as_secs_f64(),
@@ -837,11 +964,32 @@ fn cmd_all(a: &Args) -> Result<(), String> {
         }
         eprintln!("dc-bench: warning: {msg}");
     }
+    // A fresh start never runs over measured data (D-76).
+    let raw = out.join("raw");
+    let completed: Vec<String> = fs::read_dir(&raw)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            e.file_name()
+                .to_str()?
+                .strip_suffix("-meta.json")
+                .map(str::to_owned)
+        })
+        .filter(|stem| matches!(process_state(&raw, stem), Some((true, _))))
+        .collect();
+    if !a.resume && !completed.is_empty() {
+        return Err(format!(
+            "{} already holds completed run processes ({}); use `all --resume`, or move them away to start over",
+            raw.display(),
+            completed.join(", ")
+        ));
+    }
     // AC power and High Power mode are checked before anything is built.
     if a.mode == Mode::Full {
         let r = env::requirements();
         if r["ac_power"] != json!(true) || r["high_power_mode"] != json!(true) {
-            cmd_env(a)?;
+            write_env(a, env_name(a))?;
             return Err(format!(
                 "aborting: a full run needs AC power and High Power mode: {r}"
             ));
@@ -873,31 +1021,44 @@ fn cmd_all(a: &Args) -> Result<(), String> {
         ]),
         "build dc-bench binaries",
     )?;
-    // env.json records the machine once it is idle, before the first run.
+    // env.json (or env-resume.json) records the machine once it is idle,
+    // before the first run of this invocation.
     require(a.mode)?;
-    let env = cmd_env(a)?;
+    let env = write_env(a, env_name(a))?;
     if a.mode == Mode::Full && env["m9_requirements"]["ok"] != json!(true) {
-        return Err(
-            "aborting: env.json does not confirm AC power, High Power mode and an idle machine"
-                .into(),
-        );
+        return Err(format!(
+            "aborting: {} does not confirm AC power, High Power mode and an idle machine",
+            env_name(a)
+        ));
     }
     let amt = root.join("target/a-mt/release/dc-bench");
     let runs = if a.mode == Mode::Dry { 1 } else { RUNS };
     for r in 1..=runs {
         let rs = r.to_string();
-        run_child(
-            Command::new(&me).args(["run", "--run", &rs, "--mode", mode, "--out", &outs]),
-            &format!("run {r}"),
-        )?;
-        run_child(
-            Command::new(&amt).args(["run", "--run", &rs, "--mode", mode, "--out", &outs]),
-            &format!("run {r}, A-mt"),
-        )?;
+        for (bin, stem, what) in [
+            (&me, format!("run{r}"), format!("run {r}")),
+            (&amt, format!("run{r}-amt"), format!("run {r}, A-mt")),
+        ] {
+            if matches!(process_state(&raw, &stem), Some((true, _))) {
+                eprintln!("== {what}: completed earlier, skipped");
+                continue;
+            }
+            run_child(
+                Command::new(bin).args(["run", "--run", &rs, "--mode", mode, "--out", &outs]),
+                &what,
+            )?;
+        }
     }
-    // Thermal re-runs (frozen plan §5), whatever their result.
-    let raw = out.join("raw");
-    let reruns = throttled(&raw);
+    // Throttling re-runs (frozen plan §5), whatever their result.
+    let mut reruns = throttled(&raw);
+    reruns.retain(|(run, is_amt), _| {
+        let stem = format!("run{run}{}-rerun", if *is_amt { "-amt" } else { "" });
+        let done = matches!(process_state(&raw, &stem), Some((true, _)));
+        if done {
+            eprintln!("== re-runs of {stem}: completed earlier, skipped");
+        }
+        !done
+    });
     for ((run, is_amt), ids) in &reruns {
         let rs = run.to_string();
         let bin = if *is_amt { &amt } else { &me };
@@ -963,4 +1124,19 @@ fn cmd_all(a: &Args) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_valve_counts_the_whole_run() {
+        // Run 2 of M9: 6 flagged in the main process, 2 in A-mt, of 255.
+        assert!(!valve_trips(6, 2, 255));
+        // 26 of 255 is more than 10%; 25 is not.
+        assert!(valve_trips(20, 6, 255));
+        assert!(!valve_trips(20, 5, 255));
+        assert_eq!(run_total(Mode::Full), 255);
+    }
 }

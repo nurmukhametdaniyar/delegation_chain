@@ -89,6 +89,9 @@ pub struct ThermalRow {
     pub baseline_ns: u64,
     pub probe_slow: bool,
     pub throttled: bool,
+    /// The busy spin before the probe; absent in runs 1 and 2, which
+    /// predate it (BENCH_LOG.md, 2026-10-01).
+    pub warmup_ns: Option<u64>,
 }
 
 /// The raw data, read from verified archives.
@@ -165,6 +168,7 @@ pub fn load_raw(results: &Path) -> Result<Raw, String> {
                     baseline_ns: num(&r[8]) as u64,
                     probe_slow: &r[9] == "true",
                     throttled: &r[10] == "true",
+                    warmup_ns: r.get(11).and_then(|x| x.parse().ok()),
                 });
             }
         } else if file.ends_with("-calls.csv") {
@@ -504,6 +508,9 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
         env["m9_requirements"]["ok"]
     )
     .unwrap();
+    if let Some(r) = read_json(&results.join("env-resume.json")) {
+        writeln!(w, "- Resumed (`all --resume`, BENCH_LOG.md) on {}; requirements at the resume confirmed: {}", r["date_utc"], r["m9_requirements"]["ok"]).unwrap();
+    }
     writeln!(
         w,
         "- rustc: {}",
@@ -1044,6 +1051,44 @@ pub fn report(results: &Path, criterion: &Path, threads: usize, dry: bool) -> Re
     }
     writeln!(w).unwrap();
     js.insert("flagged".into(), json!(flag_js));
+
+    // ---- threats ----
+    writeln!(
+        w,
+        "## Threats to validity, from the harness's own readings\n"
+    )
+    .unwrap();
+    let mut amt: Vec<(String, f64)> = vec![];
+    let mut amt_stems: Vec<&str> = raw
+        .thermal
+        .iter()
+        .map(|t| t.stem.as_str())
+        .filter(|s| s.contains("-amt") && !s.contains("-rerun"))
+        .collect();
+    amt_stems.sort_unstable();
+    amt_stems.dedup();
+    for stem in amt_stems {
+        let mut r: Vec<f64> = raw
+            .thermal
+            .iter()
+            .filter(|t| t.stem == stem && t.config != "baseline" && t.baseline_ns > 0)
+            .map(|t| t.probe_ns as f64 / t.baseline_ns as f64)
+            .collect();
+        if r.is_empty() {
+            continue;
+        }
+        r.sort_by(f64::total_cmp);
+        amt.push((stem.to_owned(), crate::stats::quantile_sorted(&r, 0.5)));
+    }
+    if !amt.is_empty() {
+        let lo = amt.iter().map(|x| x.1).fold(f64::MAX, f64::min);
+        let hi = amt.iter().map(|x| x.1).fold(f64::MIN, f64::max);
+        writeln!(w, "- **A-mt warms the chip.** A-mt runs blst's thread pool across every core. After its configurations, the single-threaded calibration probes ran {:.0}–{:.0}% slower than their process's baseline (per-process medians: {}). So A-mt's own latencies include that thermal state. Its flagged configurations are marked † as usual. A-mt is supplementary, Q1 only, never in a headline ratio (D-29).",
+            100.0 * (lo - 1.0), 100.0 * (hi - 1.0),
+            amt.iter().map(|(s, m)| format!("{s} {m:.3}")).collect::<Vec<_>>().join(", ")).unwrap();
+    }
+    let spun = raw.thermal.iter().filter(|t| t.warmup_ns.is_some()).count();
+    writeln!(w, "- **Probe warm-up.** Probes recorded with a warm-up spin: {spun} of {}. Runs 1 and 2 predate the spin (BENCH_LOG.md, 2026-10-01).\n", raw.thermal.len()).unwrap();
 
     // ---- claims ----
     writeln!(w, "## Paper claims (SPEC §13.11)\n").unwrap();

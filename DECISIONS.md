@@ -849,9 +849,18 @@ Decision: the author's amendment before any measurement (frozen plan §5), with 
   - For Q6 the probe runs single-threaded on the measuring thread, between thread counts.
 - **Baseline.** The median of 5 probes after the 30 s settle, recorded as rows `baseline-1` … `baseline-5` of `run*-thermal.csv`.
 - **Columns.** Every row carries the probe time, the baseline, `probe_slow` (probe > 1.05 × baseline), `pmset_warning`, and `throttled` (either).
-- **Valve.** It counts flagged configurations in a main run process, whose population is the process's latency configurations plus its Q6 rows. Once more than 10% are flagged, the process stops. It writes its partial CSVs and a meta file giving the reason, and exits with an error, which stops `all` before anything else runs.
-  - A re-run process records its flags but has no valve, since its whole population is flagged configurations.
+- **Valve** (revised 2026-10-01, a post-measurement deviation; `BENCH_LOG.md`). It counts flagged configurations **per run**, over the run's main and A-mt processes together: 255 configurations (231 latency plus 24 Q6).
+  - The A-mt process starts its count from the main process's flags, read from that run's meta file.
+  - Once more than 10% are flagged, the process stops. It writes its partial CSVs and a meta file giving the reason, and exits with an error, which stops `all`.
+  - A re-run process records its flags but has no valve.
   - The dry run uses the same code.
+  - History: until 2026-10-01 the count was per process. That tripped run 2's A-mt process (2 of 16), on flags caused by A-mt's own all-core load.
+- **Warm-up spin** (added 2026-10-01, a post-measurement deviation). A fixed busy spin of about 200 ms runs on the probing thread before every probe, baseline probes included, outside the probe's timing, and is recorded as `warmup_ns`. Probes after Q5's sleep-dominated configurations had measured the idle core's ramp-up. It applies from run 2's A-mt redo on.
+- **Measured data are never overwritten.**
+  - A run process refuses to overwrite a completed process.
+  - An aborted or partial process's files are moved to `results/aborted/<stem>-attempt-<k>/` before its redo, and are never read.
+  - A fresh `all` refuses to start over measured data.
+  - `all --resume` skips completed processes and re-runs, and records the machine at the restart in `env-resume.json`.
 - **Reporting.** `BENCH_LOG.md`'s re-run entries name the signal that flagged each configuration, and whether its re-run was flagged again. The summary counts flagged configurations per run process, by signal.
 Why: `pmset -g therm` on this Mac cannot report a CPU speed limit. A fixed probe measures what matters directly: how fast this machine runs the arms' own primitives, compared with the start of the run.
 Affects benchmarks: yes (which configurations are re-run, and whether a run is usable at all).

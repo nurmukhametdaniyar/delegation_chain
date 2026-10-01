@@ -388,3 +388,17 @@ Progress log (SPEC §15). Read this first to see where the last session stopped.
   - Every other probe in the main run was within 4% of the baseline (462 probes, median 0.993).
   - This looks like the CPU ramping back up from idle, not throttling. Under the rule as frozen, Q5's sleep-dominated configurations will be re-run in every run, and flagged again. That stays well under the 10% valve, but it is wasted time and it muddies the flag counts.
   - The rule was left as the author specified it.
+
+## M9 — interrupted; deviations before resuming (2026-10-01)
+
+- **Measured so far** (backed up read-only, with checksums, in `backups/m9-raw-20261001T010020Z/`):
+  - run 1 complete: 215 configurations plus Q6, and 16 A-mt;
+  - run 2's main process complete.
+- **The interruption.** Run 2's A-mt process aborted on the per-process safety valve, at 2 of 16.
+- **Changes, approved by the author and logged as post-measurement deviations** (`BENCH_LOG.md`, `BENCHMARKS.md`; D-76 revised):
+  - the valve counts per run, across the main and A-mt processes;
+  - a 200 ms busy spin before every probe;
+  - `all --resume`, a guard against overwriting completed processes, and setting aside aborted ones.
+- **The measured path is unchanged since `bench-freeze-2`:** the harness's measurement code, the arms, the workloads, the protocol crates and `Cargo.lock`. Only the orchestration (`main.rs`), the probe and the report changed.
+- **No latency result has been opened.**
+
