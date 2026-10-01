@@ -53,3 +53,53 @@ The spin applies to run 2's A-mt redo, run 3 and every re-run. Runs 1 and 2's pr
 
 Configurations re-run: none because of this change itself.
 
+
+## 2026-10-01 — throttling re-run, run 1
+Reason: before or after these configurations, `pmset -g therm` recorded a warning, or a calibration probe ran more than 5% slower than the run's baseline (frozen plan §5). They were re-run after the main runs; the report uses the re-run samples, and the originals stay in the archive.
+Configurations re-run:
+- `A cold+rtt1ms N=3 medium`: flagged by probe; original median 17742688 ns, re-run median 17424312 ns; re-run not flagged
+- `A cold+rtt20ms N=3 medium`: flagged by probe; original median 168086646 ns, re-run median 166962542 ns; re-run not flagged
+- `A cold+rtt80ms N=3 medium`: flagged by probe; original median 470803688 ns, re-run median 469798062 ns; re-run not flagged
+- `C cold+rtt1ms N=3 medium`: flagged by probe; original median 9451042 ns, re-run median 9465980 ns; re-run not flagged
+- `C cold+rtt20ms N=3 medium`: flagged by probe; original median 146185042 ns, re-run median 146540916 ns; re-run not flagged
+- `C cold+rtt80ms N=3 medium`: flagged by probe; original median 445771000 ns, re-run median 446448896 ns; re-run not flagged
+
+## 2026-10-01 — throttling re-run, run 1 (A-mt build)
+Reason: before or after these configurations, `pmset -g therm` recorded a warning, or a calibration probe ran more than 5% slower than the run's baseline (frozen plan §5). They were re-run after the main runs; the report uses the re-run samples, and the originals stay in the archive.
+Configurations re-run:
+- `A-mt warm N=5 medium`: flagged by probe; original median 554084 ns, re-run median 556708 ns; re-run not flagged
+
+## 2026-10-01 — throttling re-run, run 2
+Reason: before or after these configurations, `pmset -g therm` recorded a warning, or a calibration probe ran more than 5% slower than the run's baseline (frozen plan §5). They were re-run after the main runs; the report uses the re-run samples, and the originals stay in the archive.
+Configurations re-run:
+- `A cold+rtt1ms N=3 medium`: flagged by probe; original median 17651270 ns, re-run median 17322000 ns; re-run not flagged
+- `A cold+rtt20ms N=3 medium`: flagged by probe; original median 167413979 ns, re-run median 167031792 ns; re-run not flagged
+- `A cold+rtt80ms N=3 medium`: flagged by probe; original median 471735625 ns, re-run median 470965834 ns; re-run not flagged
+- `C cold+rtt1ms N=3 medium`: flagged by probe; original median 9437417 ns, re-run median 9462730 ns; re-run not flagged
+- `C cold+rtt20ms N=3 medium`: flagged by probe; original median 146780042 ns, re-run median 146564583 ns; re-run not flagged
+- `C cold+rtt80ms N=3 medium`: flagged by probe; original median 447222374 ns, re-run median 444507167 ns; re-run not flagged
+
+## 2026-10-01 — throttling re-run, run 2 (A-mt build)
+Reason: before or after these configurations, `pmset -g therm` recorded a warning, or a calibration probe ran more than 5% slower than the run's baseline (frozen plan §5). They were re-run after the main runs; the report uses the re-run samples, and the originals stay in the archive.
+Configurations re-run:
+- `A-mt warm N=1 large`: flagged by probe; original median 534792 ns, re-run median 521333 ns; re-run flagged again, by probe
+- `A-mt warm N=1 medium`: flagged by probe; original median 483166 ns, re-run median 465375 ns; re-run not flagged
+- `A-mt warm N=1 small`: flagged by probe; original median 476250 ns, re-run median 460917 ns; re-run not flagged
+- `A-mt warm N=10 large`: flagged by probe; original median 1015292 ns, re-run median 969875 ns; re-run not flagged
+- `A-mt warm N=10 small`: flagged by probe; original median 757542 ns, re-run median 748583 ns; re-run flagged again, by probe
+- `A-mt warm N=2 large`: flagged by probe; original median 600750 ns, re-run median 585958 ns; re-run not flagged
+- `A-mt warm N=2 medium`: flagged by probe; original median 500625 ns, re-run median 486417 ns; re-run not flagged
+- `A-mt warm N=2 small`: flagged by probe; original median 495042 ns, re-run median 478375 ns; re-run not flagged
+- `A-mt warm N=3 large`: flagged by probe; original median 671042 ns, re-run median 635958 ns; re-run not flagged
+- `A-mt warm N=3 medium-approval`: flagged by probe; original median 981875 ns, re-run median 977541 ns; re-run not flagged
+
+## 2026-10-01 — throttling re-run, run 3
+Reason: before or after these configurations, `pmset -g therm` recorded a warning, or a calibration probe ran more than 5% slower than the run's baseline (frozen plan §5). They were re-run after the main runs; the report uses the re-run samples, and the originals stay in the archive.
+Configurations re-run:
+- `B prefix-miss N=3 small`: flagged by probe; original median 1720250 ns, re-run median 1705958 ns; re-run not flagged
+- `C-batch warm N=5 small`: flagged by probe; original median 86334 ns, re-run median 86417 ns; re-run not flagged
+
+## 2026-10-01 — throttling re-run, run 3 (A-mt build)
+Reason: before or after these configurations, `pmset -g therm` recorded a warning, or a calibration probe ran more than 5% slower than the run's baseline (frozen plan §5). They were re-run after the main runs; the report uses the re-run samples, and the originals stay in the archive.
+Configurations re-run:
+- `A-mt warm N=2 medium`: flagged by probe; original median 502584 ns, re-run median 484583 ns; re-run not flagged
