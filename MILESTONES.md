@@ -443,3 +443,12 @@ The author asked for three follow-ups.
 - **No harness bug, and nothing changed.**
 - **One report error, corrected.** M10 compared arm E's raw token sizes with AIP's base64 lengths (BENCH_LOG.md).
 - **Verdict on the gap.** It is partly explained. AIP's per-block cost is still about twice E's once a second signature check per block is added. The rest is unattributed, and BENCHMARKS.md Q9 says so.
+
+**2. Phase breakdown (exploratory).**
+- **A gap closed.** SPEC §10.3's `phase-timing` feature had never been built; it now is (D-77).
+- **The command.** `dc-bench phases` runs arms A and C, warm, N = 3, in the small, medium and large profiles: three runs on M9's machine state, archived under a committed manifest. It appends its own BENCH_LOG.md entry.
+- **Generated.** BENCHMARKS.md §8 is generated from the archive once it exists.
+- **Not run yet.** The machine was on battery during this session, so the full run is waiting. Only a dry run, whose numbers are never reported, was made.
+
+**Other changes.**
+- **CI** lints the `phase-timing` build and runs its partition test.

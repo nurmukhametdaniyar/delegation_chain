@@ -20,6 +20,9 @@ variant-ed25519 = ["dep:ed25519-dalek"]
 variant-prefix = []
 # Per-verification operation counts (SPEC §10.3). Never in headline runs.
 count-ops = []
+# Per-phase time of each verification (SPEC §10.3; D-77). Never in headline
+# runs.
+phase-timing = []
 
 [dependencies]
 blst.workspace = true

@@ -20,6 +20,7 @@ mod error;
 pub mod ops;
 #[cfg(feature = "variant-prefix")]
 pub mod pairing_cache;
+pub mod phases;
 #[cfg(feature = "variant-prefix")]
 mod prefix;
 mod scheme;

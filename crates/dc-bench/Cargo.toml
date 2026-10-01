@@ -17,6 +17,9 @@ workspace = true
 # blst's thread pool on; the harness then runs only A-mt rows.
 default = ["blst-no-threads"]
 blst-no-threads = ["dc-crypto/blst-no-threads"]
+# The exploratory phase breakdown (`dc-bench phases`; D-77). A build with it
+# refuses to make headline runs (SPEC §10.3).
+phase-timing = ["dc-crypto/phase-timing", "dc-verifier/phase-timing"]
 
 [dependencies]
 dc-baselines.workspace = true

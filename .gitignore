@@ -16,3 +16,8 @@ results/criterion/
 backups/
 # Measured data of aborted run processes, set aside before their redo (D-76).
 results/aborted/
+# The exploratory phase breakdown (D-77): raw data and archives stay out of
+# git like M9's; env.json and archive/MANIFEST.sha256 are committed.
+results/exploratory/phases/raw/
+results/exploratory/phases/archive/*.zst
+results/exploratory/phases/aborted/

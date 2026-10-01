@@ -11,6 +11,9 @@
 //!
 //! An unknown or unresolvable placeholder is an error, so the document can
 //! never carry a number typed by hand.
+//!
+//! The exploratory phase breakdown (D-77) is read the same way, from its own
+//! verified archives under `results/exploratory/phases/`.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -18,6 +21,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
+use crate::phases;
 use crate::report::{
     self, AIP_CHAINED_MS, Key, Raw, Row, criterion_estimates, read_json, us, verdict,
 };
@@ -45,22 +49,26 @@ pub fn base64_len(n: usize) -> usize {
     n.div_ceil(3) * 4
 }
 
-struct Doc<'a> {
-    rows: &'a BTreeMap<Key, Row>,
-    raw: &'a Raw,
-    bytes: Value,
+/// Everything the generated documents draw on, loaded from verified
+/// archives and the files the harness wrote.
+pub struct Doc {
+    pub(crate) rows: BTreeMap<Key, Row>,
+    pub(crate) raw: Raw,
+    pub(crate) bytes: Value,
     memory: Value,
     env: Value,
     env_resume: Value,
-    criterion: Vec<(String, f64, (f64, f64))>,
+    pub(crate) criterion: Vec<(String, f64, (f64, f64))>,
     summary: String,
+    /// The exploratory phase breakdown, once its archives exist (D-77).
+    pub(crate) phases: Option<phases::Data>,
 }
 
 /// The two arms and states of each verdict kind.
 /// An (arm, state) pair.
 type ArmState = (&'static str, &'static str);
 
-fn kind(k: &str) -> Result<(ArmState, ArmState), String> {
+pub(crate) fn kind(k: &str) -> Result<(ArmState, ArmState), String> {
     Ok(match k {
         "bd" => (("B", "warm+prefix"), ("D", "warm+prefix")),
         "bdm" => (("B", "prefix-miss"), ("D", "prefix-miss")),
@@ -74,7 +82,9 @@ fn kind(k: &str) -> Result<(ArmState, ArmState), String> {
     })
 }
 
-fn cells() -> Vec<(usize, &'static str)> {
+/// The verdict cells: every N in every profile, and medium-approval at
+/// N = 3.
+pub(crate) fn cells() -> Vec<(usize, &'static str)> {
     let mut v: Vec<(usize, &'static str)> = NS
         .iter()
         .flat_map(|&n| ["small", "medium", "large"].map(|p| (n, p)))
@@ -87,8 +97,68 @@ fn num<T: std::str::FromStr>(s: &str) -> Result<T, String> {
     s.parse().map_err(|_| format!("bad number {s}"))
 }
 
-impl Doc<'_> {
-    fn row(&self, arm: &str, state: &str, n: usize, profile: &str) -> Result<&Row, String> {
+impl Doc {
+    /// Regenerates `summary.md` and `summary.json` from the verified
+    /// archives, then loads everything else.
+    pub fn load(results: &Path, criterion: &Path, threads: usize) -> Result<Doc, String> {
+        report::report(results, criterion, threads, false)?;
+        let raw = report::load_raw(results)?;
+        let rows = report::rows(&raw, threads);
+        let pdir = results.join("exploratory/phases");
+        let phases = if pdir.join("archive/MANIFEST.sha256").exists() {
+            Some(phases::load(&pdir)?)
+        } else {
+            None
+        };
+        Ok(Doc {
+            rows,
+            raw,
+            bytes: read_json(&results.join("bytes.json")).ok_or("no bytes.json")?,
+            memory: read_json(&results.join("memory.json")).ok_or("no memory.json")?,
+            env: read_json(&results.join("env.json")).ok_or("no env.json")?,
+            env_resume: read_json(&results.join("env-resume.json")).unwrap_or(Value::Null),
+            criterion: criterion_estimates(criterion),
+            summary: fs::read_to_string(results.join("summary.md")).map_err(|e| e.to_string())?,
+            phases,
+        })
+    }
+
+    /// Resolves every placeholder in `tpl`. Any that cannot be resolved is
+    /// an error.
+    pub fn fill(&self, tpl: &str) -> Result<String, String> {
+        let mut out = String::with_capacity(tpl.len() * 2);
+        let mut rest = tpl;
+        let mut errors = vec![];
+        while let Some(i) = rest.find("{{") {
+            out.push_str(&rest[..i]);
+            let Some(j) = rest[i..].find("}}") else {
+                return Err("unterminated placeholder".into());
+            };
+            let key = &rest[i + 2..i + j];
+            match self.resolve(key) {
+                Ok(v) => out.push_str(&v),
+                Err(e) => errors.push(format!("{{{{{key}}}}}: {e}")),
+            }
+            rest = &rest[i + j + 2..];
+        }
+        out.push_str(rest);
+        if errors.is_empty() {
+            Ok(out)
+        } else {
+            Err(format!(
+                "unresolved placeholders:\n  {}",
+                errors.join("\n  ")
+            ))
+        }
+    }
+
+    pub(crate) fn row(
+        &self,
+        arm: &str,
+        state: &str,
+        n: usize,
+        profile: &str,
+    ) -> Result<&Row, String> {
         self.rows
             .get(&Key {
                 arm: arm.into(),
@@ -100,7 +170,7 @@ impl Doc<'_> {
     }
 
     /// Ratio, its CI, each run's ratio of medians, and the frozen verdict.
-    fn verdict(
+    pub(crate) fn verdict(
         &self,
         k: &str,
         n: usize,
@@ -138,13 +208,13 @@ impl Doc<'_> {
             .ok_or_else(|| format!("no bytes row {arm} N={n} {profile}"))
     }
 
-    fn total(&self, arm: &str, n: usize, profile: &str) -> Result<f64, String> {
+    pub(crate) fn total(&self, arm: &str, n: usize, profile: &str) -> Result<f64, String> {
         self.bytes_row(arm, n, profile)?["total_mean"]
             .as_f64()
             .ok_or("bytes".into())
     }
 
-    fn crit(&self, id: &str) -> Result<f64, String> {
+    pub(crate) fn crit(&self, id: &str) -> Result<f64, String> {
         self.criterion
             .iter()
             .find(|c| c.0 == id)
@@ -220,7 +290,32 @@ impl Doc<'_> {
             .to_owned())
     }
 
-    fn resolve(&self, key: &str) -> Result<String, String> {
+    /// Q2's break-even: the first N from 1 to 10 at which A's and C's
+    /// chain sizes change order.
+    pub(crate) fn break_even(&self, profile: &str) -> Result<Option<usize>, String> {
+        let pts: Vec<(usize, f64, f64)> = (1..=10)
+            .map(|n| {
+                Ok((
+                    n,
+                    self.total("A", n, profile)?,
+                    self.total("C", n, profile)?,
+                ))
+            })
+            .collect::<Result<_, String>>()?;
+        let start = (pts[0].1 - pts[0].2).signum();
+        Ok(pts
+            .iter()
+            .find(|(_, a, c)| (a - c).signum() != start && a != c)
+            .map(|p| p.0))
+    }
+
+    fn phase_data(&self) -> Result<&phases::Data, String> {
+        self.phases.as_ref().ok_or_else(|| {
+            "no verified phase archive under results/exploratory/phases/archive/".to_owned()
+        })
+    }
+
+    pub(crate) fn resolve(&self, key: &str) -> Result<String, String> {
         let p: Vec<&str> = key.split(':').collect();
         let f1 = |x: f64| format!("{x:.1}");
         let f3 = |x: f64| format!("{x:.3}");
@@ -336,25 +431,10 @@ impl Doc<'_> {
                 };
                 f1((d(10)? - d(1)?) / 9.0)
             }
-            ["breakeven", profile] => {
-                let pts: Vec<(usize, f64, f64)> = (1..=10)
-                    .map(|n| {
-                        Ok((
-                            n,
-                            self.total("A", n, profile)?,
-                            self.total("C", n, profile)?,
-                        ))
-                    })
-                    .collect::<Result<_, String>>()?;
-                let start = (pts[0].1 - pts[0].2).signum();
-                match pts
-                    .iter()
-                    .find(|(_, a, c)| (a - c).signum() != start && a != c)
-                {
-                    Some((n, _, _)) => format!("N = {n}"),
-                    None => "none in range (N = 1–10)".into(),
-                }
-            }
+            ["breakeven", profile] => match self.break_even(profile)? {
+                Some(n) => format!("N = {n}"),
+                None => "none in range (N = 1–10)".into(),
+            },
             ["cert", which] => format!(
                 "{}",
                 self.bytes["certificate_bytes"][*which]
@@ -531,6 +611,57 @@ impl Doc<'_> {
                     _ => return Err(format!("arm E's sizes vary at N={n} {profile}")),
                 }
             }
+            // The exploratory phase breakdown (D-77). Without its archive,
+            // the block says so; every number in it needs the archive.
+            ["phases"] => match &self.phases {
+                Some(d) => d.markdown(&|arm, profile| {
+                    self.row(arm, "warm", 3, profile).map(|r| r.pooled.median)
+                })?,
+                None => "_Not run yet: there is no verified archive under `results/exploratory/phases/archive/`._".into(),
+            },
+            ["phaseflags"] => self.phase_data()?.flags(),
+            ["phaseruns"] => self.phase_data()?.metas.len().to_string(),
+            ["phasearchives"] => self.phase_data()?.archives.to_string(),
+            ["phasenv", path] => {
+                let d = self.phase_data()?;
+                let v = d
+                    .metas
+                    .values()
+                    .map(|m| Self::json_path(m, path).map(|v| v.to_string()))
+                    .collect::<Result<std::collections::BTreeSet<_>, _>>()?;
+                v.into_iter().collect::<Vec<_>>().join(", ")
+            }
+            // A category's share of A's or C's call (D-77).
+            ["pshare", arm, profile, group] => {
+                let b = self.phase_data()?.breakdown(arm, profile)?;
+                f1(100.0 * b.share[phases::Data::group_index(group)?])
+            }
+            ["pgroup", arm, profile, group] => {
+                let b = self.phase_data()?.breakdown(arm, profile)?;
+                us(b.group[phases::Data::group_index(group)?])
+            }
+            ["pphase", arm, profile, phase] => {
+                let b = self.phase_data()?.breakdown(arm, profile)?;
+                let k = dc_crypto::phases::ALL
+                    .iter()
+                    .position(|p| p.label() == *phase)
+                    .ok_or_else(|| format!("unknown phase {phase}"))?;
+                us(b.phase[k])
+            }
+            ["pshare_range", arm, group] => {
+                let g = phases::Data::group_index(group)?;
+                let v: Vec<f64> = ["small", "medium", "large"]
+                    .iter()
+                    .map(|p| {
+                        self.phase_data()?
+                            .breakdown(arm, p)
+                            .map(|b| 100.0 * b.share[g])
+                    })
+                    .collect::<Result<_, String>>()?;
+                let lo = v.iter().copied().fold(f64::MAX, f64::min);
+                let hi = v.iter().copied().fold(f64::MIN, f64::max);
+                format!("{}–{}", f1(lo), f1(hi))
+            }
             ["env", path] => Self::json_path(&self.env, path)?
                 .as_str()
                 .map(str::to_owned)
@@ -634,42 +765,7 @@ pub fn render(
     out: &Path,
     threads: usize,
 ) -> Result<(), String> {
-    // The summary first, from the same verified archives.
-    report::report(results, criterion, threads, false)?;
-    let raw = report::load_raw(results)?;
-    let rows = report::rows(&raw, threads);
-    let doc = Doc {
-        rows: &rows,
-        raw: &raw,
-        bytes: read_json(&results.join("bytes.json")).ok_or("no bytes.json")?,
-        memory: read_json(&results.join("memory.json")).ok_or("no memory.json")?,
-        env: read_json(&results.join("env.json")).ok_or("no env.json")?,
-        env_resume: read_json(&results.join("env-resume.json")).unwrap_or(Value::Null),
-        criterion: criterion_estimates(criterion),
-        summary: fs::read_to_string(results.join("summary.md")).map_err(|e| e.to_string())?,
-    };
+    let doc = Doc::load(results, criterion, threads)?;
     let tpl = fs::read_to_string(template).map_err(|e| format!("{}: {e}", template.display()))?;
-    let mut outtext = String::with_capacity(tpl.len() * 2);
-    let mut rest = tpl.as_str();
-    let mut errors = vec![];
-    while let Some(i) = rest.find("{{") {
-        outtext.push_str(&rest[..i]);
-        let Some(j) = rest[i..].find("}}") else {
-            return Err("unterminated placeholder".into());
-        };
-        let key = &rest[i + 2..i + j];
-        match doc.resolve(key) {
-            Ok(v) => outtext.push_str(&v),
-            Err(e) => errors.push(format!("{{{{{key}}}}}: {e}")),
-        }
-        rest = &rest[i + j + 2..];
-    }
-    outtext.push_str(rest);
-    if !errors.is_empty() {
-        return Err(format!(
-            "unresolved placeholders:\n  {}",
-            errors.join("\n  ")
-        ));
-    }
-    fs::write(out, outtext).map_err(|e| e.to_string())
+    fs::write(out, doc.fill(&tpl)?).map_err(|e| e.to_string())
 }

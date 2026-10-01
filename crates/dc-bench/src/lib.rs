@@ -5,6 +5,8 @@
 //! - [`plan`]: the grid, iteration counts and seeds.
 //! - [`harness`]: latency (Q1, Q3–Q5, Q9), throughput (Q6) and bytes (Q2).
 //! - [`stats`] and [`report`]: statistics and `results/summary.md`.
+//! - [`phases`]: the exploratory phase breakdown (D-77), never a headline
+//!   run.
 //! - [`env`]: writes `results/env.json`.
 //! - [`qos`]: the one permitted `unsafe` call (D-42).
 
@@ -12,6 +14,7 @@ pub mod arms;
 pub mod benchmarks;
 pub mod env;
 pub mod harness;
+pub mod phases;
 pub mod plan;
 pub mod probe;
 pub mod qos;

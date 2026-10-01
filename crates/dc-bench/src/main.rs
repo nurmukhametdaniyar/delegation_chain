@@ -9,7 +9,12 @@
 //! dc-bench report  [--mode M] [--out DIR] [--criterion DIR]
 //! dc-bench plan    [--mode M]                       the grid, as the frozen plan states it
 //! dc-bench benchmarks [--out DIR]                    BENCHMARKS.md from the verified results
+//! dc-bench phases  [--mode M] [--out DIR] [--resume] the exploratory phase breakdown (D-77)
 //! ```
+//!
+//! `phases` needs a build with `--features phase-timing`, and such a build
+//! refuses `all` and `run`: phase timing never enters a headline run (SPEC
+//! §10.3). It writes to `results/exploratory/phases/`.
 //!
 //! `all --resume` continues an interrupted `all`: it skips every run process
 //! and re-run that completed, redoes an aborted one (setting its files aside
@@ -36,7 +41,7 @@ use dc_bench::plan::{
 };
 use dc_bench::probe::{self, Probe};
 use dc_bench::workload::{Layout, Profile, hop_agent, p};
-use dc_bench::{env, qos, report, thermal};
+use dc_bench::{env, phases, qos, report, thermal};
 use dc_registry::Resolver;
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
@@ -57,9 +62,9 @@ struct Args {
 
 fn parse() -> Result<Args, String> {
     let mut it = std::env::args().skip(1);
-    let cmd = it
-        .next()
-        .ok_or("usage: dc-bench <all|run|bytes|env|archive|report|plan> [options]")?;
+    let cmd = it.next().ok_or(
+        "usage: dc-bench <all|run|bytes|env|archive|report|plan|benchmarks|phases> [options]",
+    )?;
     let mut a = Args {
         cmd,
         mode: Mode::Full,
@@ -151,6 +156,8 @@ fn main() -> ExitCode {
             )
         }
         "all" => cmd_all(&a),
+        "phases" => cmd_phases(&a),
+        "phases-run" => cmd_phases_run(&a),
         c => Err(format!("unknown command {c}")),
     };
     match r {
@@ -459,7 +466,19 @@ fn set_aside(out: &Path, stem: &str) -> Result<PathBuf, String> {
     Ok(dest)
 }
 
+/// A headline run must not be timed phase by phase (SPEC §10.3; D-77).
+fn headline_build() -> Result<(), String> {
+    if dc_crypto::phases::ENABLED {
+        return Err(
+            "this build times phases (`phase-timing`); headline runs must not use it (SPEC §10.3)"
+                .into(),
+        );
+    }
+    Ok(())
+}
+
 fn cmd_run(a: &Args) -> Result<(), String> {
+    headline_build()?;
     let requirements = require(a.mode)?;
     let out = out_dir(a);
     let raw = out.join("raw");
@@ -962,6 +981,7 @@ fn log_reruns(
 
 /// Everything the frozen plan lists, from one command.
 fn cmd_all(a: &Args) -> Result<(), String> {
+    headline_build()?;
     let out = out_dir(a);
     let root = root();
     fs::create_dir_all(&out).map_err(|e| e.to_string())?;
@@ -1136,6 +1156,242 @@ fn cmd_all(a: &Args) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Where the phase breakdown writes: `results/exploratory/phases/`, or
+/// under `results/dry-run/` for a dry run.
+fn phases_dir(a: &Args) -> PathBuf {
+    a.out.clone().unwrap_or_else(|| match a.mode {
+        Mode::Full => root().join("results/exploratory/phases"),
+        Mode::Dry => root().join("results/dry-run/exploratory/phases"),
+    })
+}
+
+/// The exploratory phase breakdown (D-77; not pre-registered): one
+/// `phases-run` process per run, on the machine state M9 required, then the
+/// archives and their manifest. It is never part of `all`.
+fn cmd_phases(a: &Args) -> Result<(), String> {
+    if !dc_crypto::phases::ENABLED {
+        return Err("`phases` needs a build with `--features phase-timing` (D-77)".into());
+    }
+    if !env!("DC_BENCH_RUSTFLAGS").contains("target-cpu=native") {
+        let msg = "not built with RUSTFLAGS=\"-C target-cpu=native\" (SPEC §3.3)";
+        if a.mode == Mode::Full {
+            return Err(format!("aborting: {msg}"));
+        }
+        eprintln!("dc-bench: warning: {msg}");
+    }
+    let out = phases_dir(a);
+    let raw = out.join("raw");
+    let runs = if a.mode == Mode::Dry { 1 } else { phases::RUNS };
+    let completed: Vec<usize> = (1..=runs)
+        .filter(|r| matches!(process_state(&raw, &format!("run{r}")), Some((true, _))))
+        .collect();
+    if !a.resume && !completed.is_empty() {
+        return Err(format!(
+            "{} already holds completed phase runs {completed:?}; use `phases --resume`, or move them away to start over",
+            raw.display()
+        ));
+    }
+    if a.mode == Mode::Full {
+        let r = env::requirements();
+        if r["ac_power"] != json!(true) || r["high_power_mode"] != json!(true) {
+            return Err(format!(
+                "aborting: the phase breakdown needs M9's machine state, AC power and High Power mode: {r}"
+            ));
+        }
+    }
+    require(a.mode)?;
+    fs::create_dir_all(&out).map_err(|e| e.to_string())?;
+    let env = env::capture(&root());
+    fs::write(
+        out.join(env_name(a)),
+        serde_json::to_string_pretty(&env).unwrap() + "\n",
+    )
+    .map_err(|e| e.to_string())?;
+    if a.mode == Mode::Full && env["m9_requirements"]["ok"] != json!(true) {
+        return Err(format!(
+            "aborting: {} does not confirm AC power, High Power mode and an idle machine",
+            env_name(a)
+        ));
+    }
+    let me = std::env::current_exe().map_err(|e| e.to_string())?;
+    let outs = out.to_string_lossy().to_string();
+    for r in 1..=runs {
+        if completed.contains(&r) {
+            eprintln!("== phase run {r}: completed earlier, skipped");
+            continue;
+        }
+        run_child(
+            Command::new(&me).args([
+                "phases-run",
+                "--run",
+                &r.to_string(),
+                "--mode",
+                a.mode.label(),
+                "--out",
+                &outs,
+            ]),
+            &format!("phase run {r}"),
+        )?;
+    }
+    archive(&out)?;
+    let log = if a.mode == Mode::Full {
+        root().join("BENCH_LOG.md")
+    } else {
+        out.join("BENCH_LOG.dry.md")
+    };
+    log_phases(&log, &out)
+}
+
+/// Appends the BENCH_LOG.md entry of a completed phase breakdown, from its
+/// verified archives (D-77).
+fn log_phases(log: &Path, out: &Path) -> Result<(), String> {
+    let d = phases::load(out)?;
+    let date = Command::new("date")
+        .args(["-u", "+%Y-%m-%d"])
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+        .unwrap_or_default();
+    let configs: BTreeSet<String> = d
+        .metas
+        .values()
+        .flat_map(|m| m["order"].as_array().cloned().unwrap_or_default())
+        .filter_map(|v| v.as_str().map(str::to_owned))
+        .collect();
+    let mut f = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log)
+        .map_err(|e| e.to_string())?;
+    writeln!(
+        f,
+        "\n## {date} — Exploratory run (not pre-registered): the phase breakdown\nReason: the author asked, after M10, what share of a warm verification goes to decoding, policy (Contains and Evaluate), identity and cryptography.\n- **What ran.** {}, each in its own process, of the frozen grid's configurations {}, with M9's chain sets and counts.\n- **The build.** `dc-bench` with `--features phase-timing` (D-77). Such a build refuses `all` and `run`, so it never makes a headline run (SPEC §10.3).\n- **Machine state.** M9's: AC power, High Power mode and an idle machine, checked before the first run and recorded in `results/exploratory/phases/env.json`.\n- **Thermal readings.** pmset and the calibration probe were recorded around each configuration, as in M9, but not acted on: {}.\n- **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only, never the summary or a verdict. The raw data are in {} archives under `results/exploratory/phases/archive/`, pinned by the committed `MANIFEST.sha256`.\n\nConfigurations re-run: none. This run measured configurations M9 had already measured, with a different build, and replaces none of M9's samples.",
+        match d.metas.len() {
+            1 => "1 run".to_owned(),
+            k => format!("{k} runs"),
+        },
+        configs
+            .iter()
+            .map(|c| format!("`{c}`"))
+            .collect::<Vec<_>>()
+            .join(", "),
+        d.flags(),
+        d.archives
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// One run process of the phase breakdown: the configurations of
+/// [`phases::configs`] in this run's order, measured as M9 measured them,
+/// with the thermal and probe readings around each (recorded, not acted on).
+fn cmd_phases_run(a: &Args) -> Result<(), String> {
+    if !dc_crypto::phases::ENABLED {
+        return Err("`phases-run` needs a build with `--features phase-timing` (D-77)".into());
+    }
+    let requirements = require(a.mode)?;
+    let out = phases_dir(a);
+    let raw = out.join("raw");
+    fs::create_dir_all(&raw).map_err(|e| e.to_string())?;
+    let started = Instant::now();
+    let qos_main = qos::set_user_interactive();
+    let worlds = Worlds::new();
+    let configs = shuffled(phases::configs(a.mode), a.run);
+    let stem = format!("run{}", a.run);
+    match process_state(&raw, &stem) {
+        Some((true, _)) => {
+            return Err(format!(
+                "{stem} already completed in {}; refusing to overwrite measured data",
+                raw.display()
+            ));
+        }
+        _ if stem_files(&stem).iter().any(|f| raw.join(f).exists()) => {
+            let d = set_aside(&out, &stem)?;
+            eprintln!(
+                "{stem}: the earlier, unfinished attempt's files were moved to {}",
+                d.display()
+            );
+        }
+        _ => {}
+    }
+    let keys: Vec<SetKey> = configs.iter().map(SetKey::of).collect();
+    let set_dir = root()
+        .join("target/dc-bench-sets")
+        .join(format!("{}-phases-{stem}", a.mode.label()));
+    eprintln!("phases {stem}: generating {} chain sets…", keys.len());
+    let gen_started = Instant::now();
+    let store = SetStore::build(&worlds, &keys, &set_dir, threads()).map_err(|e| e.to_string())?;
+    let generation_s = gen_started.elapsed().as_secs_f64();
+    std::thread::sleep(Duration::from_secs(if a.mode == Mode::Full {
+        30
+    } else {
+        1
+    }));
+    let mut monitor = Monitor::new(
+        csv::Writer::from_path(raw.join(format!("{stem}-thermal.csv")))
+            .map_err(|e| e.to_string())?,
+        a.run,
+        configs.len(),
+        0,
+        false,
+    )?;
+    let mut w =
+        csv::Writer::from_path(raw.join(format!("{stem}.csv"))).map_err(|e| e.to_string())?;
+    w.write_record(phases::header())
+        .map_err(|e| e.to_string())?;
+    let mut timings = vec![];
+    for (i, c) in configs.iter().enumerate() {
+        let t = Instant::now();
+        let chains = store.load(&SetKey::of(c)).map_err(|e| e.to_string())?;
+        let before = monitor.before(&c.id())?;
+        let m = phases::measure(&worlds, c, &chains)?;
+        monitor.after(&c.id(), before)?;
+        drop(chains);
+        let fixed = [
+            a.run.to_string(),
+            c.arm.label().to_owned(),
+            c.state.label(),
+            c.n.to_string(),
+            c.profile.label().to_owned(),
+        ];
+        for (iter, s) in m.iter().enumerate() {
+            let mut rec: Vec<String> = fixed.to_vec();
+            rec.push(iter.to_string());
+            rec.push(s.ns.to_string());
+            rec.extend(s.phases.iter().map(u64::to_string));
+            w.write_record(&rec).map_err(|e| e.to_string())?;
+        }
+        w.flush().map_err(|e| e.to_string())?;
+        let secs = t.elapsed().as_secs_f64();
+        timings.push(json!({"config": c.id(), "seconds": secs}));
+        eprintln!("[{}/{}] {} ({secs:.1} s)", i + 1, configs.len(), c.id());
+    }
+    store.remove().map_err(|e| e.to_string())?;
+    let meta = json!({
+        "run": a.run,
+        "mode": a.mode.label(),
+        "build": "phase-timing",
+        "exploratory": "not pre-registered (D-77)",
+        "blst_threaded": dc_crypto::BLST_THREADED,
+        "requirements_at_start": requirements,
+        "qos_user_interactive_main_thread": qos_main,
+        "order_seed": order_seed(a.run),
+        "order": configs.iter().map(Config::id).collect::<Vec<_>>(),
+        "generation_seconds": generation_s,
+        "config_seconds": timings,
+        "probe_baseline_ns": monitor.baseline,
+        "probe_warmup_ns": probe::WARMUP.as_nanos() as u64,
+        "flagged": monitor.flagged.iter().map(|(id, sig)| json!({"config": id, "signal": sig})).collect::<Vec<_>>(),
+        "aborted": Value::Null,
+        "total_seconds": started.elapsed().as_secs_f64(),
+        "rustflags_at_build": env!("DC_BENCH_RUSTFLAGS"),
+    });
+    fs::write(
+        raw.join(format!("{stem}-meta.json")),
+        serde_json::to_string_pretty(&meta).unwrap() + "\n",
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

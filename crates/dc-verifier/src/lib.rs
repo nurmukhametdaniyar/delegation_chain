@@ -19,6 +19,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
 use dc_crypto::ops;
+use dc_crypto::phases::{self, Phase};
 use dc_crypto::{ChainScheme, Dst, SigScheme};
 use dc_policy::{Decision, Invocation, Scope, contains, evaluate};
 use dc_registry::{
@@ -169,6 +170,7 @@ fn phase8<C: ChainScheme>(
         return Err(Reject::L48DuplicateDigest);
     }
     // Line 49.
+    phases::enter(Phase::Signatures);
     if !C::verify_chain(pks, &m, sigs) {
         return Err(Reject::L49AggregateInvalid);
     }
@@ -379,9 +381,13 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
         contains(parent, child)
     }
 
-    /// Algorithms 1 and 2, in order.
+    /// Algorithms 1 and 2, in order. With the `phase-timing` feature, each
+    /// call's phases are timed (D-77).
     pub fn verify_at(&self, chain: &[u8], t: u64) -> Result<Accepted, Reject> {
-        self.verify_envelope(decode_envelope(chain)?, t, &mut ())
+        phases::begin(Phase::Envelope);
+        let r = decode_envelope(chain).and_then(|env| self.verify_envelope(env, t, &mut ()));
+        phases::end();
+        r
     }
 
     /// The full algorithm on a decoded envelope. `hook` receives the
@@ -399,30 +405,36 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
         // Line 2. Each body is decoded under its own kind (D-32); scopes and
         // signature points are validated here (D-28, D-30); canonical-form
         // violations are recorded for line 5 (D-31).
+        phases::enter(Phase::Bodies);
         let decoded = env
             .bodies
             .iter()
             .map(|b| decode_body::<C::Base>(b))
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| Reject::L02Decode(e.to_string()))?;
+        phases::enter(Phase::Scopes);
         let scopes = decoded
             .iter()
             .map(|d| body_scope(&d.body))
             .collect::<Result<Vec<Option<Scope>>, _>>()?;
+        phases::enter(Phase::Bodies);
         let sigs = decode_sigs::<C>(&env)?;
 
         // Line 3.
+        phases::enter(Phase::Structure);
         if env.bodies.len() < 2 {
             return Err(Reject::L03TooShort);
         }
         let n = env.bodies.len() - 1;
 
         // Lines 4–6.
+        phases::enter(Phase::Canonical);
         for (k, d) in decoded.iter().enumerate() {
             self.line5(k, d, &env.bodies[k])?;
         }
 
         // Line 7.
+        phases::enter(Phase::Structure);
         for (k, d) in decoded.iter().enumerate() {
             let expected = match k {
                 0 => BodyKind::Session,
@@ -455,6 +467,7 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
 
         // ---- Phase 2: temporal ----
         // Line 13.
+        phases::enter(Phase::Temporal);
         line13(inv, t)?;
         // Lines 14–16.
         for k in 1..=n {
@@ -465,10 +478,12 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
 
         // ---- Phase 3: replay ----
         // Line 17: a lookup only.
+        phases::enter(Phase::Replay);
         let nonce_key = self.line17(inv, t)?;
 
         // ---- Phase 4: key chain consistency ----
         // Line 18: identifier and key (D-36).
+        phases::enter(Phase::KeyChain);
         if &session.subject_id != bodies[1].signer_id()
             || session.subject_pk.as_slice() != bodies[1].signer_pk()
         {
@@ -487,6 +502,7 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
         }
 
         // ---- Phase 5: identity resolution ----
+        phases::enter(Phase::Identity);
         let mut certs = Vec::with_capacity(n + 1);
         for (k, b) in bodies.iter().enumerate() {
             // Lines 23–28. pk_k is the certified key, equal to spk(B_k) by
@@ -496,6 +512,7 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
 
         // ---- Phase 6: policy ----
         // Line 30.
+        phases::enter(Phase::PolicyLoad);
         if !self.is_pinned(session.issuer_id.org(), &session.policy_hash) {
             return Err(Reject::L30NotPinned);
         }
@@ -509,6 +526,7 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
                 .expect("session and delegation bodies carry scopes")
         };
         // Line 32.
+        phases::enter(Phase::Contains);
         if !self.contains(&policy, scope(0)) {
             return Err(Reject::L32SessionScopeExceedsPolicy);
         }
@@ -519,12 +537,15 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
             }
         }
         // Lines 36–37.
+        phases::enter(Phase::Evaluate);
         let d = self.lines_36_37(scope(n - 1), inv)?;
 
         // ---- Phase 7: approvals ----
+        phases::enter(Phase::Approvals);
         self.phase7(inv, &d, t)?;
 
         // ---- Phase 8: aggregate signature ----
+        phases::enter(Phase::Digests);
         let pks: Vec<&Pk<C>> = certs.iter().map(|c| &c.pk).collect();
         let refs: Vec<&[u8]> = env.bodies.iter().map(Vec::as_slice).collect();
         #[cfg(feature = "test-hooks")]
@@ -534,7 +555,9 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
         let digests = phase8::<C>(&pks, &refs, &sigs, duplicate)?;
 
         // ---- Commit ----
+        phases::enter(Phase::Replay);
         self.line50(nonce_key, inv, t)?;
+        phases::enter(Phase::Commit);
         hook.accepted(&AcceptedParts {
             env: &env,
             bodies: &bodies,

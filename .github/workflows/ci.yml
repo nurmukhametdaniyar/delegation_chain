@@ -24,6 +24,10 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Test
         run: cargo test --workspace
+      - name: Phase timing (D-77)
+        run: |
+          cargo clippy -p dc-bench --features phase-timing --all-targets -- -D warnings
+          cargo test -p dc-crypto --features phase-timing --lib phases
       - name: Differential oracle, extended profile (SPEC §9.7)
         run: DC_ORACLE_CASES=150000 DC_ORACLE_LOGIC_CASES=150000 cargo test --release -p dc-policy --test oracle
       - name: Unsafe policy (SPEC §0 rule 9)

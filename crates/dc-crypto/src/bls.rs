@@ -3,6 +3,7 @@
 use blst::BLST_ERROR;
 use blst::min_pk::{AggregateSignature, PublicKey, SecretKey, Signature};
 
+use crate::phases::{Phase, within};
 use crate::{ChainScheme, CryptoError, Dst, SigScheme, WireForm};
 
 /// BLS single signatures: G1 public keys (48 bytes), G2 signatures (96 bytes).
@@ -59,7 +60,9 @@ impl SigScheme for Bls {
             c.final_exps += 1;
         });
         // Both points were validated when they were parsed (D-05, D-30).
-        sig.verify(false, msg, dst.bls(), &[], pk, false) == BLST_ERROR::BLST_SUCCESS
+        within(Phase::Signatures, || {
+            sig.verify(false, msg, dst.bls(), &[], pk, false) == BLST_ERROR::BLST_SUCCESS
+        })
     }
 
     fn pk_bytes(pk: &PublicKey) -> Vec<u8> {
@@ -70,7 +73,9 @@ impl SigScheme for Bls {
         // blst's from_bytes also takes the 96-byte uncompressed form; only the
         // compressed form is allowed (paper §4.7), hence the length check.
         check_len(bytes, 48)?;
-        PublicKey::key_validate(bytes).map_err(from_blst)
+        within(Phase::PointValidation, || {
+            PublicKey::key_validate(bytes).map_err(from_blst)
+        })
     }
 
     fn sig_bytes(sig: &Signature) -> Vec<u8> {
@@ -79,7 +84,9 @@ impl SigScheme for Bls {
 
     fn sig_from_bytes(bytes: &[u8]) -> Result<Signature, CryptoError> {
         check_len(bytes, 96)?;
-        Signature::sig_validate(bytes, true).map_err(from_blst)
+        within(Phase::PointValidation, || {
+            Signature::sig_validate(bytes, true).map_err(from_blst)
+        })
     }
 }
 
@@ -115,12 +122,15 @@ impl ChainScheme for BlsAggregate {
             c.miller_loops += msgs.len() as u64 + 1;
             c.final_exps += 1;
         });
-        let msgs: Vec<&[u8]> = msgs.iter().map(|m| &m[..]).collect();
-        // σ_agg was validated at decode and the keys when their certificates
-        // were cached, so neither is re-checked here (D-05, D-30). blst does
-        // not check message distinctness; line 48 does (SPEC §5.6).
-        sigs.aggregate_verify(false, &msgs, Dst::Chain.bls(), pks, false)
-            == BLST_ERROR::BLST_SUCCESS
+        within(Phase::Signatures, || {
+            let msgs: Vec<&[u8]> = msgs.iter().map(|m| &m[..]).collect();
+            // σ_agg was validated at decode and the keys when their
+            // certificates were cached, so neither is re-checked here (D-05,
+            // D-30). blst does not check message distinctness; line 48 does
+            // (SPEC §5.6).
+            sigs.aggregate_verify(false, &msgs, Dst::Chain.bls(), pks, false)
+                == BLST_ERROR::BLST_SUCCESS
+        })
     }
 
     fn to_wire(sigs: &Signature) -> WireForm {

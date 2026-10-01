@@ -10,6 +10,9 @@ echo "== cargo clippy --workspace --all-targets -- -D warnings"
 cargo clippy --workspace --all-targets -- -D warnings
 echo "== cargo test --workspace"
 cargo test --workspace
+echo "== phase timing (D-77): clippy and the partition test"
+cargo clippy -p dc-bench --features phase-timing --all-targets -- -D warnings
+cargo test -q -p dc-crypto --features phase-timing --lib phases
 echo "== extended: differential oracle, 150,000 cases (SPEC §9.7)"
 DC_ORACLE_CASES=150000 DC_ORACLE_LOGIC_CASES=150000 cargo test --release -q -p dc-policy --test oracle
 echo "== scripts/check-unsafe.sh"

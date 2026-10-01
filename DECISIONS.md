@@ -871,3 +871,34 @@ Decision: the author's amendment before any measurement (frozen plan §5), with 
 - **Reporting.** `BENCH_LOG.md`'s re-run entries name the signal that flagged each configuration, and whether its re-run was flagged again. The summary counts flagged configurations per run process, by signal.
 Why: `pmset -g therm` on this Mac cannot report a CPU speed limit. A fixed probe measures what matters directly: how fast this machine runs the arms' own primitives, compared with the start of the run.
 Affects benchmarks: yes (which configurations are re-run, and whether a run is usable at all).
+
+## D-77 — Phase timing (`phase-timing`) and the exploratory phase breakdown
+Spec section: §10.3, §13.5     Paper section: §4.6 (where verification time goes)
+Decision:
+- **A gap first.** SPEC §10.3 asks for a `phase-timing` feature beside `count-ops`. It was not built in M3–M9: nothing in the code, this file or MILESTONES.md mentions it, and no headline run needed it. It was added after M10, when the author asked for a phase breakdown.
+- **Mechanism.** `dc_crypto::phases`, modelled on `ops`.
+  - The state is thread-local. Without the feature, every function is a no-op, and `within(p, f)` is just `f()`.
+  - The verifier calls `phases::begin` and `end` around `verify_at`, and `phases::enter` where each phase starts, in Algorithm order.
+  - dc-crypto wraps its own primitives in `within`: `pk_from_bytes` and `sig_from_bytes` (point validation), and `verify`, `BlsAggregate::verify_chain` and `Ed25519::verify_batch` (signatures). Their time is charged to cryptography whichever phase calls them, so a signature's subgroup check during decoding counts as cryptography, not decoding.
+  - Between `begin` and `end`, every nanosecond is charged to exactly one phase, so the phases partition the call.
+  - The prefix-cache verifiers (arms B and D) do not call `begin`, so nothing is recorded for them.
+- **The phases** (`Phase`, with their Algorithm lines): envelope, bodies, scopes (all line 2), canonical (4–6), structure (3, 7–12), temporal (13–16), replay (17, 50), key chain (18–21), identity (23–28), policy load (30–31), Contains (32–35), Evaluate (36–37), approvals (38–46), digests (47–48), point validation, signatures (24, 43, 49), and commit (after 50).
+- **The categories** of the author's question (`dc_bench::phases::GROUPS`):
+  - decoding: envelope, bodies, scopes, canonical;
+  - policy: Contains and Evaluate;
+  - identity: identity;
+  - cryptography: point validation, digests, signatures. SHA-256 is counted as cryptography, and the per-phase table lets a reader regroup it.
+  - Everything else is "other". Policy load is not "policy", because the author's definition names Contains and Evaluate.
+- **The run** (`dc-bench phases`, a build with `--features phase-timing`).
+  - The frozen grid's own configurations: arms A and C, warm, N = 3, small, medium and large. They use M9's chain sets and counts, run in each run's seeded order, three runs in separate processes.
+  - It requires M9's machine state and records `env.json`.
+  - pmset and the calibration probe are recorded around each configuration, with no valve and no re-runs.
+  - Raw data are archived with zstd under a committed `MANIFEST.sha256` in `results/exploratory/phases/`, and the run appends its own `BENCH_LOG.md` entry.
+- **Guards.** A `phase-timing` build refuses `run` and `all`, so it can never produce headline data (SPEC §10.3). CI runs clippy on the feature build and the partition test.
+- **Statistics.** Per configuration, pooled over runs:
+  - the median of each phase, and of each category's per-call sum;
+  - each category's share, as its median over the sum of the five category medians;
+  - the median instrumented call, the median outer-timed call, and this build's median over M9's (the instrumentation's cost, read across two different sessions);
+  - per run, the median call and the largest difference in any category's share.
+Why: SPEC §10.3 specifies the feature, and §13.5 the breakdown. Charging primitives wherever they run answers "what share is cryptography" without moving point validation into decoding. The run reuses M9's configurations so that the breakdown describes the measured operations.
+Affects benchmarks: no headline result. BENCHMARKS.md §8 only (exploratory).

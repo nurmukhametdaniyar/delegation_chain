@@ -21,6 +21,9 @@ thiserror.workspace = true
 [features]
 # Per-verification operation counts (SPEC §10.3). Never in headline runs.
 count-ops = ["dc-crypto/count-ops"]
+# Per-phase time of each verification (SPEC §10.3; D-77). Never in headline
+# runs.
+phase-timing = ["dc-crypto/phase-timing"]
 # Hooks for the security suite: ignore recorded canonical-form violations
 # (D-31) and inject duplicate digests (line 48). Never outside tests.
 test-hooks = []

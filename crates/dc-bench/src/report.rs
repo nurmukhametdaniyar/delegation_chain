@@ -106,11 +106,11 @@ pub struct Raw {
     pub archives: usize,
 }
 
-fn hex(h: &[u8]) -> String {
+pub(crate) fn hex(h: &[u8]) -> String {
     h.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-fn decompress(path: &Path) -> Result<Vec<u8>, String> {
+pub(crate) fn decompress(path: &Path) -> Result<Vec<u8>, String> {
     let out = Command::new("zstd")
         .arg("-dcq")
         .arg(path)
