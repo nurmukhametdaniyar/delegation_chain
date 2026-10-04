@@ -485,3 +485,10 @@ The author asked for three follow-ups.
 - **The phase breakdown.** BENCHMARKS.md §8 bases its conclusions on the category shares, which agree across runs to within 0.7 percentage points. The probe flagged 5 of 18 configurations, none of which was re-run. At that rate, M9's safety valve would have aborted.
 - **AIP.** Its own code runs at about 0.45 of its published times on this machine. Arm E takes 0.60–0.82 of AIP's time here, within the sanity rule's 3×.
 - **An earlier run.** A complete phase run from an earlier session that day is logged, but its data were removed before the rerun, for an unknown reason, and it is not reported. It was not the dry run (BENCH_LOG.md, note of 2026-10-04).
+
+## After the exploratory session (2026-10-04)
+
+- **Logs.** `results/logs/m9.log` (M9's console log) is committed: it is §7's evidence for the valve abort and the three refused resumes.
+- **BENCH_LOG.md** has a follow-up to the note on the deleted first phase run: the author deleted it to re-run the script after the first session's AIP step failed, without having opened the results. §8's sentence says the same.
+- **The positioning table** gains an exploratory column: AIP's code as measured on this machine (D-78, D-79).
+- **Waiting.** Step 3, flipping the defaults and reconciling, waits for the rewritten paper.

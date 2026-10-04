@@ -1036,15 +1036,15 @@ Built from `https://github.com/sunilp/aip` at `ad2faa6`: `cargo build --release 
 
 ### Positioning against arm E
 
-**Table.** Exploratory (not pre-registered). Medium profile, M9's pooled medians on this machine, in µs. DC's N corresponds to Biscuit depth N − 1. Arm E (Biscuit) is a positioning reference, not a like-for-like arm: it has no registry resolution, no proof of possession, no revocation, no approval receipts, no nonce cache and no parameter binding (paper Table 1).
+**Table.** Exploratory (not pre-registered). Medium profile, M9's pooled medians on this machine, in µs. DC's N corresponds to Biscuit depth N − 1. Arm E (Biscuit) is a positioning reference, not a like-for-like arm: it has no registry resolution, no proof of possession, no revocation, no approval receipts, no nonce cache and no parameter binding (paper Table 1). The AIP column, also exploratory, is AIP's own code (`bench_chained` at `ad2faa6`) measured on this machine in the exploratory session (D-79): the median of all its timings at the same Biscuit depth. It runs AIP's own benchmark workload, not the medium profile; AIP's benchmark stops at depth 5 (—).
 
-| N (Biscuit depth) | C, warm (µs) | D, warm+prefix (µs) | E (µs) | C ÷ E | D ÷ E |
-|---|---|---|---|---|---|
-| 1 (0) | 52.2 | 24.5 | 60.8 | 0.86 | 0.40 |
-| 2 (1) | 80.8 | 25.5 | 104 | 0.78 | 0.24 |
-| 3 (2) | 109 | 26.4 | 147 | 0.74 | 0.18 |
-| 5 (4) | 166 | 28.6 | 232 | 0.71 | 0.12 |
-| 10 (9) | 304 | 33.8 | 444 | 0.68 | 0.08 |
+| N (Biscuit depth) | C, warm (µs) | D, warm+prefix (µs) | E (µs) | AIP's code here (µs; exploratory) | C ÷ E | D ÷ E |
+|---|---|---|---|---|---|---|
+| 1 (0) | 52.2 | 24.5 | 60.8 | 81.4 | 0.86 | 0.40 |
+| 2 (1) | 80.8 | 25.5 | 104 | 133 | 0.78 | 0.24 |
+| 3 (2) | 109 | 26.4 | 147 | 183 | 0.74 | 0.18 |
+| 5 (4) | 166 | 28.6 | 232 | 282 | 0.71 | 0.12 |
+| 10 (9) | 304 | 33.8 | 444 | — | 0.68 | 0.08 |
 
 ### Every A/C and B/D ratio in one figure
 

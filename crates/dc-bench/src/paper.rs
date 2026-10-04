@@ -295,18 +295,20 @@ fn primitives(doc: &Doc) -> Result<String, String> {
 fn positioning(doc: &Doc) -> Result<String, String> {
     let mut w = String::from(HEADER);
     w.push_str("% EXPLORATORY (not pre-registered): BENCHMARKS.md §8. Caption: \\tabcapPositioning (captions.tex).\n");
-    w.push_str("\\begin{tabular}{lrrrrr}\n\\toprule\n");
-    w.push_str("$N$ (Biscuit depth) & C, warm (\\textmu{}s) & D, warm+prefix (\\textmu{}s) & E (\\textmu{}s) & C $\\div$ E & D $\\div$ E \\\\\n\\midrule\n");
-    for (n, c, d, e) in doc.positioning()? {
+    w.push_str("\\begin{tabular}{lrrrrrr}\n\\toprule\n");
+    w.push_str("$N$ (Biscuit depth) & C, warm (\\textmu{}s) & D, warm+prefix (\\textmu{}s) & E (\\textmu{}s) & AIP's code here (\\textmu{}s; exploratory) & C $\\div$ E & D $\\div$ E \\\\\n\\midrule\n");
+    for r in doc.positioning()? {
         let _ = writeln!(
             w,
-            "{n} ({}) & {} & {} & {} & {:.2} & {:.2} \\\\",
-            n - 1,
-            us(c),
-            us(d),
-            us(e),
-            c / e,
-            d / e
+            "{} ({}) & {} & {} & {} & {} & {:.2} & {:.2} \\\\",
+            r.n,
+            r.n - 1,
+            us(r.c),
+            us(r.d),
+            us(r.e),
+            r.aip.map_or("---".into(), us),
+            r.c / r.e,
+            r.d / r.e
         );
     }
     w.push_str("\\bottomrule\n\\end{tabular}\n");

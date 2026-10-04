@@ -928,6 +928,8 @@ Decision:
     - The bar is the range of the three runs' ratios of medians, drawn as it is: the ratio of pooled medians need not lie inside it.
     - The caption says that every run ratio lies above the band only when that is true of the data.
   - **The positioning table** (`positioning.tex`) is exploratory. It sets C (warm) and D (warm+prefix) against arm E at matching depth (medium), using M9's pooled medians, and its caption lists E's functional gaps (paper Table 1).
+    - **An AIP column, added 2026-10-04 at the author's request,** is also labelled exploratory. It is AIP's own code measured on this machine (D-79): the median of all the timings build's timings at Biscuit depth N − 1, on AIP's own workload rather than the medium profile.
+    - AIP's benchmark stops at depth 5, so N = 10 shows a dash, as does every row while the AIP archive is absent.
 Why: SPEC §0 rule 7 forbids typing measured numbers by hand, and the paper is being rewritten around these results.
 Affects benchmarks: no.
 

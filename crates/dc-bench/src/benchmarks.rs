@@ -52,7 +52,17 @@ pub fn base64_len(n: usize) -> usize {
 
 /// The caption of the exploratory positioning table (BENCHMARKS.md §8 and
 /// `paper/tables/positioning.tex`).
-pub const POSITIONING_CAPTION: &str = "Exploratory (not pre-registered). Medium profile, M9's pooled medians on this machine, in µs. DC's N corresponds to Biscuit depth N − 1. Arm E (Biscuit) is a positioning reference, not a like-for-like arm: it has no registry resolution, no proof of possession, no revocation, no approval receipts, no nonce cache and no parameter binding (paper Table 1).";
+pub const POSITIONING_CAPTION: &str = "Exploratory (not pre-registered). Medium profile, M9's pooled medians on this machine, in µs. DC's N corresponds to Biscuit depth N − 1. Arm E (Biscuit) is a positioning reference, not a like-for-like arm: it has no registry resolution, no proof of possession, no revocation, no approval receipts, no nonce cache and no parameter binding (paper Table 1). The AIP column, also exploratory, is AIP's own code (`bench_chained` at `ad2faa6`) measured on this machine in the exploratory session (D-79): the median of all its timings at the same Biscuit depth. It runs AIP's own benchmark workload, not the medium profile; AIP's benchmark stops at depth 5 (—).";
+
+/// One row of the positioning table: DC's N and pooled medians in ns. `aip`
+/// is AIP's code measured here, when its archive exists and has the depth.
+pub(crate) struct PositioningRow {
+    pub n: usize,
+    pub c: f64,
+    pub d: f64,
+    pub e: f64,
+    pub aip: Option<f64>,
+}
 
 /// Everything the generated documents draw on, loaded from verified
 /// archives and the files the harness wrote.
@@ -323,20 +333,25 @@ impl Doc {
             .map(|p| p.0))
     }
 
-    /// The exploratory positioning rows (medium): N, C warm, D warm+prefix
-    /// and E, pooled medians in ns.
-    pub(crate) fn positioning(&self) -> Result<Vec<(usize, f64, f64, f64)>, String> {
+    /// The exploratory positioning rows (medium): C warm, D warm+prefix and
+    /// E at each N, and AIP's code here at Biscuit depth N − 1.
+    pub(crate) fn positioning(&self) -> Result<Vec<PositioningRow>, String> {
         NS.iter()
             .map(|&n| {
                 let m = |arm: &str, state: &str| {
                     self.row(arm, state, n, "medium").map(|r| r.pooled.median)
                 };
-                Ok((
+                Ok(PositioningRow {
                     n,
-                    m("C", "warm")?,
-                    m("D", "warm+prefix")?,
-                    m("E", "stateless")?,
-                ))
+                    c: m("C", "warm")?,
+                    d: m("D", "warm+prefix")?,
+                    e: m("E", "stateless")?,
+                    aip: self
+                        .aip
+                        .as_ref()
+                        .and_then(|a| a.depth(n - 1).ok())
+                        .map(|d| d.median * 1e6),
+                })
             })
             .collect()
     }
@@ -659,17 +674,19 @@ impl Doc {
             },
             ["positioning"] => {
                 let mut w = format!(
-                    "**Table.** {POSITIONING_CAPTION}\n\n| N (Biscuit depth) | C, warm (µs) | D, warm+prefix (µs) | E (µs) | C ÷ E | D ÷ E |\n|---|---|---|---|---|---|\n"
+                    "**Table.** {POSITIONING_CAPTION}\n\n| N (Biscuit depth) | C, warm (µs) | D, warm+prefix (µs) | E (µs) | AIP's code here (µs; exploratory) | C ÷ E | D ÷ E |\n|---|---|---|---|---|---|---|\n"
                 );
-                for (n, c, d, e) in self.positioning()? {
+                for r in self.positioning()? {
                     w.push_str(&format!(
-                        "| {n} ({}) | {} | {} | {} | {:.2} | {:.2} |\n",
-                        n - 1,
-                        us(c),
-                        us(d),
-                        us(e),
-                        c / e,
-                        d / e
+                        "| {} ({}) | {} | {} | {} | {} | {:.2} | {:.2} |\n",
+                        r.n,
+                        r.n - 1,
+                        us(r.c),
+                        us(r.d),
+                        us(r.e),
+                        r.aip.map_or("—".into(), us),
+                        r.c / r.e,
+                        r.d / r.e
                     ));
                 }
                 w.trim_end().to_owned()
