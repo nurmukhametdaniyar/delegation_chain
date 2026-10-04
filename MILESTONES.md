@@ -500,3 +500,11 @@ The author asked for three follow-ups.
 - **BENCH_LOG.md** has a closing note on the deleted first phase run (the author's account). §8's sentence matches it.
 - **The first session's AIP error** cannot be recovered. The whole `results/exploratory/` was recreated at 05:30:58Z, so its output went with the deleted data. It is not established that the machine-state re-check caused it, so that path is unchanged.
 - **Step 3 is blocked** (QUESTIONS.md, Q-02). The `docs/paper.pdf` now in the tree (2026-10-04, sha256 `d4fd47d6…`) is a light revision whose protocol is still BLS aggregate, not the rewrite the flip assumes. It is not committed. (a) waits for step 3.
+
+## The rewritten paper (2026-10-04)
+
+- **`docs/paper.pdf`** is the rewritten paper: revision 2026-10-04, 56 pages, sha256 `0ed3f58978ef0c8b670034ba717fa394c2970a57dd9ebdeb329a53ecbfae8bbd`, built from the LaTeX agent's latest commit.
+  - It specifies DelegationChain over per-hop Ed25519 signatures, with BLS aggregation as a measured variant (§4.2, §4.8).
+  - Its §8 still has `[PENDING]` placeholders; the author asked for them to be ignored in step 3.
+- **Its predecessor.** Revision 2026-09-29 (sha256 `51eff0ec…6e14`) stays in git history. The benchmark's claims were judged against it.
+- **Q-02 is answered** (QUESTIONS.md). Step 3, the reconciliation, starts from this commit.
