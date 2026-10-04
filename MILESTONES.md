@@ -478,3 +478,10 @@ The author asked for three follow-ups.
   - the AIP run's block.
 - **Paper.** Caption macros for every figure (`paper/figures/captions.tex`), each saying what its error bars are. Also the positioning table and its caption, and the ratio figure.
 - **Waiting.** The session needs AC power. Until it runs, §8's phase and AIP blocks say "Not run yet".
+
+## Exploratory session (2026-10-04)
+
+- **What ran.** `scripts/exploratory-session.sh` ran on M9's machine state: the phase breakdown (three runs) and AIP's own benchmark (three runs of each build). Both runs logged their own BENCH_LOG.md entries.
+- **The phase breakdown.** BENCHMARKS.md §8 bases its conclusions on the category shares, which agree across runs to within 0.7 percentage points. The probe flagged 5 of 18 configurations, none of which was re-run. At that rate, M9's safety valve would have aborted.
+- **AIP.** Its own code runs at about 0.45 of its published times on this machine. Arm E takes 0.60–0.82 of AIP's time here, within the sanity rule's 3×.
+- **An earlier run.** A complete phase run from an earlier session that day is logged, but its data were removed before the rerun, for an unknown reason, and it is not reported. It was not the dry run (BENCH_LOG.md, note of 2026-10-04).

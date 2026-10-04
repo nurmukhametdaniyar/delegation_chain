@@ -938,7 +938,71 @@ The author asked, after M10, where a warm verification's time goes. This run is 
   - **The instrumentation adds clock reads** to every call. The tables compare this build's median with M9's.
   - **The shares are of the sum of the five category medians.** A median of per-call sums is not the sum of the medians, and the tables show both.
 
-_Not run yet: there is no verified archive under `results/exploratory/phases/archive/`._
+#### By category
+
+Median µs per call, and each category's share of the sum of the five category medians. Samples per configuration: 30000.
+
+| Category | A, small | A, medium | A, large | C, small | C, medium | C, large |
+|---|---|---|---|---|---|---|
+| Decoding | 7.9 (0.7%) | 15.5 (1.4%) | 76.8 (6.1%) | 7.3 (7.7%) | 14.8 (13.7%) | 72.2 (30.9%) |
+| Policy | 0.5 (0.0%) | 4.5 (0.4%) | 60.8 (4.8%) | 0.5 (0.6%) | 4.2 (3.9%) | 58.7 (25.2%) |
+| Identity | 0.2 (0.0%) | 0.2 (0.0%) | 0.2 (0.0%) | 0.2 (0.2%) | 0.2 (0.2%) | 0.2 (0.1%) |
+| Cryptography | 1095 (99.1%) | 1098 (98.0%) | 1106 (88.1%) | 85.4 (90.1%) | 86.8 (80.0%) | 91.3 (39.1%) |
+| Other | 1.8 (0.2%) | 2.8 (0.2%) | 11.8 (0.9%) | 1.3 (1.4%) | 2.5 (2.3%) | 11.0 (4.7%) |
+| Sum of the category medians | 1106 | 1121 | 1255 | 94.8 | 109 | 233 |
+| Median instrumented call (sum of its phases) | 1106 | 1122 | 1255 | 94.7 | 108 | 236 |
+| Median call, outer timer (this build) | 1106 | 1122 | 1256 | 94.8 | 108 | 236 |
+| M9 median, default build | 1130 | 1144 | 1280 | 95.2 | 109 | 247 |
+| This build ÷ M9 | 0.979 | 0.981 | 0.981 | 0.995 | 0.997 | 0.954 |
+
+#### By phase
+
+Median µs per call. A phase's median can be zero when the phase takes less than the timer's 41.7 ns tick on most calls.
+
+| Phase | Algorithm lines | Category | A, small | A, medium | A, large | C, small | C, medium | C, large |
+|---|---|---|---|---|---|---|---|---|
+| `envelope` | 2 (envelope) | Decoding | 0.4 | 0.4 | 0.6 | 0.4 | 0.4 | 0.7 |
+| `bodies` | 2 (bodies, signature container) | Decoding | 3.5 | 7.1 | 34.9 | 3.4 | 6.8 | 32.4 |
+| `scopes` | 2 (scopes, D-28) | Decoding | 0.7 | 2.1 | 14.6 | 0.7 | 2.0 | 13.7 |
+| `canonical` | 4–6 | Decoding | 3.0 | 5.7 | 26.9 | 2.8 | 5.5 | 24.8 |
+| `structure` | 3, 7–12 | Other | 0.3 | 0.3 | 0.5 | 0.2 | 0.3 | 0.4 |
+| `temporal` | 13–16 | Other | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| `replay` | 17, 50 | Other | 0.4 | 0.3 | 0.2 | 0.1 | 0.1 | 0.1 |
+| `key_chain` | 18–21 | Other | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| `identity` | 23–28 | Identity | 0.2 | 0.2 | 0.2 | 0.2 | 0.2 | 0.2 |
+| `policy_load` | 30–31 | Other | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
+| `contains` | 32–35 | Policy | 0.5 | 4.3 | 60.4 | 0.4 | 4.1 | 58.3 |
+| `evaluate` | 36–37 | Policy | 0.1 | 0.1 | 0.4 | 0.1 | 0.1 | 0.4 |
+| `approvals` | 38–46 | Other | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| `digests` | 47–48 | Cryptography | 2.2 | 3.7 | 11.6 | 2.2 | 3.3 | 11.5 |
+| `point_validation` | 2, 24 (inside decoding and resolution) | Cryptography | 42.6 | 42.6 | 42.7 | 0.0 | 0.0 | 0.0 |
+| `signatures` | 24, 43, 49 | Cryptography | 1051 | 1052 | 1052 | 83.2 | 83.5 | 80.0 |
+| `commit` | after 50 | Other | 0.8 | 2.0 | 11.0 | 0.8 | 1.9 | 10.2 |
+
+#### Run agreement
+
+Each run's median call (outer timer, µs), and the largest difference between runs in any category's share, in percentage points.
+
+| Configuration | run 1 | run 2 | run 3 | Largest share difference |
+|---|---|---|---|---|
+| A warm N=3 small | 1099 | 1110 | 1109 | 0.1 |
+| A warm N=3 medium | 1104 | 1127 | 1136 | 0.0 |
+| A warm N=3 large | 1251 | 1250 | 1264 | 0.1 |
+| C warm N=3 small | 87.6 | 95.1 | 96.1 | 0.7 |
+| C warm N=3 medium | 106 | 108 | 110 | 0.3 |
+| C warm N=3 large | 234 | 235 | 238 | 0.5 |
+
+**What it shows** (exploratory). These conclusions rest on the category shares, which agree across runs to within 0.7 percentage points. The absolute times vary more between runs (the run-agreement table), so they are read only through the shares.
+- **Arm A is almost all cryptography:** 88.1–99.1% of a warm call, across the profiles.
+  - The aggregate signature check (hashing to G2 and the multi-pairing) is 93.9% (medium).
+  - The aggregate signature's G2 subgroup check, made once at decode (D-30), is 3.8%.
+  - Decoding is 0.7–6.1% and policy 0.0–4.8%.
+- **Arm C's share of cryptography falls as the policy grows:** from 90.1% (small) to 39.1% (large).
+  - Decoding (7.7–30.9%) and policy (0.6–25.2%) take the rest.
+  - In the large profile, Contains alone is 25.0% of the call, against 34.3% for its signature checks.
+- **Identity is negligible warm:** at most 0.2% in any configuration. With cached certificates, lines 23–28 are lookups.
+- **Thermal readings.** The calibration probe flagged 5 of 18 configurations (run 1: `C warm N=3 large` (probe); run 1: `C warm N=3 medium` (probe); run 2: `A warm N=3 medium` (probe); run 2: `C warm N=3 small` (probe); run 3: `A warm N=3 medium` (probe)). None was re-run, as D-77 specifies. At that rate, M9's per-run safety valve (more than 10% flagged) would have aborted the run.
+- **An earlier run.** A complete run of this breakdown made earlier the same day is logged in BENCH_LOG.md, but its data were removed before this run, for an unknown reason, and it is not reported.
 
 ### AIP's own benchmark on this machine
 
@@ -949,7 +1013,26 @@ The author asked, after M10, for AIP's chained-mode benchmark to be run unmodifi
   - **Timings:** the same source plus `scripts/aip-timings.patch`, which prints each depth's 100 timings after the timed loop, for the median. Nothing that is timed changes.
 - **How.** Three runs of each build, alternating which went first, in the same session as the phase breakdown and on M9's machine state. pmset and the calibration probe were read around each invocation. BENCH_LOG.md records the run.
 
-_Not run yet: there is no verified archive under `results/exploratory/aip/archive/`._
+Built from `https://github.com/sunilp/aip` at `ad2faa6`: `cargo build --release --bin bench_chained`, no RUSTFLAGS, one resolved Cargo.lock for both builds; the timings build adds `scripts/aip-timings.patch`. Cargo resolved biscuit-auth 6.0.0, ed25519-dalek 2.2.0 and curve25519-dalek 4.1.3; toolchain: rustc 1.97.1 (8bab26f4f 2026-07-14). 3 runs of each build; the unmodified source was checked against the commit (rust/aip-token/src/bin/bench_chained.rs and rust/aip-token/src/chained.rs identical to the commit's).
+
+| Depth (DC's N) | Token, base64 chars: here / published | AIP published, ms (mean of 100, M3 Max) | AIP here, ms: mean of 100, unmodified, per run | AIP here, ms: median of 100, per run | AIP here, ms: median / mean of all runs' timings | Here ÷ published (means) | E here, ms (median; small / medium) | E ÷ AIP here (medians; small / medium) |
+|---|---|---|---|---|---|---|---|---|
+| 0 (1) | 520 / 520 | 0.188 | 0.164, 0.082, 0.082 | 0.155, 0.081, 0.081 | 0.081 / 0.110 | 0.44 | 0.049 / 0.061 | 0.60 / 0.75 |
+| 1 (2) | 940 / 940 | 0.292 | 0.192, 0.134, 0.133 | 0.184, 0.133, 0.133 | 0.133 / 0.151 | 0.46 | 0.082 / 0.104 | 0.61 / 0.78 |
+| 2 (3) | 1316 / 1316 | 0.403 | 0.212, 0.185, 0.184 | 0.209, 0.183, 0.183 | 0.183 / 0.193 | 0.46 | 0.115 / 0.147 | 0.63 / 0.80 |
+| 3 (4) | 1696 / 1696 | 0.516 | 0.239, 0.237, 0.234 | 0.237, 0.232, 0.233 | 0.233 / 0.235 | 0.46 | — / — | — / — |
+| 4 (5) | 2072 / 2072 | 0.625 | 0.283, 0.283, 0.284 | 0.282, 0.283, 0.282 | 0.282 / 0.283 | 0.45 | 0.180 / 0.232 | 0.64 / 0.82 |
+| 5 (6) | 2448 / 2448 | 0.745 | 0.335, 0.352, 0.334 | 0.332, 0.333, 0.332 | 0.332 / 0.335 | 0.45 | — / — | — / — |
+
+"Here ÷ published" uses the median of the unmodified runs' means. Thermal readings around each invocation: none was flagged.
+
+**What it shows** (exploratory):
+- **AIP's own code runs faster on this machine than its published figures.** Here ÷ published is 0.44 at depth 0 and 0.45 at depth 4, by AIP's own statistic: the median of the three runs' means.
+  - This factor cannot come from the timed scope, because both sides run the same code.
+  - It could come from the chip, the build (AIP records none), the toolchain or the OS. This run cannot tell them apart.
+- **Against AIP's code on this machine, arm E is within the sanity rule's 3×.** E ÷ AIP here is 0.60–0.64 (small) and 0.75–0.82 (medium). This is the direction Q9's scope comparison predicts: AIP's timed call does more work than arm E's.
+- **Q9's ratio splits into these two factors:** the published figures against AIP's code here, and AIP's code here against arm E.
+- **AIP's method is sensitive to a cold start.** In each build, the first process ran slower than the second and third at the shallowest depths (the per-run columns). There, the mean of all timings is above their median. AIP's published figures each come from a single such process.
 
 ### Positioning against arm E
 

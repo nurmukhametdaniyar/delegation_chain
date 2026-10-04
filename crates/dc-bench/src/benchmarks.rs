@@ -731,6 +731,44 @@ impl Doc {
                 .ok_or(format!("no resolved version of {krate}"))?
                 .to_owned(),
             ["phaseflags"] => self.phase_data()?.flags(),
+            ["phaseflaglist"] => self.phase_data()?.flag_list(),
+            ["phaseflagcount"] => {
+                let (f, n) = self.phase_data()?.flag_count();
+                format!("{f} of {n}")
+            }
+            ["phasevalve"] => if self.phase_data()?.valve_would_trip() {
+                "would have aborted"
+            } else {
+                "would not have aborted"
+            }
+            .into(),
+            // The largest run-to-run difference in any category's share,
+            // over every configuration, in percentage points.
+            ["phasespread"] => f1(100.0
+                * self
+                    .phase_data()?
+                    .breakdowns()?
+                    .iter()
+                    .map(phases::Breakdown::share_spread)
+                    .fold(0.0, f64::max)),
+            ["pshare_max", group] => {
+                let g = phases::Data::group_index(group)?;
+                f1(100.0
+                    * self
+                        .phase_data()?
+                        .breakdowns()?
+                        .iter()
+                        .map(|b| b.share[g])
+                        .fold(0.0, f64::max))
+            }
+            ["pphaseshare", arm, profile, phase] => {
+                let b = self.phase_data()?.breakdown(arm, profile)?;
+                let k = dc_crypto::phases::ALL
+                    .iter()
+                    .position(|p| p.label() == *phase)
+                    .ok_or_else(|| format!("unknown phase {phase}"))?;
+                f1(100.0 * b.phase_share(k))
+            }
             ["phaseruns"] => self.phase_data()?.metas.len().to_string(),
             ["phasearchives"] => self.phase_data()?.archives.to_string(),
             ["phasenv", path] => {

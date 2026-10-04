@@ -289,6 +289,25 @@ pub struct Breakdown {
     pub run_share: BTreeMap<usize, [f64; 5]>,
 }
 
+impl Breakdown {
+    /// The largest difference between runs in any category's share, as a
+    /// fraction.
+    pub fn share_spread(&self) -> f64 {
+        (0..5)
+            .map(|g| {
+                let v: Vec<f64> = self.run_share.values().map(|s| s[g]).collect();
+                v.iter().copied().fold(f64::MIN, f64::max)
+                    - v.iter().copied().fold(f64::MAX, f64::min)
+            })
+            .fold(0.0, f64::max)
+    }
+
+    /// A phase's median as a share of the sum of the category medians.
+    pub fn phase_share(&self, k: usize) -> f64 {
+        self.phase[k] / self.group.iter().sum::<f64>()
+    }
+}
+
 fn shares(samples: &[&Sample]) -> ([f64; 5], [f64; 5]) {
     let mut group = [0.0; 5];
     for (g, x) in group.iter_mut().enumerate() {
@@ -464,13 +483,7 @@ impl Data {
             "---|".repeat(runs.len())
         );
         for (i, x) in b.iter().enumerate() {
-            let spread = (0..5)
-                .map(|g| {
-                    let v: Vec<f64> = x.run_share.values().map(|s| s[g]).collect();
-                    v.iter().copied().fold(f64::MIN, f64::max)
-                        - v.iter().copied().fold(f64::MAX, f64::min)
-                })
-                .fold(0.0, f64::max);
+            let spread = x.share_spread();
             let _ = writeln!(
                 w,
                 "| {} warm N=3 {} | {} | {:.1} |",
@@ -484,6 +497,40 @@ impl Data {
             );
         }
         Ok(w.trim_end().to_owned())
+    }
+
+    /// Every (arm, profile) breakdown.
+    pub fn breakdowns(&self) -> Result<Vec<Breakdown>, String> {
+        self.samples
+            .keys()
+            .map(|(a, p)| self.breakdown(a, p))
+            .collect()
+    }
+
+    /// (flagged, measured) configuration counts over every run process.
+    pub fn flag_count(&self) -> (usize, usize) {
+        let measured = self
+            .metas
+            .values()
+            .map(|m| m["order"].as_array().map_or(0, Vec::len))
+            .sum();
+        (self.flagged.len(), measured)
+    }
+
+    /// Whether M9's per-run safety valve would have tripped at this rate:
+    /// more than 10% of the configurations flagged (D-76).
+    pub fn valve_would_trip(&self) -> bool {
+        let (flagged, measured) = self.flag_count();
+        flagged * 10 > measured
+    }
+
+    /// The flagged configurations, as a list: "run 1: `id` (probe); …".
+    pub fn flag_list(&self) -> String {
+        self.flagged
+            .iter()
+            .map(|(r, c, s)| format!("run {r}: `{c}` ({s})"))
+            .collect::<Vec<_>>()
+            .join("; ")
     }
 
     /// The flagged configurations, as a sentence.

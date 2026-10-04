@@ -255,6 +255,18 @@ The author asked, after M10, where a warm verification's time goes. This run is 
 
 {{phases}}
 
+**What it shows** (exploratory). These conclusions rest on the category shares, which agree across runs to within {{phasespread}} percentage points. The absolute times vary more between runs (the run-agreement table), so they are read only through the shares.
+- **Arm A is almost all cryptography:** {{pshare_range:A:Cryptography}}% of a warm call, across the profiles.
+  - The aggregate signature check (hashing to G2 and the multi-pairing) is {{pphaseshare:A:medium:signatures}}% (medium).
+  - The aggregate signature's G2 subgroup check, made once at decode (D-30), is {{pphaseshare:A:medium:point_validation}}%.
+  - Decoding is {{pshare_range:A:Decoding}}% and policy {{pshare_range:A:Policy}}%.
+- **Arm C's share of cryptography falls as the policy grows:** from {{pshare:C:small:Cryptography}}% (small) to {{pshare:C:large:Cryptography}}% (large).
+  - Decoding ({{pshare_range:C:Decoding}}%) and policy ({{pshare_range:C:Policy}}%) take the rest.
+  - In the large profile, Contains alone is {{pphaseshare:C:large:contains}}% of the call, against {{pphaseshare:C:large:signatures}}% for its signature checks.
+- **Identity is negligible warm:** at most {{pshare_max:Identity}}% in any configuration. With cached certificates, lines 23–28 are lookups.
+- **Thermal readings.** The calibration probe flagged {{phaseflagcount}} configurations ({{phaseflaglist}}). None was re-run, as D-77 specifies. At that rate, M9's per-run safety valve (more than 10% flagged) {{phasevalve}} the run.
+- **An earlier run.** A complete run of this breakdown made earlier the same day is logged in BENCH_LOG.md, but its data were removed before this run, for an unknown reason, and it is not reported.
+
 ### AIP's own benchmark on this machine
 
 The author asked, after M10, for AIP's chained-mode benchmark to be run unmodified on this machine, to separate the hardware from the timed scope in Q9's gap (D-79). This run is not in the frozen plan.
@@ -265,6 +277,14 @@ The author asked, after M10, for AIP's chained-mode benchmark to be run unmodifi
 - **How.** Three runs of each build, alternating which went first, in the same session as the phase breakdown and on M9's machine state. pmset and the calibration probe were read around each invocation. BENCH_LOG.md records the run.
 
 {{aip}}
+
+**What it shows** (exploratory):
+- **AIP's own code runs faster on this machine than its published figures.** Here ÷ published is {{aipvspub:0}} at depth 0 and {{aipvspub:4}} at depth 4, by AIP's own statistic: the median of the three runs' means.
+  - This factor cannot come from the timed scope, because both sides run the same code.
+  - It could come from the chip, the build (AIP records none), the toolchain or the OS. This run cannot tell them apart.
+- **Against AIP's code on this machine, arm E is within the sanity rule's 3×.** E ÷ AIP here is {{eaiphere:small:0}}–{{eaiphere:small:4}} (small) and {{eaiphere:medium:0}}–{{eaiphere:medium:4}} (medium). This is the direction Q9's scope comparison predicts: AIP's timed call does more work than arm E's.
+- **Q9's ratio splits into these two factors:** the published figures against AIP's code here, and AIP's code here against arm E.
+- **AIP's method is sensitive to a cold start.** In each build, the first process ran slower than the second and third at the shallowest depths (the per-run columns). There, the mean of all timings is above their median. AIP's published figures each come from a single such process.
 
 ### Positioning against arm E
 

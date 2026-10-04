@@ -112,3 +112,51 @@ Reason:
 - **What did not change.** No measurement, statistic, verdict or harness path. Q9's latency figures and the 3× flags are unchanged.
 
 Configurations re-run: none.
+
+## 2026-10-04 — Exploratory run (not pre-registered): the phase breakdown
+Reason: the author asked, after M10, what share of a warm verification goes to decoding, policy (Contains and Evaluate), identity and cryptography.
+- **What ran.** 3 runs, each in its own process, of the frozen grid's configurations `A warm N=3 large`, `A warm N=3 medium`, `A warm N=3 small`, `C warm N=3 large`, `C warm N=3 medium`, `C warm N=3 small`, with M9's chain sets and counts.
+- **The build.** `dc-bench` with `--features phase-timing` (D-77). Such a build refuses `all` and `run`, so it never makes a headline run (SPEC §10.3).
+- **Machine state.** M9's: AC power, High Power mode and an idle machine, checked before the first run and recorded in `results/exploratory/phases/env.json`.
+- **Thermal readings.** pmset and the calibration probe were recorded around each configuration, as in M9, but not acted on: 4 were flagged and not re-run: run 1: `A warm N=3 large` (probe); run 1: `C warm N=3 large` (probe); run 3: `A warm N=3 large` (probe); run 3: `C warm N=3 small` (probe).
+- **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only, never the summary or a verdict. The raw data are in 9 archives under `results/exploratory/phases/archive/`, pinned by the committed `MANIFEST.sha256`.
+
+Configurations re-run: none. This run measured configurations M9 had already measured, with a different build, and replaces none of M9's samples.
+
+## 2026-10-04 — Exploratory run (not pre-registered): the phase breakdown
+Reason: the author asked, after M10, what share of a warm verification goes to decoding, policy (Contains and Evaluate), identity and cryptography.
+- **What ran.** 3 runs, each in its own process, of the frozen grid's configurations `A warm N=3 large`, `A warm N=3 medium`, `A warm N=3 small`, `C warm N=3 large`, `C warm N=3 medium`, `C warm N=3 small`, with M9's chain sets and counts.
+- **The build.** `dc-bench` with `--features phase-timing` (D-77). Such a build refuses `all` and `run`, so it never makes a headline run (SPEC §10.3).
+- **Machine state.** M9's: AC power, High Power mode and an idle machine, checked before the first run and recorded in `results/exploratory/phases/env.json`.
+- **Thermal readings.** pmset and the calibration probe were recorded around each configuration, as in M9, but not acted on: 5 were flagged and not re-run: run 1: `C warm N=3 large` (probe); run 1: `C warm N=3 medium` (probe); run 2: `A warm N=3 medium` (probe); run 2: `C warm N=3 small` (probe); run 3: `A warm N=3 medium` (probe).
+- **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only, never the summary or a verdict. The raw data are in 9 archives under `results/exploratory/phases/archive/`, pinned by the committed `MANIFEST.sha256`.
+
+Configurations re-run: none. This run measured configurations M9 had already measured, with a different build, and replaces none of M9's samples.
+
+## 2026-10-04 — Exploratory run (not pre-registered): AIP's own benchmark on this machine
+Reason: the author asked for AIP's chained-mode benchmark to be run unmodified here, to separate the hardware from the timed scope in Q9's gap.
+- **What ran.** `bench_chained` from https://github.com/sunilp/aip at `ad2faa6`, 3 runs each of the unmodified build and the timings build, alternating which went first. The timings build only prints each timing after the timed loop (`scripts/aip-timings.patch`, sha256 `09a898f340b2845de16715a77e346bf6fba10477aa9ae6e37a32638c9703d84a`), for the median.
+- **The build.** `cargo build --release --bin bench_chained`, no RUSTFLAGS, one resolved Cargo.lock for both builds; the timings build adds `scripts/aip-timings.patch`. Cargo resolved biscuit-auth 6.0.0, ed25519-dalek 2.2.0 and curve25519-dalek 4.1.3; toolchain rustc 1.97.1 (8bab26f4f 2026-07-14). The unmodified source was checked: rust/aip-token/src/bin/bench_chained.rs and rust/aip-token/src/chained.rs identical to the commit's.
+- **Machine state.** M9's: AC power, High Power mode and an idle machine, checked before the run and recorded in `results/exploratory/aip/env.json`. It ran in the same session as the phase breakdown, from `scripts/exploratory-session.sh`.
+- **Thermal readings.** Recorded around each invocation, not acted on: none was flagged.
+- **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only, never the summary or a verdict. The raw outputs and the resolved `Cargo.lock` are in 15 archives under `results/exploratory/aip/archive/`, pinned by the committed `MANIFEST.sha256`.
+
+Configurations re-run: none.
+
+## 2026-10-04 — Note on the two phase-breakdown entries above
+Reason:
+- **What happened.** The first of the two phase-breakdown entries above records a complete run of three processes. Its data were removed before the rerun, for an unknown reason, and are not reported. Both entries are kept unchanged.
+- **It was not a dry run.**
+  - A dry run makes one run, and it logs to its own `BENCH_LOG.dry.md`. The 2026-10-01 dry run's log is still in `results/dry-run/exploratory/phases/` ("1 run", no flags).
+  - The first entry is dated 2026-10-04, says 3 runs, and lists flags in runs 1 and 3.
+- **The session script ran twice that day.**
+  - The phase-timing build dates from 2026-10-04T04:31Z.
+  - The session whose data exist started at 05:30:58Z (`results/exploratory/phases/env.json`); the AIP copies were re-extracted at its start.
+  - The first session logged no AIP entry.
+- **The archived data belong to the second entry.** `results/exploratory/phases/archive/` verifies against its manifest. Its thermal readings flag exactly the configurations that the second entry lists, not the first entry's.
+- **Nothing in the harness removed them.**
+  - Neither `dc-bench` nor `scripts/exploratory-session.sh` deletes anything under `results/`. An unfinished attempt is moved to `aborted/`, and no `aborted/` exists here.
+  - M9's archives (all verified), raw data, criterion output and backup are intact.
+- **Reporting.** BENCHMARKS.md §8 reports the second run only, and says so.
+
+Configurations re-run: none.
