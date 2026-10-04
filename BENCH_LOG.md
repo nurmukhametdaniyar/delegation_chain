@@ -160,3 +160,8 @@ Reason:
 - **Reporting.** BENCHMARKS.md §8 reports the second run only, and says so.
 
 Configurations re-run: none.
+
+## 2026-10-04 — Follow-up to the note above: why the first phase run's data were removed
+Reason: the author reports that their shell history shows they deleted `results/exploratory/phases` between the two sessions (the second began at 05:29Z), to re-run the session script after the first session's AIP step had failed. They had not opened the results. The note above stands; this replaces its "for an unknown reason". The first run is still not reported.
+
+Configurations re-run: none.

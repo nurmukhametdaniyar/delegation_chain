@@ -872,7 +872,7 @@ Every claim is evaluated against paper revision 2026-09-29. No later revision wa
 2. **2026-09-30, before any measurement:** the stale §8 line on D-67 corrected (text only).
 3. **2026-10-01, after runs 1 and 2:**
    - **The change.** The safety valve counts per run, across the main and A-mt processes (255 configurations), instead of per process (D-76, revised).
-   - **Why.** Run 2's A-mt process had aborted on the per-process count. The flags came from A-mt's own all-core load warming the chip: pmset recorded no warning, and the main runs' probes stayed close to their baselines. BENCH_LOG.md has the evidence table.
+   - **Why.** Run 2's A-mt process had aborted on the per-process count. The flags came from A-mt's own all-core load warming the chip: pmset recorded no warning, and the main runs' probes stayed close to their baselines. BENCH_LOG.md has the evidence table, and the console log (`results/logs/m9.log`) shows the abort.
    - **What was redone.** Run 2's A-mt process, in full.
    - No latency result was opened before the decision.
 4. **2026-10-01, after runs 1 and 2:** a 200 ms busy spin before every probe. Probes after Q5's sleep-dominated configurations had measured the idle core's ramp-up. It applies from run 2's A-mt redo on.
@@ -908,7 +908,7 @@ Every claim is evaluated against paper revision 2026-09-29. No later revision wa
 - run3: `C-batch warm N=5 small`, flagged by probe; re-run not flagged
 - run3-amt: `A-mt warm N=2 medium`, flagged by probe; re-run not flagged
 
-**Three resume attempts refused at the machine-state check; nothing ran.** Before the successful `all --resume`, three attempts aborted. In each, AC power, High Power mode and the idle check had passed, and then the instantaneous re-check made while capturing `env-resume.json` did not confirm an idle machine (the console log shows "env-resume.json does not confirm…"). The successful attempt's `env-resume.json` is the one kept. They are listed for completeness.
+**Three resume attempts refused at the machine-state check; nothing ran.** Before the successful `all --resume`, three attempts aborted. In each, AC power, High Power mode and the idle check had passed, and then the instantaneous re-check made while capturing `env-resume.json` did not confirm an idle machine. The console log (`results/logs/m9.log`) shows each refusal: "env-resume.json does not confirm…". The successful attempt's `env-resume.json` is the one kept. They are listed for completeness.
 
 **The A-mt thermal note** is under threats to validity (§6).
 
@@ -1002,7 +1002,7 @@ Each run's median call (outer timer, µs), and the largest difference between ru
   - In the large profile, Contains alone is 25.0% of the call, against 34.3% for its signature checks.
 - **Identity is negligible warm:** at most 0.2% in any configuration. With cached certificates, lines 23–28 are lookups.
 - **Thermal readings.** The calibration probe flagged 5 of 18 configurations (run 1: `C warm N=3 large` (probe); run 1: `C warm N=3 medium` (probe); run 2: `A warm N=3 medium` (probe); run 2: `C warm N=3 small` (probe); run 3: `A warm N=3 medium` (probe)). None was re-run, as D-77 specifies. At that rate, M9's per-run safety valve (more than 10% flagged) would have aborted the run.
-- **An earlier run.** A complete run of this breakdown made earlier the same day is logged in BENCH_LOG.md, but its data were removed before this run, for an unknown reason, and it is not reported.
+- **An earlier run.** A complete run of this breakdown made earlier the same day is logged in BENCH_LOG.md. The author deleted its data, without having opened them, to re-run the session script after that session's AIP step failed; it is not reported.
 
 ### AIP's own benchmark on this machine
 

@@ -1,0 +1,1779 @@
+    Finished `release` profile [optimized] target(s) in 0.25s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running `target/release/dc-bench all`
+== build A-mt
+    Finished `release` profile [optimized] target(s) in 0.11s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+== build dc-bench binaries
+    Finished `release` profile [optimized] target(s) in 0.04s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+== run 1
+dc-bench: waiting for the machine to become idle: {"busy_processes":[{"command":"/System/Library/PrivateFrameworks/XprotectFramework.framework/Versions/A/XPCServices/XprotectService.xpc/Contents/MacOS/XprotectService","pcpu":25.9,"pid":53807}],"loadavg_1m":1.24,"ok":false}
+run1: generating 219 chain sets…
+run 1: probe baseline 73.6 ms
+[1/215] A-ind cold N=5 medium (78.5 s)
+[2/215] A-ind cold N=3 small (52.2 s)
+[3/215] C warm N=3 large (2.9 s)
+[4/215] A warm N=3 medium-approval (19.1 s)
+[5/215] A cold N=2 medium (30.7 s)
+[6/215] A warm N=5 medium (16.9 s)
+[7/215] C-batch cold N=5 medium (3.0 s)
+[8/215] C warm N=2 medium (1.1 s)
+[9/215] B warm+prefix N=3 medium-approval (12.9 s)
+[10/215] D prefix-miss N=3 medium (1.4 s)
+[11/215] A-ind cold N=3 medium-approval (65.4 s)
+[12/215] C-batch cold N=10 large (7.8 s)
+[13/215] E stateless N=10 small (4.0 s)
+[14/215] B warm+prefix N=5 large (6.8 s)
+[15/215] A-ind warm N=10 small (69.9 s)
+[16/215] C-batch warm N=5 large (3.4 s)
+[17/215] C warm N=10 small (3.0 s)
+[18/215] C cold N=5 medium (3.6 s)
+[19/215] E stateless N=2 large (4.3 s)
+[20/215] C-batch warm N=2 medium (0.8 s)
+[21/215] C-batch warm N=10 large (4.7 s)
+[22/215] B warm+prefix N=5 medium (6.6 s)
+[23/215] D warm+prefix N=1 small (0.4 s)
+[24/215] C cold N=1 medium (1.3 s)
+[25/215] B warm+prefix N=10 medium (6.7 s)
+[26/215] C warm N=5 large (4.0 s)
+[27/215] A-ind warm N=3 medium-approval (32.0 s)
+[28/215] B prefix-miss N=3 small (19.1 s)
+[29/215] A cold N=2 large (32.1 s)
+[30/215] D prefix-miss N=5 medium (2.1 s)
+run 1: A cold+rtt20ms N=3 medium flagged (probe)
+[31/215] A cold+rtt20ms N=3 medium (53.8 s)
+[32/215] B prefix-miss N=3 large (20.7 s)
+[33/215] D prefix-miss N=2 small (1.0 s)
+[34/215] D warm+prefix N=2 large (0.5 s)
+[35/215] D prefix-miss N=5 large (4.3 s)
+[36/215] B prefix-miss N=3 medium (19.2 s)
+[37/215] C warm N=10 medium (3.5 s)
+[38/215] D prefix-miss N=5 small (1.8 s)
+[39/215] C warm N=2 small (0.9 s)
+[40/215] C warm N=3 medium-approval (1.6 s)
+[41/215] E stateless N=10 large (12.2 s)
+[42/215] B prefix-miss N=10 small (48.1 s)
+[43/215] D prefix-miss N=10 medium (3.7 s)
+[44/215] C-batch cold N=10 medium (5.2 s)
+[45/215] A cold N=1 medium (21.9 s)
+[46/215] A-ind warm N=3 large (27.2 s)
+[47/215] A cold N=1 small (21.9 s)
+[48/215] A-ind cold N=2 medium (39.3 s)
+[49/215] A warm N=5 large (18.9 s)
+[50/215] D prefix-miss N=1 large (1.5 s)
+[51/215] C-batch cold N=2 large (3.1 s)
+[52/215] A-ind warm N=3 medium (25.7 s)
+[53/215] B warm+prefix N=3 medium (6.6 s)
+[54/215] C-batch cold N=5 small (2.7 s)
+[55/215] C cold N=2 medium (1.9 s)
+[56/215] C cold N=1 small (1.2 s)
+[57/215] C cold N=2 small (1.8 s)
+[58/215] B prefix-miss N=5 small (27.1 s)
+[59/215] C-batch cold N=1 medium (1.2 s)
+[60/215] A-ind warm N=2 small (19.2 s)
+[61/215] C warm N=5 small (1.7 s)
+[62/215] A-ind warm N=10 medium (70.5 s)
+[63/215] D warm+prefix N=1 medium (0.4 s)
+[64/215] C-batch cold N=2 medium (1.7 s)
+[65/215] A-ind warm N=5 medium (38.5 s)
+[66/215] C-batch warm N=10 medium (2.2 s)
+run 1: A cold+rtt1ms N=3 medium flagged (probe)
+[67/215] A cold+rtt1ms N=3 medium (37.9 s)
+[68/215] C-batch cold N=10 small (4.6 s)
+[69/215] C cold N=5 large (5.9 s)
+[70/215] C cold N=3 large (4.2 s)
+[71/215] B prefix-miss N=2 large (16.4 s)
+[72/215] D prefix-miss N=2 medium (1.1 s)
+[73/215] A-ind warm N=1 small (12.9 s)
+[74/215] C cold N=5 small (3.3 s)
+[75/215] A-ind warm N=5 large (40.6 s)
+[76/215] B prefix-miss N=10 large (51.4 s)
+[77/215] E stateless N=5 medium (2.7 s)
+[78/215] C warm N=2 large (2.2 s)
+[79/215] E stateless N=3 large (5.8 s)
+[80/215] A warm N=3 small (12.6 s)
+[81/215] E stateless N=3 small (1.4 s)
+[82/215] C warm N=1 small (0.7 s)
+[83/215] B prefix-miss N=2 medium (15.2 s)
+[84/215] D warm+prefix N=3 medium (0.5 s)
+[85/215] E stateless N=1 large (2.5 s)
+[86/215] B warm+prefix N=2 small (6.6 s)
+[87/215] A-ind warm N=2 medium (19.3 s)
+[88/215] C warm N=10 large (6.0 s)
+[89/215] E stateless N=10 medium (5.1 s)
+[90/215] A cold N=5 medium (57.0 s)
+[91/215] A warm N=10 medium (27.7 s)
+[92/215] C cold N=1 large (2.2 s)
+[93/215] D warm+prefix N=5 small (0.5 s)
+[94/215] A warm N=3 medium (12.8 s)
+[95/215] A-ind cold N=3 medium (52.4 s)
+run 1: C cold+rtt1ms N=3 medium flagged (probe)
+[96/215] C cold+rtt1ms N=3 medium (19.9 s)
+[97/215] A cold N=3 medium-approval (52.4 s)
+[98/215] C cold N=10 medium (6.5 s)
+[99/215] D warm+prefix N=10 medium (0.5 s)
+[100/215] B warm+prefix N=3 large (6.7 s)
+[101/215] A-ind warm N=1 large (13.5 s)
+[102/215] B prefix-miss N=3 medium-approval (25.6 s)
+[103/215] C-batch warm N=5 medium (1.4 s)
+[104/215] A-ind cold N=2 large (40.8 s)
+[105/215] D warm+prefix N=10 large (0.7 s)
+[106/215] A-ind warm N=2 large (20.4 s)
+[107/215] A cold N=5 small (56.7 s)
+[108/215] C-batch cold N=1 small (1.1 s)
+[109/215] C-batch warm N=3 medium-approval (1.3 s)
+[110/215] A-ind cold N=1 small (26.2 s)
+[111/215] D prefix-miss N=10 large (6.4 s)
+[112/215] D warm+prefix N=3 large (0.6 s)
+[113/215] C-batch warm N=1 large (1.3 s)
+[114/215] C-batch warm N=1 small (0.6 s)
+[115/215] C-batch cold N=3 small (1.9 s)
+[116/215] D warm+prefix N=5 medium (0.5 s)
+[117/215] A cold N=3 small (39.3 s)
+[118/215] A warm N=2 large (11.8 s)
+[119/215] C cold N=3 medium (2.5 s)
+[120/215] C-batch warm N=3 large (2.6 s)
+[121/215] A cold N=10 large (103.9 s)
+[122/215] D prefix-miss N=1 medium (0.8 s)
+[123/215] A warm N=10 large (30.2 s)
+[124/215] C-batch warm N=2 large (2.0 s)
+[125/215] A warm N=3 large (14.3 s)
+[126/215] A warm N=1 small (8.6 s)
+[127/215] B prefix-miss N=10 medium (48.9 s)
+[128/215] A-ind cold N=10 medium (143.7 s)
+[129/215] E stateless N=5 large (8.3 s)
+[130/215] A warm N=10 small (27.1 s)
+[131/215] E stateless N=2 medium (1.3 s)
+[132/215] C cold N=3 medium-approval (3.0 s)
+[133/215] B warm+prefix N=1 small (6.5 s)
+[134/215] B prefix-miss N=2 small (15.0 s)
+[135/215] A cold N=5 large (59.1 s)
+run 1: A cold+rtt80ms N=3 medium flagged (probe)
+[136/215] A cold+rtt80ms N=3 medium (103.7 s)
+[137/215] A warm N=1 large (9.0 s)
+[138/215] C-batch cold N=3 large (3.7 s)
+[139/215] C-batch warm N=3 small (0.8 s)
+[140/215] E stateless N=5 small (2.1 s)
+[141/215] A cold N=10 medium (100.4 s)
+[142/215] C-batch cold N=3 medium-approval (2.6 s)
+[143/215] A-ind cold N=10 small (143.1 s)
+[144/215] A cold N=3 large (41.3 s)
+[145/215] D warm+prefix N=10 small (0.5 s)
+[146/215] D prefix-miss N=2 large (2.3 s)
+[147/215] C warm N=1 large (1.3 s)
+[148/215] C-batch cold N=2 small (1.5 s)
+[149/215] C cold+rtt0ms N=3 medium (2.5 s)
+[150/215] B warm+prefix N=2 large (6.7 s)
+[151/215] E stateless N=1 medium (0.8 s)
+[152/215] C-batch warm N=2 small (0.7 s)
+[153/215] D warm+prefix N=2 small (0.4 s)
+[154/215] C-batch warm N=10 small (1.8 s)
+[155/215] A-ind cold N=1 large (27.2 s)
+run 1: C cold+rtt20ms N=3 medium flagged (probe)
+[156/215] C cold+rtt20ms N=3 medium (46.8 s)
+[157/215] D prefix-miss N=10 small (3.1 s)
+[158/215] A-ind cold N=3 large (54.1 s)
+[159/215] A-ind cold N=5 small (78.2 s)
+[160/215] B warm+prefix N=1 medium (6.5 s)
+[161/215] C warm N=3 medium (1.4 s)
+[162/215] E stateless N=2 small (1.1 s)
+[163/215] E stateless N=3 medium (1.8 s)
+[164/215] A cold+rtt0ms N=3 medium (39.5 s)
+[165/215] B warm+prefix N=10 small (6.7 s)
+[166/215] A warm N=2 medium (10.7 s)
+[167/215] B warm+prefix N=10 large (6.9 s)
+[168/215] D warm+prefix N=2 medium (0.5 s)
+[169/215] B prefix-miss N=1 large (11.9 s)
+[170/215] C-batch cold N=3 medium (2.1 s)
+[171/215] B warm+prefix N=5 small (6.6 s)
+[172/215] A-ind cold N=10 large (146.7 s)
+[173/215] C-batch cold N=1 large (2.1 s)
+[174/215] B prefix-miss N=1 medium (11.1 s)
+[175/215] C-batch warm N=1 medium (0.6 s)
+[176/215] B warm+prefix N=3 small (6.6 s)
+[177/215] A-ind cold N=2 small (39.2 s)
+[178/215] B prefix-miss N=5 medium (27.5 s)
+[179/215] D warm+prefix N=3 medium-approval (0.7 s)
+[180/215] D prefix-miss N=3 medium-approval (1.7 s)
+[181/215] D prefix-miss N=3 small (1.2 s)
+[182/215] C-batch warm N=3 medium (1.0 s)
+[183/215] E stateless N=1 small (0.7 s)
+[184/215] A warm N=1 medium (8.6 s)
+[185/215] A warm N=5 small (16.7 s)
+[186/215] C warm N=1 medium (0.7 s)
+[187/215] B prefix-miss N=1 small (11.1 s)
+[188/215] C cold N=10 small (6.0 s)
+[189/215] A warm N=2 small (10.6 s)
+[190/215] A cold N=3 medium (39.5 s)
+[191/215] C cold N=2 large (3.3 s)
+[192/215] C warm N=3 small (1.2 s)
+[193/215] D warm+prefix N=1 large (0.5 s)
+[194/215] A cold N=2 small (30.6 s)
+[195/215] B warm+prefix N=2 medium (6.6 s)
+[196/215] D prefix-miss N=3 large (3.1 s)
+run 1: C cold+rtt80ms N=3 medium flagged (probe)
+[197/215] C cold+rtt80ms N=3 medium (98.1 s)
+[198/215] C-batch warm N=5 small (1.1 s)
+[199/215] B prefix-miss N=5 large (29.3 s)
+[200/215] A cold N=1 large (22.8 s)
+[201/215] A-ind warm N=5 small (38.2 s)
+[202/215] C warm N=5 medium (2.0 s)
+[203/215] A cold N=10 small (100.5 s)
+[204/215] A-ind cold N=1 medium (26.3 s)
+[205/215] D warm+prefix N=5 large (0.6 s)
+[206/215] A-ind cold N=5 large (80.9 s)
+[207/215] C cold N=10 large (9.3 s)
+[208/215] D prefix-miss N=1 small (0.7 s)
+[209/215] A-ind warm N=10 large (73.0 s)
+[210/215] C-batch cold N=5 large (5.4 s)
+[211/215] C cold N=3 small (2.3 s)
+[212/215] A-ind warm N=1 medium (12.9 s)
+[213/215] D warm+prefix N=3 small (0.4 s)
+[214/215] B warm+prefix N=1 large (6.6 s)
+[215/215] A-ind warm N=3 small (25.6 s)
+Q6 D x14: 380684 accepted/s
+Q6 A x2: 1723 accepted/s
+Q6 C x4: 35452 accepted/s
+Q6 B x8: 13222 accepted/s
+Q6 D x8: 274901 accepted/s
+Q6 A x14: 9067 accepted/s
+Q6 C x1: 9194 accepted/s
+Q6 A x4: 3402 accepted/s
+Q6 D x4: 142754 accepted/s
+Q6 B x4: 6663 accepted/s
+Q6 A x8: 6477 accepted/s
+Q6 C x10: 83155 accepted/s
+Q6 D x1: 37224 accepted/s
+Q6 B x2: 3378 accepted/s
+Q6 C x8: 68866 accepted/s
+Q6 A x10: 7927 accepted/s
+Q6 C x2: 18072 accepted/s
+Q6 D x2: 72831 accepted/s
+Q6 D x10: 341987 accepted/s
+Q6 B x1: 1710 accepted/s
+Q6 B x14: 18207 accepted/s
+Q6 A x1: 872 accepted/s
+Q6 B x10: 16440 accepted/s
+Q6 C x14: 94955 accepted/s
+== run 1, A-mt
+dc-bench: waiting for the machine to become idle: {"busy_processes":[{"command":"/System/Library/PrivateFrameworks/XprotectFramework.framework/Versions/A/XPCServices/XprotectService.xpc/Contents/MacOS/XprotectService","pcpu":28.5,"pid":53807}],"loadavg_1m":2.8,"ok":false}
+dc-bench: waiting for the machine to become idle: {"busy_processes":[],"loadavg_1m":2.18,"ok":false}
+run1-amt: generating 16 chain sets…
+run 1: probe baseline 61.4 ms
+run 1: A-mt warm N=5 medium flagged (probe)
+[1/16] A-mt warm N=5 medium (6.6 s)
+[2/16] A-mt warm N=10 medium (8.8 s)
+[3/16] A-mt warm N=3 small (5.9 s)
+[4/16] A-mt warm N=5 small (6.5 s)
+[5/16] A-mt warm N=2 small (5.6 s)
+[6/16] A-mt warm N=3 medium-approval (11.3 s)
+[7/16] A-mt warm N=5 large (8.9 s)
+[8/16] A-mt warm N=10 large (11.5 s)
+[9/16] A-mt warm N=2 large (6.8 s)
+[10/16] A-mt warm N=10 small (8.5 s)
+[11/16] A-mt warm N=1 small (5.5 s)
+[12/16] A-mt warm N=3 medium (6.0 s)
+[13/16] A-mt warm N=3 large (7.6 s)
+[14/16] A-mt warm N=2 medium (5.7 s)
+[15/16] A-mt warm N=1 large (6.1 s)
+[16/16] A-mt warm N=1 medium (5.5 s)
+== run 2
+dc-bench: waiting for the machine to become idle: {"busy_processes":[],"loadavg_1m":2.67,"ok":false}
+dc-bench: waiting for the machine to become idle: {"busy_processes":[],"loadavg_1m":2.08,"ok":false}
+run2: generating 219 chain sets…
+run 2: probe baseline 73.6 ms
+[1/215] A-ind cold N=2 small (39.3 s)
+[2/215] A-ind warm N=3 small (25.6 s)
+[3/215] C warm N=1 small (0.7 s)
+[4/215] A-ind warm N=1 large (13.5 s)
+[5/215] C warm N=3 small (1.2 s)
+[6/215] B warm+prefix N=3 small (6.6 s)
+[7/215] A cold N=10 small (100.6 s)
+run 2: C cold+rtt80ms N=3 medium flagged (probe)
+[8/215] C cold+rtt80ms N=3 medium (98.3 s)
+[9/215] C warm N=10 medium (3.4 s)
+[10/215] E stateless N=1 medium (0.8 s)
+[11/215] A cold N=5 small (56.1 s)
+[12/215] E stateless N=10 medium (5.0 s)
+[13/215] B prefix-miss N=5 medium (27.3 s)
+[14/215] C-batch warm N=5 large (3.4 s)
+[15/215] D prefix-miss N=1 medium (0.8 s)
+[16/215] D warm+prefix N=3 large (0.6 s)
+[17/215] C warm N=10 large (5.9 s)
+[18/215] A-ind cold N=1 small (26.2 s)
+[19/215] D prefix-miss N=2 large (2.3 s)
+[20/215] D warm+prefix N=3 small (0.4 s)
+[21/215] A-ind warm N=10 medium (70.4 s)
+[22/215] C-batch warm N=3 medium-approval (1.3 s)
+[23/215] A-ind warm N=10 small (70.0 s)
+[24/215] A-ind warm N=3 medium (25.7 s)
+[25/215] C-batch cold N=1 medium (1.2 s)
+[26/215] A-ind cold N=10 small (143.4 s)
+run 2: C cold+rtt1ms N=3 medium flagged (probe)
+[27/215] C cold+rtt1ms N=3 medium (19.9 s)
+[28/215] A-ind warm N=2 medium (19.3 s)
+[29/215] D warm+prefix N=10 small (0.5 s)
+[30/215] A-ind cold N=1 large (27.2 s)
+[31/215] C-batch cold N=2 small (1.5 s)
+[32/215] D warm+prefix N=10 large (0.7 s)
+[33/215] E stateless N=2 medium (1.3 s)
+[34/215] A-ind warm N=5 small (38.3 s)
+[35/215] E stateless N=5 large (8.4 s)
+[36/215] C-batch warm N=3 large (2.5 s)
+[37/215] C-batch cold N=10 large (8.0 s)
+[38/215] A cold N=1 large (22.9 s)
+[39/215] D warm+prefix N=1 medium (0.4 s)
+[40/215] C cold N=5 medium (3.6 s)
+[41/215] A-ind warm N=5 medium (38.5 s)
+[42/215] C-batch warm N=3 small (0.9 s)
+[43/215] C cold N=1 small (1.2 s)
+[44/215] A warm N=2 small (10.6 s)
+[45/215] A-ind warm N=3 medium-approval (32.1 s)
+[46/215] D warm+prefix N=5 large (0.6 s)
+[47/215] A-ind cold N=1 medium (26.3 s)
+[48/215] B prefix-miss N=5 small (27.1 s)
+run 2: C cold+rtt20ms N=3 medium flagged (probe)
+[49/215] C cold+rtt20ms N=3 medium (46.9 s)
+[50/215] B warm+prefix N=5 large (6.7 s)
+[51/215] C-batch cold N=10 medium (5.1 s)
+[52/215] D prefix-miss N=10 small (3.1 s)
+[53/215] A cold N=3 small (39.0 s)
+[54/215] C cold+rtt0ms N=3 medium (2.4 s)
+[55/215] A cold N=3 medium-approval (52.2 s)
+[56/215] B warm+prefix N=5 medium (6.6 s)
+[57/215] A-ind cold N=3 small (52.0 s)
+[58/215] C-batch warm N=5 small (1.1 s)
+[59/215] A warm N=3 medium-approval (19.0 s)
+[60/215] A-ind cold N=10 medium (143.6 s)
+[61/215] A-ind cold N=5 medium (78.5 s)
+[62/215] A warm N=1 medium (8.6 s)
+[63/215] C-batch cold N=5 medium (3.0 s)
+[64/215] A cold N=5 large (59.4 s)
+[65/215] C cold N=3 large (4.3 s)
+[66/215] A warm N=2 large (11.8 s)
+[67/215] E stateless N=10 large (12.4 s)
+[68/215] D warm+prefix N=2 small (0.4 s)
+[69/215] D prefix-miss N=10 large (6.4 s)
+run 2: A cold+rtt80ms N=3 medium flagged (probe)
+[70/215] A cold+rtt80ms N=3 medium (103.8 s)
+[71/215] A-ind cold N=10 large (146.1 s)
+[72/215] C warm N=5 small (1.7 s)
+[73/215] A cold N=2 small (30.6 s)
+[74/215] B prefix-miss N=3 medium (19.3 s)
+[75/215] A-ind cold N=3 large (54.2 s)
+[76/215] D prefix-miss N=3 medium (1.4 s)
+[77/215] C warm N=3 medium-approval (1.6 s)
+[78/215] A-ind warm N=1 small (12.9 s)
+[79/215] A-ind cold N=3 medium-approval (65.5 s)
+[80/215] A warm N=1 large (9.2 s)
+[81/215] E stateless N=1 small (0.7 s)
+[82/215] B warm+prefix N=5 small (6.6 s)
+[83/215] B prefix-miss N=3 medium-approval (25.7 s)
+[84/215] D warm+prefix N=1 small (0.4 s)
+[85/215] B prefix-miss N=5 large (29.7 s)
+[86/215] A-ind warm N=2 small (19.2 s)
+[87/215] A warm N=10 large (30.2 s)
+[88/215] A cold N=2 medium (30.8 s)
+[89/215] C cold N=1 large (2.2 s)
+[90/215] D warm+prefix N=2 large (0.5 s)
+[91/215] A-ind cold N=5 large (81.0 s)
+[92/215] C-batch cold N=3 medium-approval (2.6 s)
+[93/215] A warm N=2 medium (10.7 s)
+[94/215] C warm N=5 large (4.0 s)
+[95/215] C warm N=2 medium (1.1 s)
+[96/215] C warm N=3 large (2.9 s)
+[97/215] B prefix-miss N=1 medium (11.1 s)
+[98/215] C-batch warm N=10 medium (2.2 s)
+[99/215] A warm N=5 medium (16.9 s)
+[100/215] A cold N=2 large (32.1 s)
+[101/215] D warm+prefix N=3 medium (0.5 s)
+[102/215] E stateless N=1 large (2.5 s)
+[103/215] D prefix-miss N=3 small (1.2 s)
+[104/215] C cold N=3 medium (2.5 s)
+[105/215] A-ind warm N=5 large (40.6 s)
+[106/215] B warm+prefix N=1 small (6.5 s)
+[107/215] C-batch warm N=5 medium (1.4 s)
+[108/215] C-batch cold N=2 medium (1.7 s)
+[109/215] D warm+prefix N=5 small (0.5 s)
+[110/215] E stateless N=2 small (1.1 s)
+[111/215] D prefix-miss N=5 large (4.3 s)
+[112/215] B warm+prefix N=2 large (6.6 s)
+[113/215] A cold+rtt0ms N=3 medium (39.4 s)
+[114/215] C cold N=10 small (5.9 s)
+[115/215] A warm N=1 small (8.5 s)
+[116/215] D warm+prefix N=5 medium (0.5 s)
+[117/215] A cold N=3 medium (39.4 s)
+[118/215] B warm+prefix N=10 large (6.9 s)
+[119/215] C-batch cold N=3 medium (2.1 s)
+[120/215] C-batch warm N=1 small (0.6 s)
+[121/215] A warm N=5 large (18.8 s)
+[122/215] B warm+prefix N=10 small (6.6 s)
+[123/215] C-batch cold N=3 large (3.9 s)
+[124/215] E stateless N=3 small (1.4 s)
+[125/215] A warm N=3 small (12.6 s)
+[126/215] D prefix-miss N=1 large (1.5 s)
+[127/215] D prefix-miss N=3 large (3.0 s)
+[128/215] C-batch warm N=3 medium (1.0 s)
+[129/215] D prefix-miss N=5 medium (2.1 s)
+[130/215] E stateless N=3 large (5.8 s)
+[131/215] A cold N=1 medium (21.9 s)
+[132/215] E stateless N=3 medium (1.8 s)
+[133/215] D prefix-miss N=2 medium (1.1 s)
+[134/215] B warm+prefix N=2 medium (6.5 s)
+[135/215] C warm N=1 medium (0.7 s)
+[136/215] C-batch warm N=10 large (4.6 s)
+[137/215] C cold N=5 large (5.9 s)
+[138/215] B prefix-miss N=1 small (11.0 s)
+[139/215] D warm+prefix N=1 large (0.5 s)
+[140/215] A warm N=3 large (14.2 s)
+[141/215] C-batch warm N=2 medium (0.8 s)
+[142/215] C cold N=10 large (9.2 s)
+[143/215] C warm N=1 large (1.3 s)
+[144/215] A warm N=3 medium (12.7 s)
+[145/215] E stateless N=2 large (4.2 s)
+[146/215] B prefix-miss N=10 medium (48.5 s)
+[147/215] D prefix-miss N=3 medium-approval (1.7 s)
+[148/215] C cold N=3 small (2.3 s)
+[149/215] C-batch cold N=3 small (1.9 s)
+[150/215] B prefix-miss N=10 large (50.9 s)
+[151/215] A warm N=5 small (16.6 s)
+[152/215] C warm N=3 medium (1.3 s)
+run 2: A cold+rtt1ms N=3 medium flagged (probe)
+[153/215] A cold+rtt1ms N=3 medium (37.7 s)
+[154/215] A warm N=10 small (26.8 s)
+[155/215] B warm+prefix N=3 medium (6.5 s)
+[156/215] C cold N=2 small (1.7 s)
+[157/215] A-ind cold N=2 large (40.6 s)
+[158/215] E stateless N=10 small (3.9 s)
+[159/215] C warm N=5 medium (2.0 s)
+[160/215] C-batch warm N=2 large (1.9 s)
+[161/215] C cold N=3 medium-approval (3.0 s)
+[162/215] B warm+prefix N=3 medium-approval (12.9 s)
+[163/215] A cold N=3 large (41.2 s)
+[164/215] C cold N=5 small (3.3 s)
+[165/215] B prefix-miss N=2 large (16.4 s)
+[166/215] A-ind cold N=2 medium (39.3 s)
+[167/215] A cold N=5 medium (56.9 s)
+[168/215] C-batch cold N=5 small (2.7 s)
+[169/215] D warm+prefix N=10 medium (0.5 s)
+[170/215] C-batch cold N=5 large (5.3 s)
+[171/215] B prefix-miss N=2 medium (15.2 s)
+[172/215] A-ind warm N=1 medium (12.9 s)
+run 2: A cold+rtt20ms N=3 medium flagged (probe)
+[173/215] A cold+rtt20ms N=3 medium (53.5 s)
+[174/215] B warm+prefix N=3 large (6.6 s)
+[175/215] C cold N=2 large (3.2 s)
+[176/215] C-batch warm N=1 large (1.2 s)
+[177/215] A warm N=10 medium (27.5 s)
+[178/215] C-batch cold N=1 small (1.1 s)
+[179/215] B warm+prefix N=2 small (6.5 s)
+[180/215] B prefix-miss N=3 large (20.9 s)
+[181/215] C-batch warm N=1 medium (0.6 s)
+[182/215] C-batch cold N=1 large (2.1 s)
+[183/215] A-ind warm N=2 large (20.4 s)
+[184/215] A-ind cold N=5 small (78.2 s)
+[185/215] A cold N=10 large (103.9 s)
+[186/215] C-batch cold N=2 large (3.0 s)
+[187/215] E stateless N=5 medium (2.7 s)
+[188/215] B prefix-miss N=10 small (48.2 s)
+[189/215] C warm N=10 small (3.1 s)
+[190/215] D warm+prefix N=2 medium (0.4 s)
+[191/215] A cold N=1 small (21.9 s)
+[192/215] D prefix-miss N=2 small (1.0 s)
+[193/215] B prefix-miss N=2 small (15.1 s)
+[194/215] D prefix-miss N=1 small (0.7 s)
+[195/215] C warm N=2 small (0.9 s)
+[196/215] C-batch warm N=10 small (1.8 s)
+[197/215] A-ind cold N=3 medium (52.5 s)
+[198/215] B prefix-miss N=3 small (19.1 s)
+[199/215] A-ind warm N=10 large (73.0 s)
+[200/215] C cold N=1 medium (1.3 s)
+[201/215] C-batch cold N=10 small (4.7 s)
+[202/215] A cold N=10 medium (101.2 s)
+[203/215] C cold N=10 medium (6.5 s)
+[204/215] E stateless N=5 small (2.1 s)
+[205/215] D prefix-miss N=5 small (1.8 s)
+[206/215] B warm+prefix N=1 medium (6.5 s)
+[207/215] D prefix-miss N=10 medium (3.7 s)
+[208/215] D warm+prefix N=3 medium-approval (0.7 s)
+[209/215] B warm+prefix N=10 medium (6.7 s)
+[210/215] A-ind warm N=3 large (27.3 s)
+[211/215] B warm+prefix N=1 large (6.6 s)
+[212/215] C warm N=2 large (2.2 s)
+[213/215] C cold N=2 medium (1.9 s)
+[214/215] B prefix-miss N=1 large (11.8 s)
+[215/215] C-batch warm N=2 small (0.7 s)
+Q6 C x1: 9270 accepted/s
+Q6 C x14: 94172 accepted/s
+Q6 C x2: 18081 accepted/s
+Q6 D x2: 72554 accepted/s
+Q6 D x8: 274120 accepted/s
+Q6 A x8: 6709 accepted/s
+Q6 D x14: 377466 accepted/s
+Q6 A x10: 7997 accepted/s
+Q6 C x8: 67783 accepted/s
+Q6 A x4: 3377 accepted/s
+Q6 A x14: 8827 accepted/s
+Q6 D x4: 139456 accepted/s
+Q6 B x10: 15022 accepted/s
+Q6 B x4: 6483 accepted/s
+Q6 B x8: 12489 accepted/s
+Q6 B x2: 3377 accepted/s
+Q6 D x10: 340155 accepted/s
+Q6 A x1: 871 accepted/s
+Q6 B x14: 18380 accepted/s
+Q6 A x2: 1722 accepted/s
+Q6 C x4: 35530 accepted/s
+Q6 C x10: 84520 accepted/s
+Q6 B x1: 1712 accepted/s
+Q6 D x1: 37242 accepted/s
+== run 2, A-mt
+run2-amt: generating 16 chain sets…
+run 2: probe baseline 60.2 ms
+[1/16] A-mt warm N=5 medium (6.6 s)
+[2/16] A-mt warm N=5 large (8.9 s)
+[3/16] A-mt warm N=3 small (5.9 s)
+[4/16] A-mt warm N=10 medium (8.8 s)
+[5/16] A-mt warm N=3 medium-approval (11.3 s)
+run 2: A-mt warm N=10 small flagged (probe)
+[6/16] A-mt warm N=10 small (8.5 s)
+[7/16] A-mt warm N=3 medium (6.0 s)
+[8/16] A-mt warm N=2 medium (5.7 s)
+[9/16] A-mt warm N=5 small (6.6 s)
+[10/16] A-mt warm N=1 small (5.5 s)
+[11/16] A-mt warm N=10 large (11.5 s)
+[12/16] A-mt warm N=1 large (6.1 s)
+[13/16] A-mt warm N=1 medium (5.5 s)
+[14/16] A-mt warm N=2 small (5.6 s)
+run 2: A-mt warm N=3 large flagged (probe)
+[15/16] A-mt warm N=3 large (7.6 s)
+dc-bench: aborting run 2: 2 of its 16 configurations are flagged (more than 10%); the machine is not in a usable state (frozen plan §5)
+dc-bench: run 2, A-mt failed: exit status: 1
+    Finished `release` profile [optimized] target(s) in 0.23s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running `target/release/dc-bench all --resume`
+== build A-mt
+    Finished `release` profile [optimized] target(s) in 0.09s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+== build dc-bench binaries
+    Finished `release` profile [optimized] target(s) in 0.04s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+dc-bench: aborting: env-resume.json does not confirm AC power, High Power mode and an idle machine
+    Finished `release` profile [optimized] target(s) in 0.05s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running `target/release/dc-bench all --resume`
+== build A-mt
+    Finished `release` profile [optimized] target(s) in 0.05s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+== build dc-bench binaries
+    Finished `release` profile [optimized] target(s) in 0.04s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+dc-bench: aborting: env-resume.json does not confirm AC power, High Power mode and an idle machine
+    Finished `release` profile [optimized] target(s) in 0.04s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running `target/release/dc-bench all --resume`
+== build A-mt
+    Finished `release` profile [optimized] target(s) in 0.04s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+== build dc-bench binaries
+    Finished `release` profile [optimized] target(s) in 0.04s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+dc-bench: waiting for the machine to become idle: {"busy_processes":[],"loadavg_1m":2.43,"ok":false}
+dc-bench: waiting for the machine to become idle: {"busy_processes":[],"loadavg_1m":2.28,"ok":false}
+dc-bench: waiting for the machine to become idle: {"busy_processes":[{"command":"/usr/libexec/syspolicyd","pcpu":31.9,"pid":481}],"loadavg_1m":2.0,"ok":false}
+dc-bench: aborting: env-resume.json does not confirm AC power, High Power mode and an idle machine
+    Finished `release` profile [optimized] target(s) in 0.05s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running `target/release/dc-bench all --resume`
+== build A-mt
+    Finished `release` profile [optimized] target(s) in 0.05s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+== build dc-bench binaries
+    Finished `release` profile [optimized] target(s) in 0.05s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+dc-bench: waiting for the machine to become idle: {"busy_processes":[{"command":"/System/Library/PrivateFrameworks/XprotectFramework.framework/Versions/A/XPCServices/XprotectService.xpc/Contents/MacOS/XprotectService","pcpu":25.9,"pid":53807}],"loadavg_1m":1.69,"ok":false}
+== run 1: completed earlier, skipped
+== run 1, A-mt: completed earlier, skipped
+== run 2: completed earlier, skipped
+== run 2, A-mt
+dc-bench: waiting for the machine to become idle: {"busy_processes":[{"command":"/System/Library/PrivateFrameworks/XprotectFramework.framework/Versions/A/XPCServices/XprotectService.xpc/Contents/MacOS/XprotectService","pcpu":35.8,"pid":53807}],"loadavg_1m":1.69,"ok":false}
+run2-amt: the earlier, unfinished attempt's files were moved to /Users/nurmukhametdaniyar/Projects/phd/delegation_chain_impl/results/aborted/run2-amt-attempt-1
+run2-amt: generating 16 chain sets…
+run 2: probe baseline 58.5 ms
+[1/16] A-mt warm N=5 medium (7.0 s)
+[2/16] A-mt warm N=5 large (8.9 s)
+[3/16] A-mt warm N=3 small (6.1 s)
+[4/16] A-mt warm N=10 medium (9.1 s)
+run 2: A-mt warm N=3 medium-approval flagged (probe)
+[5/16] A-mt warm N=3 medium-approval (11.4 s)
+run 2: A-mt warm N=10 small flagged (probe)
+[6/16] A-mt warm N=10 small (8.9 s)
+[7/16] A-mt warm N=3 medium (6.4 s)
+run 2: A-mt warm N=2 medium flagged (probe)
+[8/16] A-mt warm N=2 medium (6.1 s)
+[9/16] A-mt warm N=5 small (7.0 s)
+run 2: A-mt warm N=1 small flagged (probe)
+[10/16] A-mt warm N=1 small (5.8 s)
+run 2: A-mt warm N=10 large flagged (probe)
+[11/16] A-mt warm N=10 large (12.0 s)
+run 2: A-mt warm N=1 large flagged (probe)
+[12/16] A-mt warm N=1 large (6.4 s)
+run 2: A-mt warm N=1 medium flagged (probe)
+[13/16] A-mt warm N=1 medium (5.9 s)
+run 2: A-mt warm N=2 small flagged (probe)
+[14/16] A-mt warm N=2 small (6.0 s)
+run 2: A-mt warm N=3 large flagged (probe)
+[15/16] A-mt warm N=3 large (7.9 s)
+run 2: A-mt warm N=2 large flagged (probe)
+[16/16] A-mt warm N=2 large (7.2 s)
+== run 3
+dc-bench: waiting for the machine to become idle: {"busy_processes":[{"command":"/System/Library/PrivateFrameworks/XprotectFramework.framework/Versions/A/XPCServices/XprotectService.xpc/Contents/MacOS/XprotectService","pcpu":31.1,"pid":53807}],"loadavg_1m":3.26,"ok":false}
+dc-bench: waiting for the machine to become idle: {"busy_processes":[],"loadavg_1m":2.91,"ok":false}
+dc-bench: waiting for the machine to become idle: {"busy_processes":[],"loadavg_1m":2.63,"ok":false}
+dc-bench: waiting for the machine to become idle: {"busy_processes":[],"loadavg_1m":2.27,"ok":false}
+dc-bench: waiting for the machine to become idle: {"busy_processes":[],"loadavg_1m":2.14,"ok":false}
+run3: generating 219 chain sets…
+run 3: probe baseline 73.5 ms
+[1/215] C warm N=10 small (3.4 s)
+[2/215] C warm N=3 medium-approval (2.0 s)
+[3/215] A cold N=2 small (31.0 s)
+[4/215] A cold+rtt0ms N=3 medium (39.8 s)
+[5/215] A-ind warm N=3 small (25.9 s)
+[6/215] A-ind warm N=10 large (73.2 s)
+[7/215] D prefix-miss N=10 medium (4.1 s)
+[8/215] B prefix-miss N=1 small (11.4 s)
+[9/215] A warm N=5 small (17.0 s)
+[10/215] D prefix-miss N=5 medium (2.5 s)
+[11/215] A-ind cold N=1 large (27.5 s)
+[12/215] A cold N=2 large (32.6 s)
+[13/215] C-batch cold N=2 medium (2.1 s)
+[14/215] E stateless N=3 medium (2.2 s)
+[15/215] B prefix-miss N=3 medium (19.6 s)
+[16/215] D prefix-miss N=2 large (2.7 s)
+[17/215] B warm+prefix N=1 small (6.9 s)
+[18/215] B warm+prefix N=5 medium (7.0 s)
+[19/215] C warm N=3 medium (1.8 s)
+[20/215] A-ind warm N=2 large (20.8 s)
+[21/215] B prefix-miss N=1 medium (11.5 s)
+[22/215] E stateless N=3 large (6.2 s)
+[23/215] B prefix-miss N=2 medium (15.6 s)
+[24/215] C-batch cold N=5 small (3.1 s)
+[25/215] C-batch warm N=3 medium (1.4 s)
+[26/215] D warm+prefix N=5 large (1.0 s)
+[27/215] C-batch cold N=5 medium (3.4 s)
+[28/215] C-batch warm N=1 small (1.0 s)
+[29/215] A-ind cold N=1 medium (26.7 s)
+[30/215] A-ind cold N=2 medium (39.7 s)
+[31/215] A cold N=5 large (59.7 s)
+[32/215] A cold N=5 small (57.0 s)
+[33/215] C cold N=5 medium (4.0 s)
+[34/215] D warm+prefix N=10 small (0.9 s)
+[35/215] C cold N=3 small (2.7 s)
+[36/215] B warm+prefix N=1 large (7.0 s)
+[37/215] D warm+prefix N=5 small (0.9 s)
+[38/215] C warm N=3 large (3.3 s)
+[39/215] C cold N=5 large (6.3 s)
+[40/215] C warm N=5 large (4.4 s)
+[41/215] D prefix-miss N=1 medium (1.2 s)
+[42/215] A-ind warm N=10 medium (70.9 s)
+[43/215] D warm+prefix N=10 large (1.1 s)
+[44/215] A warm N=10 large (30.5 s)
+[45/215] B warm+prefix N=10 large (7.3 s)
+[46/215] C warm N=1 large (1.7 s)
+[47/215] A warm N=1 small (9.0 s)
+[48/215] A cold+rtt20ms N=3 medium (53.8 s)
+[49/215] E stateless N=5 large (8.5 s)
+[50/215] A-ind cold N=3 medium (52.7 s)
+[51/215] C warm N=1 medium (1.1 s)
+[52/215] A-ind warm N=3 medium-approval (32.4 s)
+run 3: C-batch warm N=5 small flagged (probe)
+[53/215] C-batch warm N=5 small (1.5 s)
+[54/215] C-batch warm N=1 medium (1.0 s)
+[55/215] C cold N=3 medium-approval (3.4 s)
+[56/215] D warm+prefix N=2 medium (0.8 s)
+[57/215] D prefix-miss N=5 large (4.6 s)
+[58/215] C-batch cold N=1 small (1.5 s)
+[59/215] A cold N=1 small (22.3 s)
+[60/215] E stateless N=1 large (2.8 s)
+[61/215] C-batch cold N=3 medium-approval (3.0 s)
+[62/215] B prefix-miss N=5 large (30.0 s)
+[63/215] C-batch warm N=5 large (3.8 s)
+[64/215] B prefix-miss N=10 medium (49.0 s)
+[65/215] D prefix-miss N=5 small (2.2 s)
+[66/215] E stateless N=1 medium (1.2 s)
+[67/215] C warm N=3 small (1.6 s)
+[68/215] A cold N=10 medium (101.5 s)
+[69/215] C cold N=10 medium (6.9 s)
+[70/215] A-ind cold N=1 small (26.6 s)
+[71/215] A cold N=10 small (100.9 s)
+[72/215] B warm+prefix N=2 small (6.9 s)
+[73/215] D warm+prefix N=3 large (1.0 s)
+[74/215] C-batch cold N=10 small (5.1 s)
+[75/215] B prefix-miss N=1 large (12.2 s)
+[76/215] C warm N=1 small (1.1 s)
+[77/215] C cold+rtt80ms N=3 medium (98.6 s)
+[78/215] C-batch warm N=10 large (4.9 s)
+[79/215] C-batch cold N=3 large (4.1 s)
+[80/215] C-batch cold N=2 large (3.3 s)
+[81/215] A-ind cold N=3 small (52.2 s)
+[82/215] C warm N=2 medium (1.4 s)
+[83/215] C-batch cold N=2 small (1.9 s)
+[84/215] C cold N=3 medium (2.8 s)
+[85/215] C warm N=2 large (2.5 s)
+[86/215] A-ind warm N=1 medium (13.3 s)
+[87/215] A-ind warm N=3 large (27.6 s)
+[88/215] C-batch cold N=3 medium (2.5 s)
+[89/215] E stateless N=5 small (2.5 s)
+[90/215] D warm+prefix N=1 large (0.9 s)
+[91/215] E stateless N=10 small (4.3 s)
+[92/215] C cold N=10 large (9.5 s)
+[93/215] D warm+prefix N=1 medium (0.8 s)
+[94/215] C cold+rtt20ms N=3 medium (46.7 s)
+[95/215] A-ind warm N=10 small (69.9 s)
+[96/215] A cold N=3 small (39.6 s)
+[97/215] A warm N=3 large (14.6 s)
+[98/215] B warm+prefix N=10 small (7.0 s)
+[99/215] A warm N=3 medium (13.1 s)
+[100/215] C-batch cold N=5 large (5.7 s)
+[101/215] A warm N=5 large (19.3 s)
+[102/215] A warm N=1 large (9.6 s)
+[103/215] A warm N=2 large (12.2 s)
+[104/215] C-batch cold N=3 small (2.3 s)
+[105/215] B prefix-miss N=3 large (21.3 s)
+[106/215] E stateless N=2 medium (1.7 s)
+[107/215] A warm N=1 medium (9.0 s)
+[108/215] A warm N=10 medium (28.1 s)
+[109/215] A cold N=1 medium (22.3 s)
+[110/215] A cold N=3 large (41.6 s)
+[111/215] A warm N=2 medium (11.1 s)
+[112/215] C-batch warm N=10 small (2.1 s)
+[113/215] C warm N=2 small (1.3 s)
+[114/215] A cold+rtt80ms N=3 medium (103.2 s)
+[115/215] B prefix-miss N=10 small (47.5 s)
+[116/215] C warm N=10 medium (3.9 s)
+[117/215] C cold N=1 large (2.5 s)
+[118/215] A-ind cold N=5 medium (78.6 s)
+[119/215] C warm N=5 medium (2.4 s)
+[120/215] C-batch warm N=3 small (1.3 s)
+[121/215] A-ind cold N=10 small (143.4 s)
+[122/215] D warm+prefix N=1 small (0.8 s)
+[123/215] A-ind cold N=2 small (39.5 s)
+[124/215] D warm+prefix N=5 medium (0.9 s)
+[125/215] D prefix-miss N=3 small (1.6 s)
+[126/215] C-batch cold N=1 medium (1.6 s)
+[127/215] B warm+prefix N=3 small (7.0 s)
+[128/215] C cold N=10 small (6.3 s)
+[129/215] C-batch warm N=2 small (1.1 s)
+[130/215] B warm+prefix N=10 medium (7.1 s)
+[131/215] A-ind warm N=5 large (41.1 s)
+[132/215] A-ind cold N=5 large (81.2 s)
+[133/215] B warm+prefix N=3 medium-approval (13.3 s)
+[134/215] E stateless N=2 large (4.6 s)
+[135/215] C-batch cold N=10 large (8.3 s)
+[136/215] A cold N=3 medium (39.8 s)
+[137/215] D prefix-miss N=3 large (3.4 s)
+[138/215] C-batch warm N=3 medium-approval (1.7 s)
+[139/215] A-ind warm N=2 medium (19.7 s)
+[140/215] E stateless N=3 small (1.8 s)
+[141/215] C cold+rtt0ms N=3 medium (2.9 s)
+[142/215] A-ind warm N=1 large (13.9 s)
+[143/215] D warm+prefix N=10 medium (0.9 s)
+[144/215] D warm+prefix N=2 small (0.8 s)
+[145/215] C cold N=2 medium (2.3 s)
+[146/215] B warm+prefix N=5 small (7.0 s)
+[147/215] A-ind cold N=10 medium (144.2 s)
+[148/215] C-batch warm N=2 medium (1.2 s)
+[149/215] B warm+prefix N=5 large (7.2 s)
+[150/215] A-ind warm N=3 medium (26.1 s)
+[151/215] A-ind cold N=2 large (41.1 s)
+[152/215] A-ind warm N=2 small (19.6 s)
+[153/215] C-batch warm N=2 large (2.3 s)
+[154/215] C cold N=5 small (3.7 s)
+[155/215] E stateless N=10 large (12.6 s)
+[156/215] E stateless N=2 small (1.5 s)
+[157/215] A cold N=1 large (23.3 s)
+[158/215] D warm+prefix N=3 medium (0.9 s)
+[159/215] C cold N=2 large (3.7 s)
+[160/215] C cold N=1 medium (1.7 s)
+[161/215] A cold N=5 medium (57.3 s)
+[162/215] C cold N=3 large (4.7 s)
+[163/215] D warm+prefix N=2 large (0.9 s)
+[164/215] A-ind warm N=1 small (13.3 s)
+[165/215] B prefix-miss N=10 large (51.7 s)
+[166/215] C-batch warm N=3 large (2.9 s)
+[167/215] A-ind warm N=5 medium (38.9 s)
+[168/215] A warm N=3 medium-approval (19.5 s)
+[169/215] B prefix-miss N=5 medium (27.8 s)
+[170/215] C-batch cold N=10 medium (5.6 s)
+[171/215] B prefix-miss N=3 medium-approval (26.0 s)
+[172/215] D prefix-miss N=2 small (1.4 s)
+[173/215] B warm+prefix N=3 medium (7.0 s)
+[174/215] D prefix-miss N=10 large (6.7 s)
+[175/215] E stateless N=10 medium (5.4 s)
+[176/215] B warm+prefix N=2 large (7.0 s)
+[177/215] C cold N=2 small (2.2 s)
+[178/215] D prefix-miss N=10 small (3.5 s)
+[179/215] E stateless N=1 small (1.1 s)
+[180/215] D prefix-miss N=1 large (1.9 s)
+[181/215] A cold N=2 medium (31.1 s)
+[182/215] D prefix-miss N=2 medium (1.5 s)
+[183/215] B warm+prefix N=3 large (7.1 s)
+[184/215] B warm+prefix N=2 medium (7.0 s)
+[185/215] A cold N=3 medium-approval (52.9 s)
+[186/215] C-batch warm N=10 medium (2.6 s)
+run 3: B prefix-miss N=3 small flagged (probe)
+[187/215] B prefix-miss N=3 small (19.6 s)
+[188/215] A warm N=2 small (11.0 s)
+[189/215] A-ind cold N=3 medium-approval (65.8 s)
+[190/215] C-batch warm N=5 medium (1.8 s)
+[191/215] A warm N=10 small (27.6 s)
+[192/215] C warm N=10 large (6.4 s)
+[193/215] A warm N=5 medium (17.3 s)
+[194/215] D prefix-miss N=3 medium-approval (2.1 s)
+[195/215] D prefix-miss N=3 medium (1.8 s)
+[196/215] A-ind warm N=5 small (38.7 s)
+[197/215] C-batch warm N=1 large (1.7 s)
+[198/215] E stateless N=5 medium (3.1 s)
+[199/215] C cold N=1 small (1.6 s)
+[200/215] D warm+prefix N=3 small (0.8 s)
+[201/215] A-ind cold N=3 large (54.6 s)
+[202/215] A cold+rtt1ms N=3 medium (38.2 s)
+[203/215] A cold N=10 large (104.0 s)
+[204/215] C cold+rtt1ms N=3 medium (20.3 s)
+[205/215] D prefix-miss N=1 small (1.1 s)
+[206/215] A-ind cold N=10 large (146.8 s)
+[207/215] A warm N=3 small (13.0 s)
+[208/215] C-batch cold N=1 large (2.5 s)
+[209/215] B prefix-miss N=2 small (15.5 s)
+[210/215] B prefix-miss N=2 large (16.8 s)
+[211/215] A-ind cold N=5 small (78.6 s)
+[212/215] B prefix-miss N=5 small (27.5 s)
+[213/215] C warm N=5 small (2.1 s)
+[214/215] B warm+prefix N=1 medium (6.9 s)
+[215/215] D warm+prefix N=3 medium-approval (1.1 s)
+Q6 C x1: 9290 accepted/s
+Q6 B x8: 13218 accepted/s
+Q6 B x4: 6674 accepted/s
+Q6 A x8: 6678 accepted/s
+Q6 A x1: 872 accepted/s
+Q6 A x10: 8331 accepted/s
+Q6 D x8: 274361 accepted/s
+Q6 D x2: 72961 accepted/s
+Q6 A x14: 9090 accepted/s
+Q6 D x10: 341883 accepted/s
+Q6 C x8: 68612 accepted/s
+Q6 A x4: 3394 accepted/s
+Q6 D x1: 37305 accepted/s
+Q6 C x2: 18174 accepted/s
+Q6 B x10: 15924 accepted/s
+Q6 C x4: 35706 accepted/s
+Q6 D x4: 143333 accepted/s
+Q6 D x14: 382898 accepted/s
+Q6 C x10: 85330 accepted/s
+Q6 B x14: 17561 accepted/s
+Q6 A x2: 1723 accepted/s
+Q6 B x2: 3378 accepted/s
+Q6 C x14: 95895 accepted/s
+Q6 B x1: 1712 accepted/s
+== run 3, A-mt
+run3-amt: generating 16 chain sets…
+run 3: probe baseline 60.3 ms
+[1/16] A-mt warm N=3 large (7.8 s)
+[2/16] A-mt warm N=5 medium (7.0 s)
+[3/16] A-mt warm N=2 large (7.1 s)
+[4/16] A-mt warm N=1 small (5.8 s)
+[5/16] A-mt warm N=3 small (6.2 s)
+[6/16] A-mt warm N=10 large (11.9 s)
+[7/16] A-mt warm N=2 small (6.0 s)
+[8/16] A-mt warm N=10 medium (9.4 s)
+[9/16] A-mt warm N=1 large (6.5 s)
+run 3: A-mt warm N=2 medium flagged (probe)
+[10/16] A-mt warm N=2 medium (6.1 s)
+[11/16] A-mt warm N=3 medium (6.4 s)
+[12/16] A-mt warm N=5 large (9.4 s)
+[13/16] A-mt warm N=10 small (8.9 s)
+[14/16] A-mt warm N=1 medium (5.9 s)
+[15/16] A-mt warm N=3 medium-approval (11.6 s)
+[16/16] A-mt warm N=5 small (7.0 s)
+== thermal re-run, run 1
+dc-bench: waiting for the machine to become idle: {"busy_processes":[],"loadavg_1m":3.38,"ok":false}
+dc-bench: waiting for the machine to become idle: {"busy_processes":[],"loadavg_1m":2.93,"ok":false}
+dc-bench: waiting for the machine to become idle: {"busy_processes":[],"loadavg_1m":2.5,"ok":false}
+dc-bench: waiting for the machine to become idle: {"busy_processes":[],"loadavg_1m":2.25,"ok":false}
+run1-rerun: generating 6 chain sets…
+run 1: probe baseline 71.9 ms
+[1/6] C cold+rtt1ms N=3 medium (20.4 s)
+[2/6] A cold+rtt20ms N=3 medium (53.9 s)
+[3/6] A cold+rtt1ms N=3 medium (38.1 s)
+[4/6] C cold+rtt20ms N=3 medium (47.3 s)
+[5/6] A cold+rtt80ms N=3 medium (104.0 s)
+[6/6] C cold+rtt80ms N=3 medium (98.6 s)
+== thermal re-run, run 1, A-mt
+run1-amt-rerun: generating 1 chain sets…
+run 1: probe baseline 57.6 ms
+[1/1] A-mt warm N=5 medium (7.0 s)
+== thermal re-run, run 2
+run2-rerun: generating 6 chain sets…
+run 2: probe baseline 69.6 ms
+[1/6] A cold+rtt80ms N=3 medium (104.0 s)
+[2/6] A cold+rtt1ms N=3 medium (37.9 s)
+[3/6] C cold+rtt20ms N=3 medium (47.2 s)
+[4/6] C cold+rtt80ms N=3 medium (98.4 s)
+[5/6] C cold+rtt1ms N=3 medium (20.4 s)
+[6/6] A cold+rtt20ms N=3 medium (53.9 s)
+== thermal re-run, run 2, A-mt
+run2-amt-rerun: generating 10 chain sets…
+run 2: probe baseline 57.9 ms
+[1/10] A-mt warm N=2 medium (5.9 s)
+[2/10] A-mt warm N=2 small (5.8 s)
+[3/10] A-mt warm N=1 small (5.6 s)
+[4/10] A-mt warm N=3 large (7.6 s)
+[5/10] A-mt warm N=1 medium (5.7 s)
+[6/10] A-mt warm N=10 large (11.3 s)
+run 2: A-mt warm N=10 small flagged (probe)
+[7/10] A-mt warm N=10 small (8.8 s)
+[8/10] A-mt warm N=3 medium-approval (11.3 s)
+run 2: A-mt warm N=1 large flagged (probe)
+[9/10] A-mt warm N=1 large (6.3 s)
+[10/10] A-mt warm N=2 large (7.0 s)
+== thermal re-run, run 3
+dc-bench: waiting for the machine to become idle: {"busy_processes":[],"loadavg_1m":2.24,"ok":false}
+dc-bench: waiting for the machine to become idle: {"busy_processes":[{"command":"/usr/libexec/duetexpertd","pcpu":97.6,"pid":833}],"loadavg_1m":1.98,"ok":false}
+run3-rerun: generating 2 chain sets…
+run 3: probe baseline 71.7 ms
+[1/2] C-batch warm N=5 small (1.5 s)
+[2/2] B prefix-miss N=3 small (19.3 s)
+== thermal re-run, run 3, A-mt
+run3-amt-rerun: generating 1 chain sets…
+run 3: probe baseline 58.6 ms
+[1/1] A-mt warm N=2 medium (5.9 s)
+== memory (Q10)
+Q10: certificate cache, arm A…
+Q10: certificate cache, arm C…
+Q10: prefix cache, arm B…
+Q10: prefix cache, arm D…
+== criterion benches (Q7, Q8, primitives)
+    Finished `bench` profile [optimized] target(s) in 0.12s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running benches/policy.rs (target/release/deps/policy-ff21c8528e600c39)
+Benchmarking policy/evaluate/typical/r1_a1
+Benchmarking policy/evaluate/typical/r1_a1: Warming up for 3.0000 s
+Benchmarking policy/evaluate/typical/r1_a1: Collecting 100 samples in estimated 5.0007 s (24M iterations)
+Benchmarking policy/evaluate/typical/r1_a1: Analyzing
+policy/evaluate/typical/r1_a1
+                        time:   [203.42 ns 203.96 ns 204.52 ns]
+Found 3 outliers among 100 measurements (3.00%)
+  3 (3.00%) high mild
+Benchmarking policy/evaluate/worst/r1_a1
+Benchmarking policy/evaluate/worst/r1_a1: Warming up for 3.0000 s
+Benchmarking policy/evaluate/worst/r1_a1: Collecting 100 samples in estimated 5.0002 s (25M iterations)
+Benchmarking policy/evaluate/worst/r1_a1: Analyzing
+policy/evaluate/worst/r1_a1
+                        time:   [200.28 ns 201.10 ns 201.94 ns]
+Found 5 outliers among 100 measurements (5.00%)
+  2 (2.00%) low mild
+  3 (3.00%) high mild
+Benchmarking policy/evaluate/typical/r1_a4
+Benchmarking policy/evaluate/typical/r1_a4: Warming up for 3.0000 s
+Benchmarking policy/evaluate/typical/r1_a4: Collecting 100 samples in estimated 5.0007 s (20M iterations)
+Benchmarking policy/evaluate/typical/r1_a4: Analyzing
+policy/evaluate/typical/r1_a4
+                        time:   [240.77 ns 241.59 ns 242.46 ns]
+Found 3 outliers among 100 measurements (3.00%)
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+Benchmarking policy/evaluate/worst/r1_a4
+Benchmarking policy/evaluate/worst/r1_a4: Warming up for 3.0000 s
+Benchmarking policy/evaluate/worst/r1_a4: Collecting 100 samples in estimated 5.0004 s (21M iterations)
+Benchmarking policy/evaluate/worst/r1_a4: Analyzing
+policy/evaluate/worst/r1_a4
+                        time:   [239.70 ns 240.24 ns 240.79 ns]
+Found 4 outliers among 100 measurements (4.00%)
+  2 (2.00%) low severe
+  2 (2.00%) high mild
+Benchmarking policy/evaluate/typical/r1_a8
+Benchmarking policy/evaluate/typical/r1_a8: Warming up for 3.0000 s
+Benchmarking policy/evaluate/typical/r1_a8: Collecting 100 samples in estimated 5.0008 s (17M iterations)
+Benchmarking policy/evaluate/typical/r1_a8: Analyzing
+policy/evaluate/typical/r1_a8
+                        time:   [298.65 ns 299.69 ns 300.78 ns]
+Benchmarking policy/evaluate/worst/r1_a8
+Benchmarking policy/evaluate/worst/r1_a8: Warming up for 3.0000 s
+Benchmarking policy/evaluate/worst/r1_a8: Collecting 100 samples in estimated 5.0013 s (17M iterations)
+Benchmarking policy/evaluate/worst/r1_a8: Analyzing
+policy/evaluate/worst/r1_a8
+                        time:   [297.35 ns 298.56 ns 299.76 ns]
+Found 6 outliers among 100 measurements (6.00%)
+  1 (1.00%) low severe
+  5 (5.00%) high mild
+Benchmarking policy/evaluate/typical/r4_a1
+Benchmarking policy/evaluate/typical/r4_a1: Warming up for 3.0000 s
+Benchmarking policy/evaluate/typical/r4_a1: Collecting 100 samples in estimated 5.0007 s (25M iterations)
+Benchmarking policy/evaluate/typical/r4_a1: Analyzing
+policy/evaluate/typical/r4_a1
+                        time:   [198.07 ns 198.55 ns 199.10 ns]
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) low mild
+  1 (1.00%) high mild
+Benchmarking policy/evaluate/worst/r4_a1
+Benchmarking policy/evaluate/worst/r4_a1: Warming up for 3.0000 s
+Benchmarking policy/evaluate/worst/r4_a1: Collecting 100 samples in estimated 5.0014 s (15M iterations)
+Benchmarking policy/evaluate/worst/r4_a1: Analyzing
+policy/evaluate/worst/r4_a1
+                        time:   [338.26 ns 338.98 ns 339.73 ns]
+Found 3 outliers among 100 measurements (3.00%)
+  1 (1.00%) low mild
+  2 (2.00%) high mild
+Benchmarking policy/evaluate/typical/r4_a4
+Benchmarking policy/evaluate/typical/r4_a4: Warming up for 3.0000 s
+Benchmarking policy/evaluate/typical/r4_a4: Collecting 100 samples in estimated 5.0000 s (21M iterations)
+Benchmarking policy/evaluate/typical/r4_a4: Analyzing
+policy/evaluate/typical/r4_a4
+                        time:   [239.36 ns 240.09 ns 241.06 ns]
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) high mild
+  1 (1.00%) high severe
+Benchmarking policy/evaluate/worst/r4_a4
+Benchmarking policy/evaluate/worst/r4_a4: Warming up for 3.0000 s
+Benchmarking policy/evaluate/worst/r4_a4: Collecting 100 samples in estimated 5.0017 s (10.0M iterations)
+Benchmarking policy/evaluate/worst/r4_a4: Analyzing
+policy/evaluate/worst/r4_a4
+                        time:   [499.59 ns 500.54 ns 501.52 ns]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) low mild
+Benchmarking policy/evaluate/typical/r4_a8
+Benchmarking policy/evaluate/typical/r4_a8: Warming up for 3.0000 s
+Benchmarking policy/evaluate/typical/r4_a8: Collecting 100 samples in estimated 5.0008 s (17M iterations)
+Benchmarking policy/evaluate/typical/r4_a8: Analyzing
+policy/evaluate/typical/r4_a8
+                        time:   [294.10 ns 294.71 ns 295.34 ns]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) low mild
+Benchmarking policy/evaluate/worst/r4_a8
+Benchmarking policy/evaluate/worst/r4_a8: Warming up for 3.0000 s
+Benchmarking policy/evaluate/worst/r4_a8: Collecting 100 samples in estimated 5.0033 s (6.8M iterations)
+Benchmarking policy/evaluate/worst/r4_a8: Analyzing
+policy/evaluate/worst/r4_a8
+                        time:   [730.25 ns 733.29 ns 736.42 ns]
+Benchmarking policy/evaluate/typical/r16_a1
+Benchmarking policy/evaluate/typical/r16_a1: Warming up for 3.0000 s
+Benchmarking policy/evaluate/typical/r16_a1: Collecting 100 samples in estimated 5.0001 s (25M iterations)
+Benchmarking policy/evaluate/typical/r16_a1: Analyzing
+policy/evaluate/typical/r16_a1
+                        time:   [201.23 ns 201.86 ns 202.51 ns]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) low mild
+Benchmarking policy/evaluate/worst/r16_a1
+Benchmarking policy/evaluate/worst/r16_a1: Warming up for 3.0000 s
+Benchmarking policy/evaluate/worst/r16_a1: Collecting 100 samples in estimated 5.0030 s (5.7M iterations)
+Benchmarking policy/evaluate/worst/r16_a1: Analyzing
+policy/evaluate/worst/r16_a1
+                        time:   [869.86 ns 871.88 ns 874.08 ns]
+Found 3 outliers among 100 measurements (3.00%)
+  1 (1.00%) low mild
+  2 (2.00%) high mild
+Benchmarking policy/evaluate/typical/r16_a4
+Benchmarking policy/evaluate/typical/r16_a4: Warming up for 3.0000 s
+Benchmarking policy/evaluate/typical/r16_a4: Collecting 100 samples in estimated 5.0004 s (21M iterations)
+Benchmarking policy/evaluate/typical/r16_a4: Analyzing
+policy/evaluate/typical/r16_a4
+                        time:   [241.05 ns 241.81 ns 242.64 ns]
+Found 4 outliers among 100 measurements (4.00%)
+  1 (1.00%) low mild
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+Benchmarking policy/evaluate/worst/r16_a4
+Benchmarking policy/evaluate/worst/r16_a4: Warming up for 3.0000 s
+Benchmarking policy/evaluate/worst/r16_a4: Collecting 100 samples in estimated 5.0045 s (3.3M iterations)
+Benchmarking policy/evaluate/worst/r16_a4: Analyzing
+policy/evaluate/worst/r16_a4
+                        time:   [1.5281 µs 1.5325 µs 1.5370 µs]
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) low mild
+  1 (1.00%) high mild
+Benchmarking policy/evaluate/typical/r16_a8
+Benchmarking policy/evaluate/typical/r16_a8: Warming up for 3.0000 s
+Benchmarking policy/evaluate/typical/r16_a8: Collecting 100 samples in estimated 5.0003 s (17M iterations)
+Benchmarking policy/evaluate/typical/r16_a8: Analyzing
+policy/evaluate/typical/r16_a8
+                        time:   [297.95 ns 298.94 ns 299.95 ns]
+Benchmarking policy/evaluate/worst/r16_a8
+Benchmarking policy/evaluate/worst/r16_a8: Warming up for 3.0000 s
+Benchmarking policy/evaluate/worst/r16_a8: Collecting 100 samples in estimated 5.0007 s (2.1M iterations)
+Benchmarking policy/evaluate/worst/r16_a8: Analyzing
+policy/evaluate/worst/r16_a8
+                        time:   [2.4243 µs 2.4326 µs 2.4416 µs]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+Benchmarking policy/evaluate/typical/r64_a1
+Benchmarking policy/evaluate/typical/r64_a1: Warming up for 3.0000 s
+Benchmarking policy/evaluate/typical/r64_a1: Collecting 100 samples in estimated 5.0001 s (25M iterations)
+Benchmarking policy/evaluate/typical/r64_a1: Analyzing
+policy/evaluate/typical/r64_a1
+                        time:   [200.08 ns 200.64 ns 201.29 ns]
+Found 3 outliers among 100 measurements (3.00%)
+  3 (3.00%) high mild
+Benchmarking policy/evaluate/worst/r64_a1
+Benchmarking policy/evaluate/worst/r64_a1: Warming up for 3.0000 s
+Benchmarking policy/evaluate/worst/r64_a1: Collecting 100 samples in estimated 5.0151 s (1.7M iterations)
+Benchmarking policy/evaluate/worst/r64_a1: Analyzing
+policy/evaluate/worst/r64_a1
+                        time:   [2.9949 µs 2.9993 µs 3.0038 µs]
+Found 4 outliers among 100 measurements (4.00%)
+  2 (2.00%) low mild
+  1 (1.00%) high mild
+  1 (1.00%) high severe
+Benchmarking policy/evaluate/typical/r64_a4
+Benchmarking policy/evaluate/typical/r64_a4: Warming up for 3.0000 s
+Benchmarking policy/evaluate/typical/r64_a4: Collecting 100 samples in estimated 5.0004 s (21M iterations)
+Benchmarking policy/evaluate/typical/r64_a4: Analyzing
+policy/evaluate/typical/r64_a4
+                        time:   [243.52 ns 244.68 ns 246.03 ns]
+Found 3 outliers among 100 measurements (3.00%)
+  1 (1.00%) low mild
+  2 (2.00%) high severe
+Benchmarking policy/evaluate/worst/r64_a4
+Benchmarking policy/evaluate/worst/r64_a4: Warming up for 3.0000 s
+Benchmarking policy/evaluate/worst/r64_a4: Collecting 100 samples in estimated 5.0278 s (899k iterations)
+Benchmarking policy/evaluate/worst/r64_a4: Analyzing
+policy/evaluate/worst/r64_a4
+                        time:   [5.6193 µs 5.6360 µs 5.6527 µs]
+Found 5 outliers among 100 measurements (5.00%)
+  3 (3.00%) low mild
+  2 (2.00%) high mild
+Benchmarking policy/evaluate/typical/r64_a8
+Benchmarking policy/evaluate/typical/r64_a8: Warming up for 3.0000 s
+Benchmarking policy/evaluate/typical/r64_a8: Collecting 100 samples in estimated 5.0013 s (17M iterations)
+Benchmarking policy/evaluate/typical/r64_a8: Analyzing
+policy/evaluate/typical/r64_a8
+                        time:   [296.67 ns 297.32 ns 298.06 ns]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+Benchmarking policy/evaluate/worst/r64_a8
+Benchmarking policy/evaluate/worst/r64_a8: Warming up for 3.0000 s
+Benchmarking policy/evaluate/worst/r64_a8: Collecting 100 samples in estimated 5.0139 s (540k iterations)
+Benchmarking policy/evaluate/worst/r64_a8: Analyzing
+policy/evaluate/worst/r64_a8
+                        time:   [9.2799 µs 9.3063 µs 9.3329 µs]
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) low mild
+  1 (1.00%) high mild
+
+Benchmarking policy/contains/typical/r1_a1
+Benchmarking policy/contains/typical/r1_a1: Warming up for 3.0000 s
+Benchmarking policy/contains/typical/r1_a1: Collecting 100 samples in estimated 5.0009 s (24M iterations)
+Benchmarking policy/contains/typical/r1_a1: Analyzing
+policy/contains/typical/r1_a1
+                        time:   [201.80 ns 202.61 ns 203.54 ns]
+Benchmarking policy/contains/worst/r1_a1
+Benchmarking policy/contains/worst/r1_a1: Warming up for 3.0000 s
+Benchmarking policy/contains/worst/r1_a1: Collecting 100 samples in estimated 5.0010 s (24M iterations)
+Benchmarking policy/contains/worst/r1_a1: Analyzing
+policy/contains/worst/r1_a1
+                        time:   [204.09 ns 204.96 ns 205.86 ns]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+Benchmarking policy/contains/typical/r1_a4
+Benchmarking policy/contains/typical/r1_a4: Warming up for 3.0000 s
+Benchmarking policy/contains/typical/r1_a4: Collecting 100 samples in estimated 5.0023 s (8.4M iterations)
+Benchmarking policy/contains/typical/r1_a4: Analyzing
+policy/contains/typical/r1_a4
+                        time:   [600.99 ns 603.10 ns 605.24 ns]
+Found 4 outliers among 100 measurements (4.00%)
+  4 (4.00%) high mild
+Benchmarking policy/contains/worst/r1_a4
+Benchmarking policy/contains/worst/r1_a4: Warming up for 3.0000 s
+Benchmarking policy/contains/worst/r1_a4: Collecting 100 samples in estimated 5.0026 s (8.3M iterations)
+Benchmarking policy/contains/worst/r1_a4: Analyzing
+policy/contains/worst/r1_a4
+                        time:   [602.20 ns 604.91 ns 607.73 ns]
+Benchmarking policy/contains/typical/r1_a8
+Benchmarking policy/contains/typical/r1_a8: Warming up for 3.0000 s
+Benchmarking policy/contains/typical/r1_a8: Collecting 100 samples in estimated 5.0031 s (3.7M iterations)
+Benchmarking policy/contains/typical/r1_a8: Analyzing
+policy/contains/typical/r1_a8
+                        time:   [1.3467 µs 1.3490 µs 1.3514 µs]
+Found 9 outliers among 100 measurements (9.00%)
+  1 (1.00%) low mild
+  6 (6.00%) high mild
+  2 (2.00%) high severe
+Benchmarking policy/contains/worst/r1_a8
+Benchmarking policy/contains/worst/r1_a8: Warming up for 3.0000 s
+Benchmarking policy/contains/worst/r1_a8: Collecting 100 samples in estimated 5.0033 s (3.7M iterations)
+Benchmarking policy/contains/worst/r1_a8: Analyzing
+policy/contains/worst/r1_a8
+                        time:   [1.3448 µs 1.3482 µs 1.3517 µs]
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) low mild
+  1 (1.00%) high mild
+Benchmarking policy/contains/typical/r4_a1
+Benchmarking policy/contains/typical/r4_a1: Warming up for 3.0000 s
+Benchmarking policy/contains/typical/r4_a1: Collecting 100 samples in estimated 5.0159 s (1.5M iterations)
+Benchmarking policy/contains/typical/r4_a1: Analyzing
+policy/contains/typical/r4_a1
+                        time:   [3.2515 µs 3.2662 µs 3.2811 µs]
+Benchmarking policy/contains/worst/r4_a1
+Benchmarking policy/contains/worst/r4_a1: Warming up for 3.0000 s
+Benchmarking policy/contains/worst/r4_a1: Collecting 100 samples in estimated 5.0032 s (1.6M iterations)
+Benchmarking policy/contains/worst/r4_a1: Analyzing
+policy/contains/worst/r4_a1
+                        time:   [3.2425 µs 3.2631 µs 3.2835 µs]
+Benchmarking policy/contains/typical/r4_a4
+Benchmarking policy/contains/typical/r4_a4: Warming up for 3.0000 s
+Benchmarking policy/contains/typical/r4_a4: Collecting 100 samples in estimated 5.0122 s (545k iterations)
+Benchmarking policy/contains/typical/r4_a4: Analyzing
+policy/contains/typical/r4_a4
+                        time:   [9.1597 µs 9.1924 µs 9.2238 µs]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+Benchmarking policy/contains/worst/r4_a4
+Benchmarking policy/contains/worst/r4_a4: Warming up for 3.0000 s
+Benchmarking policy/contains/worst/r4_a4: Collecting 100 samples in estimated 5.0431 s (556k iterations)
+Benchmarking policy/contains/worst/r4_a4: Analyzing
+policy/contains/worst/r4_a4
+                        time:   [9.0954 µs 9.1383 µs 9.1808 µs]
+Found 5 outliers among 100 measurements (5.00%)
+  5 (5.00%) high mild
+Benchmarking policy/contains/typical/r4_a8
+Benchmarking policy/contains/typical/r4_a8: Warming up for 3.0000 s
+Benchmarking policy/contains/typical/r4_a8: Collecting 100 samples in estimated 5.0712 s (242k iterations)
+Benchmarking policy/contains/typical/r4_a8: Analyzing
+policy/contains/typical/r4_a8
+                        time:   [20.851 µs 20.923 µs 20.987 µs]
+Benchmarking policy/contains/worst/r4_a8
+Benchmarking policy/contains/worst/r4_a8: Warming up for 3.0000 s
+Benchmarking policy/contains/worst/r4_a8: Collecting 100 samples in estimated 5.0355 s (242k iterations)
+Benchmarking policy/contains/worst/r4_a8: Analyzing
+policy/contains/worst/r4_a8
+                        time:   [20.933 µs 20.978 µs 21.024 µs]
+Found 4 outliers among 100 measurements (4.00%)
+  1 (1.00%) low severe
+  1 (1.00%) low mild
+  2 (2.00%) high mild
+Benchmarking policy/contains/typical/r16_a1
+Benchmarking policy/contains/typical/r16_a1: Warming up for 3.0000 s
+Benchmarking policy/contains/typical/r16_a1: Collecting 100 samples in estimated 5.0690 s (101k iterations)
+Benchmarking policy/contains/typical/r16_a1: Analyzing
+policy/contains/typical/r16_a1
+                        time:   [49.751 µs 50.053 µs 50.339 µs]
+Benchmarking policy/contains/worst/r16_a1
+Benchmarking policy/contains/worst/r16_a1: Warming up for 3.0000 s
+Benchmarking policy/contains/worst/r16_a1: Collecting 100 samples in estimated 5.1466 s (101k iterations)
+Benchmarking policy/contains/worst/r16_a1: Analyzing
+policy/contains/worst/r16_a1
+                        time:   [49.986 µs 50.367 µs 50.763 µs]
+Found 12 outliers among 100 measurements (12.00%)
+  12 (12.00%) low mild
+Benchmarking policy/contains/typical/r16_a4
+Benchmarking policy/contains/typical/r16_a4: Warming up for 3.0000 s
+Benchmarking policy/contains/typical/r16_a4: Collecting 100 samples in estimated 5.1039 s (35k iterations)
+Benchmarking policy/contains/typical/r16_a4: Analyzing
+policy/contains/typical/r16_a4
+                        time:   [141.36 µs 142.19 µs 142.99 µs]
+Found 4 outliers among 100 measurements (4.00%)
+  4 (4.00%) high mild
+Benchmarking policy/contains/worst/r16_a4
+Benchmarking policy/contains/worst/r16_a4: Warming up for 3.0000 s
+Benchmarking policy/contains/worst/r16_a4: Collecting 100 samples in estimated 5.0931 s (35k iterations)
+Benchmarking policy/contains/worst/r16_a4: Analyzing
+policy/contains/worst/r16_a4
+                        time:   [141.40 µs 142.05 µs 142.77 µs]
+Benchmarking policy/contains/typical/r16_a8
+Benchmarking policy/contains/typical/r16_a8: Warming up for 3.0000 s
+Benchmarking policy/contains/typical/r16_a8: Collecting 100 samples in estimated 6.6157 s (20k iterations)
+Benchmarking policy/contains/typical/r16_a8: Analyzing
+policy/contains/typical/r16_a8
+                        time:   [327.34 µs 328.76 µs 330.08 µs]
+Benchmarking policy/contains/worst/r16_a8
+Benchmarking policy/contains/worst/r16_a8: Warming up for 3.0000 s
+Benchmarking policy/contains/worst/r16_a8: Collecting 100 samples in estimated 6.6152 s (20k iterations)
+Benchmarking policy/contains/worst/r16_a8: Analyzing
+policy/contains/worst/r16_a8
+                        time:   [325.20 µs 326.49 µs 327.88 µs]
+Benchmarking policy/contains/typical/r64_a1
+Benchmarking policy/contains/typical/r64_a1: Warming up for 3.0000 s
+Benchmarking policy/contains/typical/r64_a1: Collecting 100 samples in estimated 7.9192 s (10k iterations)
+Benchmarking policy/contains/typical/r64_a1: Analyzing
+policy/contains/typical/r64_a1
+                        time:   [793.75 µs 798.28 µs 802.37 µs]
+Benchmarking policy/contains/worst/r64_a1
+Benchmarking policy/contains/worst/r64_a1: Warming up for 3.0000 s
+Benchmarking policy/contains/worst/r64_a1: Collecting 100 samples in estimated 8.0333 s (10k iterations)
+Benchmarking policy/contains/worst/r64_a1: Analyzing
+policy/contains/worst/r64_a1
+                        time:   [782.15 µs 786.27 µs 790.69 µs]
+Benchmarking policy/contains/typical/r64_a4
+Benchmarking policy/contains/typical/r64_a4: Warming up for 3.0000 s
+Benchmarking policy/contains/typical/r64_a4: Collecting 100 samples in estimated 5.2060 s (2300 iterations)
+Benchmarking policy/contains/typical/r64_a4: Analyzing
+policy/contains/typical/r64_a4
+                        time:   [2.2517 ms 2.2610 ms 2.2706 ms]
+Benchmarking policy/contains/worst/r64_a4
+Benchmarking policy/contains/worst/r64_a4: Warming up for 3.0000 s
+Benchmarking policy/contains/worst/r64_a4: Collecting 100 samples in estimated 5.2177 s (2300 iterations)
+Benchmarking policy/contains/worst/r64_a4: Analyzing
+policy/contains/worst/r64_a4
+                        time:   [2.2574 ms 2.2654 ms 2.2736 ms]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+Benchmarking policy/contains/typical/r64_a8
+Benchmarking policy/contains/typical/r64_a8: Warming up for 3.0000 s
+Benchmarking policy/contains/typical/r64_a8: Collecting 100 samples in estimated 5.2087 s (1000 iterations)
+Benchmarking policy/contains/typical/r64_a8: Analyzing
+policy/contains/typical/r64_a8
+                        time:   [5.1091 ms 5.1217 ms 5.1349 ms]
+Found 9 outliers among 100 measurements (9.00%)
+  9 (9.00%) high mild
+Benchmarking policy/contains/worst/r64_a8
+Benchmarking policy/contains/worst/r64_a8: Warming up for 3.0000 s
+Benchmarking policy/contains/worst/r64_a8: Collecting 100 samples in estimated 5.2073 s (1000 iterations)
+Benchmarking policy/contains/worst/r64_a8: Analyzing
+policy/contains/worst/r64_a8
+                        time:   [5.1274 ms 5.1417 ms 5.1561 ms]
+
+     Running benches/primitives.rs (target/release/deps/primitives-a3cccac52b0cc8d0)
+Benchmarking bls/sign
+Benchmarking bls/sign: Warming up for 3.0000 s
+Benchmarking bls/sign: Collecting 100 samples in estimated 5.7515 s (30k iterations)
+Benchmarking bls/sign: Analyzing
+bls/sign                time:   [189.50 µs 189.61 µs 189.74 µs]
+Found 8 outliers among 100 measurements (8.00%)
+  2 (2.00%) low mild
+  1 (1.00%) high mild
+  5 (5.00%) high severe
+
+Benchmarking bls/verify
+Benchmarking bls/verify: Warming up for 3.0000 s
+Benchmarking bls/verify: Collecting 100 samples in estimated 5.3669 s (10k iterations)
+Benchmarking bls/verify: Analyzing
+bls/verify              time:   [530.98 µs 531.26 µs 531.59 µs]
+Found 12 outliers among 100 measurements (12.00%)
+  4 (4.00%) low severe
+  1 (1.00%) low mild
+  3 (3.00%) high mild
+  4 (4.00%) high severe
+
+Benchmarking bls/aggregate_verify/2
+Benchmarking bls/aggregate_verify/2: Warming up for 3.0000 s
+Benchmarking bls/aggregate_verify/2: Collecting 100 samples in estimated 7.2004 s (10k iterations)
+Benchmarking bls/aggregate_verify/2: Analyzing
+bls/aggregate_verify/2  time:   [712.05 µs 712.35 µs 712.67 µs]
+Found 7 outliers among 100 measurements (7.00%)
+  1 (1.00%) low mild
+  5 (5.00%) high mild
+  1 (1.00%) high severe
+Benchmarking bls/aggregate_verify/3
+Benchmarking bls/aggregate_verify/3: Warming up for 3.0000 s
+Benchmarking bls/aggregate_verify/3: Collecting 100 samples in estimated 9.0408 s (10k iterations)
+Benchmarking bls/aggregate_verify/3: Analyzing
+bls/aggregate_verify/3  time:   [893.08 µs 893.78 µs 894.68 µs]
+Found 10 outliers among 100 measurements (10.00%)
+  1 (1.00%) low severe
+  3 (3.00%) low mild
+  4 (4.00%) high mild
+  2 (2.00%) high severe
+Benchmarking bls/aggregate_verify/4
+Benchmarking bls/aggregate_verify/4: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 5.4s, enable flat sampling, or reduce sample count to 60.
+Benchmarking bls/aggregate_verify/4: Collecting 100 samples in estimated 5.4251 s (5050 iterations)
+Benchmarking bls/aggregate_verify/4: Analyzing
+bls/aggregate_verify/4  time:   [1.0739 ms 1.0753 ms 1.0770 ms]
+Found 11 outliers among 100 measurements (11.00%)
+  2 (2.00%) low severe
+  5 (5.00%) low mild
+  1 (1.00%) high mild
+  3 (3.00%) high severe
+Benchmarking bls/aggregate_verify/5
+Benchmarking bls/aggregate_verify/5: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 6.3s, enable flat sampling, or reduce sample count to 60.
+Benchmarking bls/aggregate_verify/5: Collecting 100 samples in estimated 6.3398 s (5050 iterations)
+Benchmarking bls/aggregate_verify/5: Analyzing
+bls/aggregate_verify/5  time:   [1.2547 ms 1.2560 ms 1.2578 ms]
+Found 8 outliers among 100 measurements (8.00%)
+  1 (1.00%) low severe
+  1 (1.00%) low mild
+  3 (3.00%) high mild
+  3 (3.00%) high severe
+Benchmarking bls/aggregate_verify/6
+Benchmarking bls/aggregate_verify/6: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 7.3s, enable flat sampling, or reduce sample count to 50.
+Benchmarking bls/aggregate_verify/6: Collecting 100 samples in estimated 7.2508 s (5050 iterations)
+Benchmarking bls/aggregate_verify/6: Analyzing
+bls/aggregate_verify/6  time:   [1.4353 ms 1.4362 ms 1.4372 ms]
+Found 13 outliers among 100 measurements (13.00%)
+  2 (2.00%) low mild
+  4 (4.00%) high mild
+  7 (7.00%) high severe
+Benchmarking bls/aggregate_verify/7
+Benchmarking bls/aggregate_verify/7: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 8.2s, enable flat sampling, or reduce sample count to 50.
+Benchmarking bls/aggregate_verify/7: Collecting 100 samples in estimated 8.1684 s (5050 iterations)
+Benchmarking bls/aggregate_verify/7: Analyzing
+bls/aggregate_verify/7  time:   [1.6164 ms 1.6172 ms 1.6182 ms]
+Found 7 outliers among 100 measurements (7.00%)
+  1 (1.00%) low severe
+  2 (2.00%) low mild
+  3 (3.00%) high mild
+  1 (1.00%) high severe
+Benchmarking bls/aggregate_verify/8
+Benchmarking bls/aggregate_verify/8: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 9.1s, enable flat sampling, or reduce sample count to 50.
+Benchmarking bls/aggregate_verify/8: Collecting 100 samples in estimated 9.1033 s (5050 iterations)
+Benchmarking bls/aggregate_verify/8: Analyzing
+bls/aggregate_verify/8  time:   [1.7964 ms 1.7978 ms 1.7997 ms]
+Found 9 outliers among 100 measurements (9.00%)
+  2 (2.00%) low mild
+  4 (4.00%) high mild
+  3 (3.00%) high severe
+Benchmarking bls/aggregate_verify/9
+Benchmarking bls/aggregate_verify/9: Warming up for 3.0000 s
+Benchmarking bls/aggregate_verify/9: Collecting 100 samples in estimated 5.0801 s (2500 iterations)
+Benchmarking bls/aggregate_verify/9: Analyzing
+bls/aggregate_verify/9  time:   [2.0295 ms 2.0316 ms 2.0338 ms]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high severe
+Benchmarking bls/aggregate_verify/10
+Benchmarking bls/aggregate_verify/10: Warming up for 3.0000 s
+Benchmarking bls/aggregate_verify/10: Collecting 100 samples in estimated 5.1009 s (2300 iterations)
+Benchmarking bls/aggregate_verify/10: Analyzing
+bls/aggregate_verify/10 time:   [2.2147 ms 2.2168 ms 2.2193 ms]
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) high mild
+  1 (1.00%) high severe
+Benchmarking bls/aggregate_verify/11
+Benchmarking bls/aggregate_verify/11: Warming up for 3.0000 s
+Benchmarking bls/aggregate_verify/11: Collecting 100 samples in estimated 5.0434 s (2100 iterations)
+Benchmarking bls/aggregate_verify/11: Analyzing
+bls/aggregate_verify/11 time:   [2.3997 ms 2.4020 ms 2.4044 ms]
+Found 4 outliers among 100 measurements (4.00%)
+  1 (1.00%) low mild
+  1 (1.00%) high mild
+  2 (2.00%) high severe
+
+Benchmarking bls/pairing_context
+Benchmarking bls/pairing_context: Warming up for 3.0000 s
+Benchmarking bls/pairing_context: Collecting 100 samples in estimated 5.0001 s (120M iterations)
+Benchmarking bls/pairing_context: Analyzing
+bls/pairing_context     time:   [41.383 ns 41.477 ns 41.598 ns]
+Found 8 outliers among 100 measurements (8.00%)
+  4 (4.00%) low mild
+  3 (3.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking bls/hash_to_g2_proxy
+Benchmarking bls/hash_to_g2_proxy: Warming up for 3.0000 s
+Benchmarking bls/hash_to_g2_proxy: Collecting 100 samples in estimated 5.3373 s (56k iterations)
+Benchmarking bls/hash_to_g2_proxy: Analyzing
+bls/hash_to_g2_proxy    time:   [96.002 µs 96.084 µs 96.154 µs]
+Found 19 outliers among 100 measurements (19.00%)
+  10 (10.00%) low severe
+  5 (5.00%) low mild
+  3 (3.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking bls/miller_loop
+Benchmarking bls/miller_loop: Warming up for 3.0000 s
+Benchmarking bls/miller_loop: Collecting 100 samples in estimated 5.1554 s (40k iterations)
+Benchmarking bls/miller_loop: Analyzing
+bls/miller_loop         time:   [127.23 µs 127.31 µs 127.39 µs]
+Found 11 outliers among 100 measurements (11.00%)
+  2 (2.00%) low severe
+  3 (3.00%) low mild
+  3 (3.00%) high mild
+  3 (3.00%) high severe
+
+Benchmarking bls/final_exp
+Benchmarking bls/final_exp: Warming up for 3.0000 s
+Benchmarking bls/final_exp: Collecting 100 samples in estimated 5.4032 s (30k iterations)
+Benchmarking bls/final_exp: Analyzing
+bls/final_exp           time:   [178.06 µs 178.24 µs 178.50 µs]
+Found 9 outliers among 100 measurements (9.00%)
+  1 (1.00%) low severe
+  2 (2.00%) low mild
+  3 (3.00%) high mild
+  3 (3.00%) high severe
+
+Benchmarking ed25519/sign
+Benchmarking ed25519/sign: Warming up for 3.0000 s
+Benchmarking ed25519/sign: Collecting 100 samples in estimated 5.0079 s (621k iterations)
+Benchmarking ed25519/sign: Analyzing
+ed25519/sign            time:   [8.0484 µs 8.0598 µs 8.0706 µs]
+Found 4 outliers among 100 measurements (4.00%)
+  2 (2.00%) low severe
+  2 (2.00%) low mild
+
+Benchmarking ed25519/verify_strict
+Benchmarking ed25519/verify_strict: Warming up for 3.0000 s
+Benchmarking ed25519/verify_strict: Collecting 100 samples in estimated 5.1018 s (247k iterations)
+Benchmarking ed25519/verify_strict: Analyzing
+ed25519/verify_strict   time:   [20.637 µs 20.643 µs 20.649 µs]
+Found 12 outliers among 100 measurements (12.00%)
+  3 (3.00%) high mild
+  9 (9.00%) high severe
+
+Benchmarking ed25519/verify_batch/2
+Benchmarking ed25519/verify_batch/2: Warming up for 3.0000 s
+Benchmarking ed25519/verify_batch/2: Collecting 100 samples in estimated 5.1417 s (162k iterations)
+Benchmarking ed25519/verify_batch/2: Analyzing
+ed25519/verify_batch/2  time:   [31.872 µs 31.905 µs 31.940 µs]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+Benchmarking ed25519/verify_batch/3
+Benchmarking ed25519/verify_batch/3: Warming up for 3.0000 s
+Benchmarking ed25519/verify_batch/3: Collecting 100 samples in estimated 5.1884 s (131k iterations)
+Benchmarking ed25519/verify_batch/3: Analyzing
+ed25519/verify_batch/3  time:   [39.599 µs 39.627 µs 39.657 µs]
+Found 8 outliers among 100 measurements (8.00%)
+  2 (2.00%) low severe
+  2 (2.00%) low mild
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+Benchmarking ed25519/verify_batch/4
+Benchmarking ed25519/verify_batch/4: Warming up for 3.0000 s
+Benchmarking ed25519/verify_batch/4: Collecting 100 samples in estimated 5.0961 s (106k iterations)
+Benchmarking ed25519/verify_batch/4: Analyzing
+ed25519/verify_batch/4  time:   [48.035 µs 48.082 µs 48.129 µs]
+Found 11 outliers among 100 measurements (11.00%)
+  2 (2.00%) low severe
+  6 (6.00%) low mild
+  3 (3.00%) high mild
+Benchmarking ed25519/verify_batch/5
+Benchmarking ed25519/verify_batch/5: Warming up for 3.0000 s
+Benchmarking ed25519/verify_batch/5: Collecting 100 samples in estimated 5.1137 s (91k iterations)
+Benchmarking ed25519/verify_batch/5: Analyzing
+ed25519/verify_batch/5  time:   [56.460 µs 56.511 µs 56.563 µs]
+Found 10 outliers among 100 measurements (10.00%)
+  5 (5.00%) low mild
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+Benchmarking ed25519/verify_batch/6
+Benchmarking ed25519/verify_batch/6: Warming up for 3.0000 s
+Benchmarking ed25519/verify_batch/6: Collecting 100 samples in estimated 5.1626 s (81k iterations)
+Benchmarking ed25519/verify_batch/6: Analyzing
+ed25519/verify_batch/6  time:   [64.177 µs 64.242 µs 64.312 µs]
+Found 8 outliers among 100 measurements (8.00%)
+  1 (1.00%) low severe
+  2 (2.00%) low mild
+  4 (4.00%) high mild
+  1 (1.00%) high severe
+Benchmarking ed25519/verify_batch/7
+Benchmarking ed25519/verify_batch/7: Warming up for 3.0000 s
+Benchmarking ed25519/verify_batch/7: Collecting 100 samples in estimated 5.1052 s (71k iterations)
+Benchmarking ed25519/verify_batch/7: Analyzing
+ed25519/verify_batch/7  time:   [72.553 µs 72.624 µs 72.698 µs]
+Found 7 outliers among 100 measurements (7.00%)
+  4 (4.00%) low mild
+  1 (1.00%) high mild
+  2 (2.00%) high severe
+Benchmarking ed25519/verify_batch/8
+Benchmarking ed25519/verify_batch/8: Warming up for 3.0000 s
+Benchmarking ed25519/verify_batch/8: Collecting 100 samples in estimated 5.3258 s (66k iterations)
+Benchmarking ed25519/verify_batch/8: Analyzing
+ed25519/verify_batch/8  time:   [81.535 µs 81.603 µs 81.674 µs]
+Found 7 outliers among 100 measurements (7.00%)
+  2 (2.00%) low severe
+  2 (2.00%) low mild
+  1 (1.00%) high mild
+  2 (2.00%) high severe
+Benchmarking ed25519/verify_batch/9
+Benchmarking ed25519/verify_batch/9: Warming up for 3.0000 s
+Benchmarking ed25519/verify_batch/9: Collecting 100 samples in estimated 5.3825 s (61k iterations)
+Benchmarking ed25519/verify_batch/9: Analyzing
+ed25519/verify_batch/9  time:   [89.199 µs 89.282 µs 89.368 µs]
+Found 3 outliers among 100 measurements (3.00%)
+  2 (2.00%) low mild
+  1 (1.00%) high severe
+Benchmarking ed25519/verify_batch/10
+Benchmarking ed25519/verify_batch/10: Warming up for 3.0000 s
+Benchmarking ed25519/verify_batch/10: Collecting 100 samples in estimated 5.4126 s (56k iterations)
+Benchmarking ed25519/verify_batch/10: Analyzing
+ed25519/verify_batch/10 time:   [97.680 µs 97.776 µs 97.875 µs]
+Found 6 outliers among 100 measurements (6.00%)
+  1 (1.00%) low severe
+  2 (2.00%) low mild
+  1 (1.00%) high mild
+  2 (2.00%) high severe
+Benchmarking ed25519/verify_batch/11
+Benchmarking ed25519/verify_batch/11: Warming up for 3.0000 s
+Benchmarking ed25519/verify_batch/11: Collecting 100 samples in estimated 5.3249 s (50k iterations)
+Benchmarking ed25519/verify_batch/11: Analyzing
+ed25519/verify_batch/11 time:   [106.46 µs 106.59 µs 106.73 µs]
+Found 7 outliers among 100 measurements (7.00%)
+  1 (1.00%) low severe
+  2 (2.00%) low mild
+  3 (3.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking cbor/decode/session
+Benchmarking cbor/decode/session: Warming up for 3.0000 s
+Benchmarking cbor/decode/session: Collecting 100 samples in estimated 5.0063 s (2.1M iterations)
+Benchmarking cbor/decode/session: Analyzing
+cbor/decode/session     time:   [2.3349 µs 2.3433 µs 2.3516 µs]
+
+Benchmarking cbor/encode/session
+Benchmarking cbor/encode/session: Warming up for 3.0000 s
+Benchmarking cbor/encode/session: Collecting 100 samples in estimated 5.0079 s (3.2M iterations)
+Benchmarking cbor/encode/session: Analyzing
+cbor/encode/session     time:   [1.5943 µs 1.6024 µs 1.6102 µs]
+Found 5 outliers among 100 measurements (5.00%)
+  2 (2.00%) low mild
+  3 (3.00%) high mild
+
+Benchmarking cbor/decode/delegation
+Benchmarking cbor/decode/delegation: Warming up for 3.0000 s
+Benchmarking cbor/decode/delegation: Collecting 100 samples in estimated 5.0033 s (2.2M iterations)
+Benchmarking cbor/decode/delegation: Analyzing
+cbor/decode/delegation  time:   [2.2998 µs 2.3134 µs 2.3274 µs]
+Found 7 outliers among 100 measurements (7.00%)
+  6 (6.00%) low mild
+  1 (1.00%) high mild
+
+Benchmarking cbor/encode/delegation
+Benchmarking cbor/encode/delegation: Warming up for 3.0000 s
+Benchmarking cbor/encode/delegation: Collecting 100 samples in estimated 5.0008 s (3.2M iterations)
+Benchmarking cbor/encode/delegation: Analyzing
+cbor/encode/delegation  time:   [1.5566 µs 1.5645 µs 1.5725 µs]
+Found 8 outliers among 100 measurements (8.00%)
+  5 (5.00%) high mild
+  3 (3.00%) high severe
+
+Benchmarking cbor/decode/invocation
+Benchmarking cbor/decode/invocation: Warming up for 3.0000 s
+Benchmarking cbor/decode/invocation: Collecting 100 samples in estimated 5.0010 s (8.3M iterations)
+Benchmarking cbor/decode/invocation: Analyzing
+cbor/decode/invocation  time:   [590.17 ns 592.64 ns 595.19 ns]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high severe
+
+Benchmarking cbor/encode/invocation
+Benchmarking cbor/encode/invocation: Warming up for 3.0000 s
+Benchmarking cbor/encode/invocation: Collecting 100 samples in estimated 5.0020 s (10M iterations)
+Benchmarking cbor/encode/invocation: Analyzing
+cbor/encode/invocation  time:   [477.67 ns 480.43 ns 482.96 ns]
+
+Benchmarking sha256/chain_digests_medium_n3
+Benchmarking sha256/chain_digests_medium_n3: Warming up for 3.0000 s
+Benchmarking sha256/chain_digests_medium_n3: Collecting 100 samples in estimated 5.0040 s (1.4M iterations)
+Benchmarking sha256/chain_digests_medium_n3: Analyzing
+sha256/chain_digests_medium_n3
+                        time:   [3.5334 µs 3.5395 µs 3.5466 µs]
+Found 16 outliers among 100 measurements (16.00%)
+  4 (4.00%) low severe
+  3 (3.00%) low mild
+  2 (2.00%) high mild
+  7 (7.00%) high severe
+
+Benchmarking sha256/one_delegation_digest
+Benchmarking sha256/one_delegation_digest: Warming up for 3.0000 s
+Benchmarking sha256/one_delegation_digest: Collecting 100 samples in estimated 5.0008 s (5.1M iterations)
+Benchmarking sha256/one_delegation_digest: Analyzing
+sha256/one_delegation_digest
+                        time:   [986.33 ns 986.83 ns 987.36 ns]
+Found 18 outliers among 100 measurements (18.00%)
+  7 (7.00%) low severe
+  2 (2.00%) low mild
+  3 (3.00%) high mild
+  6 (6.00%) high severe
+
+     Running benches/signing.rs (target/release/deps/signing-01cb1f3324289841)
+Benchmarking signing/bls/hop
+Benchmarking signing/bls/hop: Warming up for 3.0000 s
+Benchmarking signing/bls/hop: Collecting 100 samples in estimated 5.8429 s (30k iterations)
+Benchmarking signing/bls/hop: Analyzing
+signing/bls/hop         time:   [192.39 µs 192.53 µs 192.68 µs]
+Found 5 outliers among 100 measurements (5.00%)
+  2 (2.00%) low severe
+  1 (1.00%) low mild
+  2 (2.00%) high mild
+
+Benchmarking signing/bls/aggregate_add
+Benchmarking signing/bls/aggregate_add: Warming up for 3.0000 s
+Benchmarking signing/bls/aggregate_add: Collecting 100 samples in estimated 5.0247 s (172k iterations)
+Benchmarking signing/bls/aggregate_add: Analyzing
+signing/bls/aggregate_add
+                        time:   [29.299 µs 29.307 µs 29.317 µs]
+Found 10 outliers among 100 measurements (10.00%)
+  2 (2.00%) high mild
+  8 (8.00%) high severe
+
+Benchmarking signing/bls/receipt
+Benchmarking signing/bls/receipt: Warming up for 3.0000 s
+Benchmarking signing/bls/receipt: Collecting 100 samples in estimated 5.8149 s (30k iterations)
+Benchmarking signing/bls/receipt: Analyzing
+signing/bls/receipt     time:   [191.87 µs 192.06 µs 192.23 µs]
+Found 8 outliers among 100 measurements (8.00%)
+  1 (1.00%) low severe
+  3 (3.00%) low mild
+  3 (3.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking signing/bls/issue
+Benchmarking signing/bls/issue: Warming up for 3.0000 s
+Benchmarking signing/bls/issue: Collecting 100 samples in estimated 5.9034 s (30k iterations)
+Benchmarking signing/bls/issue: Analyzing
+signing/bls/issue       time:   [195.19 µs 195.44 µs 195.71 µs]
+Found 6 outliers among 100 measurements (6.00%)
+  2 (2.00%) low mild
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+
+Benchmarking signing/ed25519/hop
+Benchmarking signing/ed25519/hop: Warming up for 3.0000 s
+Benchmarking signing/ed25519/hop: Collecting 100 samples in estimated 5.0500 s (480k iterations)
+Benchmarking signing/ed25519/hop: Analyzing
+signing/ed25519/hop     time:   [10.521 µs 10.536 µs 10.552 µs]
+Found 7 outliers among 100 measurements (7.00%)
+  4 (4.00%) low mild
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking signing/ed25519/aggregate_add
+Benchmarking signing/ed25519/aggregate_add: Warming up for 3.0000 s
+Benchmarking signing/ed25519/aggregate_add: Collecting 100 samples in estimated 5.0002 s (107M iterations)
+Benchmarking signing/ed25519/aggregate_add: Analyzing
+signing/ed25519/aggregate_add
+                        time:   [46.721 ns 46.842 ns 46.976 ns]
+
+Benchmarking signing/ed25519/receipt
+Benchmarking signing/ed25519/receipt: Warming up for 3.0000 s
+Benchmarking signing/ed25519/receipt: Collecting 100 samples in estimated 5.0351 s (505k iterations)
+Benchmarking signing/ed25519/receipt: Analyzing
+signing/ed25519/receipt time:   [9.9664 µs 9.9841 µs 10.005 µs]
+Found 5 outliers among 100 measurements (5.00%)
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+
+Benchmarking signing/ed25519/issue
+Benchmarking signing/ed25519/issue: Warming up for 3.0000 s
+Benchmarking signing/ed25519/issue: Collecting 100 samples in estimated 5.0205 s (404k iterations)
+Benchmarking signing/ed25519/issue: Analyzing
+signing/ed25519/issue   time:   [12.463 µs 12.487 µs 12.512 µs]
+Found 6 outliers among 100 measurements (6.00%)
+  3 (3.00%) low mild
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+
+== plots
+plots written to /Users/nurmukhametdaniyar/Projects/phd/delegation_chain_impl/results/plots

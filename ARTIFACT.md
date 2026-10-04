@@ -20,6 +20,7 @@ Nothing in them is typed by hand. Every number is computed from the archives by 
 | AIP's own benchmark run here: its outputs and resolved `Cargo.lock`, once run | `results/exploratory/aip/archive/*.zst` | no: in the deposit |
 | Their manifest, and the machine record | `results/exploratory/aip/archive/MANIFEST.sha256`, `results/exploratory/aip/env.json` | yes |
 | Bytes on the wire (Q2), memory (Q10), the machine records | `results/bytes.json`, `results/memory.json`, `results/env.json`, `results/env-resume.json` | yes |
+| M9's console log: the safety-valve abort and the three refused resumes that BENCHMARKS.md §7 cites | `results/logs/m9.log` | yes |
 | The generated summary, document and paper artifacts | `results/summary.{md,json}`, `BENCHMARKS.md`, `paper/` | yes |
 
 The frozen measurement plan is `BENCH_PLAN_FROZEN.md` (tag `bench-freeze-2`). Every change after the freeze is in `BENCH_LOG.md`, and every open choice in `DECISIONS.md`.
