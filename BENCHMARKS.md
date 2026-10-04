@@ -69,6 +69,12 @@ Ratios are the aggregating arm over the non-aggregating one: `median [95% CI]`. 
 | large | 10 | 12.198 [12.197, 12.199] — **not a net benefit** (runs: 12.193, 12.194, 12.217) | 5.182 [5.181, 5.183] — **not a net benefit** (runs: 5.176, 5.205, 5.179) | 6.713 [6.711, 6.716] — **not a net benefit** (runs: 6.633, 6.701, 6.909) | 8.322 [8.321, 8.324] — **not a net benefit** (runs: 8.264, 8.234, 8.408) |
 | medium-approval | 3 | 23.011 [23.009, 23.012] — **not a net benefit** (runs: 23.029, 22.996, 23.007) | 12.991 [12.986, 12.991] — **not a net benefit** (runs: 13.001, 13.009, 12.954) | 17.136 [17.135, 17.136] — **not a net benefit** (runs: 17.132, 17.148, 17.126) | 16.982 [16.981, 16.982] — **not a net benefit** (runs: 16.976, 17.025, 16.942) |
 
+### The verdict ratios in one figure
+
+![A/C (warm) and B/D (warm+prefix) against N, in the small, medium and large profiles, log scale, with a line at 1 and the ±10% band](paper/figures/ratios.png)
+
+The latency of A over C (warm) and of B over D (warm+prefix), against N, in the small, medium and large profiles. The line marks equal latency, and the band the frozen plan's ±10% margin of no material difference. Points are ratios of pooled medians; error bars are the range of the three runs' ratios of medians. It plots the pre-registered verdict ratios of the table above and adds no result.
+
 ### Q1. Warm per-invocation latency (µs)
 
 #### small
@@ -1002,7 +1008,7 @@ Each run's median call (outer timer, µs), and the largest difference between ru
   - In the large profile, Contains alone is 25.0% of the call, against 34.3% for its signature checks.
 - **Identity is negligible warm:** at most 0.2% in any configuration. With cached certificates, lines 23–28 are lookups.
 - **Thermal readings.** The calibration probe flagged 5 of 18 configurations (run 1: `C warm N=3 large` (probe); run 1: `C warm N=3 medium` (probe); run 2: `A warm N=3 medium` (probe); run 2: `C warm N=3 small` (probe); run 3: `A warm N=3 medium` (probe)). None was re-run, as D-77 specifies. At that rate, M9's per-run safety valve (more than 10% flagged) would have aborted the run.
-- **An earlier run.** A complete run of this breakdown made earlier the same day is logged in BENCH_LOG.md. The author deleted its data, without having opened them, to re-run the session script after that session's AIP step failed; it is not reported.
+- **An earlier run.** A complete run of this breakdown made earlier the same day is logged in BENCH_LOG.md. The author deleted its data between the two sessions, believing that session had not finished properly (its AIP step did not run), and re-ran the whole session. The earlier run is not reported.
 
 ### AIP's own benchmark on this machine
 
@@ -1045,9 +1051,3 @@ Built from `https://github.com/sunilp/aip` at `ad2faa6`: `cargo build --release 
 | 3 (2) | 109 | 26.4 | 147 | 183 | 0.74 | 0.18 |
 | 5 (4) | 166 | 28.6 | 232 | 282 | 0.71 | 0.12 |
 | 10 (9) | 304 | 33.8 | 444 | — | 0.68 | 0.08 |
-
-### Every A/C and B/D ratio in one figure
-
-![A/C (warm) and B/D (warm+prefix) against N, in the small, medium and large profiles, log scale, with a line at 1 and the ±10% band](paper/figures/ratios.png)
-
-The latency of A over C (warm) and of B over D (warm+prefix), against N, in the small, medium and large profiles. The line marks equal latency, and the band the frozen plan's ±10% margin of no material difference. Points are ratios of pooled medians; error bars are the range of the three runs' ratios of medians. The figure restates §3's verdicts in one image and adds no result.

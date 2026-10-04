@@ -492,3 +492,11 @@ The author asked for three follow-ups.
 - **BENCH_LOG.md** has a follow-up to the note on the deleted first phase run: the author deleted it to re-run the script after the first session's AIP step failed, without having opened the results. §8's sentence says the same.
 - **The positioning table** gains an exploratory column: AIP's code as measured on this machine (D-78, D-79).
 - **Waiting.** Step 3, flipping the defaults and reconciling, waits for the rewritten paper.
+
+## Step 2 finished; step 3 blocked (2026-10-04)
+
+- **(b) Captions.** Both caption files exist and are generated: `paper/figures/captions.tex` by `scripts/paper_figures.py`, and `paper/tables/captions.tex` by `paper.rs`. The references to them now name the full path.
+- **(c) The ratio figure** plots the pre-registered verdict ratios. It is a vector PDF in `paper/figures/`, and it now sits in BENCHMARKS.md §3, no longer labelled exploratory (D-78). The positioning table stays exploratory.
+- **BENCH_LOG.md** has a closing note on the deleted first phase run (the author's account). §8's sentence matches it.
+- **The first session's AIP error** cannot be recovered. The whole `results/exploratory/` was recreated at 05:30:58Z, so its output went with the deleted data. It is not established that the machine-state re-check caused it, so that path is unchanged.
+- **Step 3 is blocked** (QUESTIONS.md, Q-02). The `docs/paper.pdf` now in the tree (2026-10-04, sha256 `d4fd47d6…`) is a light revision whose protocol is still BLS aggregate, not the rewrite the flip assumes. It is not committed. (a) waits for step 3.

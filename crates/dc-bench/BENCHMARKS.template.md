@@ -46,6 +46,12 @@ The method is the frozen plan's ([BENCH_PLAN_FROZEN.md](BENCH_PLAN_FROZEN.md), `
 
 {{section:Verdicts (frozen plan §6)}}
 
+### The verdict ratios in one figure
+
+![A/C (warm) and B/D (warm+prefix) against N, in the small, medium and large profiles, log scale, with a line at 1 and the ±10% band](paper/figures/ratios.png)
+
+The latency of A over C (warm) and of B over D (warm+prefix), against N, in the small, medium and large profiles. The line marks equal latency, and the band the frozen plan's ±10% margin of no material difference. Points are ratios of pooled medians; error bars are the range of the three runs' ratios of medians. It plots the pre-registered verdict ratios of the table above and adds no result.
+
 ### Q1. Warm per-invocation latency (µs)
 
 {{section:Q1. Warm per-invocation latency}}
@@ -265,7 +271,7 @@ The author asked, after M10, where a warm verification's time goes. This run is 
   - In the large profile, Contains alone is {{pphaseshare:C:large:contains}}% of the call, against {{pphaseshare:C:large:signatures}}% for its signature checks.
 - **Identity is negligible warm:** at most {{pshare_max:Identity}}% in any configuration. With cached certificates, lines 23–28 are lookups.
 - **Thermal readings.** The calibration probe flagged {{phaseflagcount}} configurations ({{phaseflaglist}}). None was re-run, as D-77 specifies. At that rate, M9's per-run safety valve (more than 10% flagged) {{phasevalve}} the run.
-- **An earlier run.** A complete run of this breakdown made earlier the same day is logged in BENCH_LOG.md. The author deleted its data, without having opened them, to re-run the session script after that session's AIP step failed; it is not reported.
+- **An earlier run.** A complete run of this breakdown made earlier the same day is logged in BENCH_LOG.md. The author deleted its data between the two sessions, believing that session had not finished properly (its AIP step did not run), and re-ran the whole session. The earlier run is not reported.
 
 ### AIP's own benchmark on this machine
 
@@ -289,9 +295,3 @@ The author asked, after M10, for AIP's chained-mode benchmark to be run unmodifi
 ### Positioning against arm E
 
 {{positioning}}
-
-### Every A/C and B/D ratio in one figure
-
-![A/C (warm) and B/D (warm+prefix) against N, in the small, medium and large profiles, log scale, with a line at 1 and the ±10% band](paper/figures/ratios.png)
-
-The latency of A over C (warm) and of B over D (warm+prefix), against N, in the small, medium and large profiles. The line marks equal latency, and the band the frozen plan's ±10% margin of no material difference. Points are ratios of pooled medians; error bars are the range of the three runs' ratios of medians. The figure restates §3's verdicts in one image and adds no result.

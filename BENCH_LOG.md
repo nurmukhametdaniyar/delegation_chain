@@ -165,3 +165,8 @@ Configurations re-run: none.
 Reason: the author reports that their shell history shows they deleted `results/exploratory/phases` between the two sessions (the second began at 05:29Z), to re-run the session script after the first session's AIP step had failed. They had not opened the results. The note above stands; this replaces its "for an unknown reason". The first run is still not reported.
 
 Configurations re-run: none.
+
+## 2026-10-04 — Further note: the first phase run's deletion
+Reason: the author deleted the first session's phase data themselves, between the two sessions, because they believed the session had not finished properly (its AIP step did not run). They then re-ran the whole session. The notes above stand unchanged; this closes the matter.
+
+Configurations re-run: none.

@@ -923,7 +923,8 @@ Decision:
 - **ARTIFACT.md** says how to reproduce every figure and table from the archives.
 - **Added after the author's review (2026-10-01).**
   - **Captions.** `paper/figures/captions.tex` holds a caption macro per figure, generated with the figures. Each says what its error bars are: the range of the three runs' medians, or of their ratios for the ratio figure. The bytes figure has none, because sizes do not vary between runs. `paper/tables/captions.tex` holds the positioning table's caption.
-  - **The ratio figure** (`ratios.pdf`, plus `ratios.png` for BENCHMARKS.md §8) is exploratory. It shows A/C (warm) and B/D (warm+prefix) against N in the small, medium and large profiles, in one panel, on a log scale, with a line at 1 and the frozen plan's ±10% band.
+  - **The ratio figure** (`ratios.pdf`, plus `ratios.png` for BENCHMARKS.md §3) plots the pre-registered verdict ratios: A/C (warm) and B/D (warm+prefix) against N in the small, medium and large profiles, in one panel, on a log scale, with a line at 1 and the frozen plan's ±10% band.
+    - It is not exploratory. It was first placed in §8 and labelled exploratory, and was corrected on 2026-10-04 at the author's request.
     - Colour is the comparison, and marker and line style are the profile.
     - The bar is the range of the three runs' ratios of medians, drawn as it is: the ratio of pooled medians need not lie inside it.
     - The caption says that every run ratio lies above the band only when that is true of the data.

@@ -6,10 +6,12 @@
   N for B and D, medium profile, log scale.
 - bytes_medium.pdf: chain bytes against N for A, A-ind and C, medium profile,
   with Q2's break-even marked.
-- ratios.pdf (and ratios.png, for BENCHMARKS.md §8): exploratory. A/C (warm)
-  and B/D (warm+prefix) against N in the small, medium and large profiles, in
-  one panel, log scale, with a line at 1 and the frozen plan's ±10% band.
-- captions.tex: a caption macro per figure, saying what its error bars are.
+- ratios.pdf (and ratios.png, for BENCHMARKS.md §3): the pre-registered
+  verdict ratios, A/C (warm) and B/D (warm+prefix), against N in the small,
+  medium and large profiles, in one panel, log scale, with a line at 1 and the
+  frozen plan's ±10% band.
+- paper/figures/captions.tex: one caption macro per figure, generated here,
+  each saying what its error bars are.
 
 Points are pooled medians over the three runs, or ratios of them; the bars
 span the three runs' medians, or their ratios (the pooled bootstrap CIs are
@@ -168,7 +170,7 @@ PROFILE_STYLE = {"small": ("o", "-"), "medium": ("s", "--"), "large": ("^", ":")
 
 
 def ratio_figure(summary, out):
-    """Exploratory: every A/C and B/D ratio against N, in one panel. Returns
+    """The pre-registered verdict ratios, A/C and B/D, against N in one panel. Returns
     the smallest run ratio drawn."""
     v = {(r["n"], r["profile"]): r for r in summary["verdicts"]}
     fig, ax = plt.subplots(figsize=(3.4, 2.7))
@@ -229,7 +231,7 @@ def captions(out, n_be, smallest):
         "\\newcommand{\\figcapBytes}{Chain size in bytes against $N$, medium profile: arms A, A-ind and C."
         f" The dashed line marks the break-even: A's chain is smaller than C's from $N = {n_be}$. Sizes are"
         " means over 20 sampled chains and do not vary between runs, so there are no error bars.}",
-        "\\newcommand{\\figcapRatios}{Exploratory (not pre-registered). Latency of the aggregating arm over"
+        "\\newcommand{\\figcapRatios}{The frozen plan's verdict ratios: latency of the aggregating arm over"
         " its Ed25519 counterpart against $N$: A/C (warm) and B/D (warm+prefix), in the small, medium and"
         " large profiles, log scale. The line marks equal latency, and the band the frozen plan's"
         f" $\\pm{MARGIN * 100:.0f}\\%$ margin of no material difference"

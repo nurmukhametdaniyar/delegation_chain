@@ -291,10 +291,10 @@ fn primitives(doc: &Doc) -> Result<String, String> {
 
 /// Exploratory: C (warm) and D (warm+prefix) against arm E, medium, at
 /// matching depth. Its caption, which lists E's functional gaps, is
-/// `\\tabcapPositioning` in `captions.tex`.
+/// `\\tabcapPositioning` in `paper/tables/captions.tex`.
 fn positioning(doc: &Doc) -> Result<String, String> {
     let mut w = String::from(HEADER);
-    w.push_str("% EXPLORATORY (not pre-registered): BENCHMARKS.md §8. Caption: \\tabcapPositioning (captions.tex).\n");
+    w.push_str("% EXPLORATORY (not pre-registered): BENCHMARKS.md §8. Caption: \\tabcapPositioning (paper/tables/captions.tex).\n");
     w.push_str("\\begin{tabular}{lrrrrrr}\n\\toprule\n");
     w.push_str("$N$ (Biscuit depth) & C, warm (\\textmu{}s) & D, warm+prefix (\\textmu{}s) & E (\\textmu{}s) & AIP's code here (\\textmu{}s; exploratory) & C $\\div$ E & D $\\div$ E \\\\\n\\midrule\n");
     for r in doc.positioning()? {
@@ -315,7 +315,9 @@ fn positioning(doc: &Doc) -> Result<String, String> {
     Ok(w)
 }
 
-/// Caption macros for the tables that need one.
+/// Caption macros for the tables that need one (`paper/tables/captions.tex`;
+/// the figures' are in `paper/figures/captions.tex`, from
+/// `scripts/paper_figures.py`).
 fn captions() -> Result<String, String> {
     let mut w = String::from(HEADER);
     let _ = writeln!(

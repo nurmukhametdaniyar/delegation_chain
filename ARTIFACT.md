@@ -70,7 +70,7 @@ The summary, `BENCHMARKS.md`, the tables and the PDF figures regenerate byte-ide
 | `paper/figures/latency_warm_medium.pdf` | Warm median latency against N: A, A-ind, C, C-batch (medium, log scale) | `summary.json` ← M9 archives | `scripts/paper_figures.py` |
 | `paper/figures/prefix_hit_medium.pdf` | Prefix-cache hit latency against N: B, D (medium, log scale) | `summary.json` ← M9 archives | `scripts/paper_figures.py` |
 | `paper/figures/bytes_medium.pdf` | Chain bytes against N: A, A-ind, C (medium), with Q2's break-even | `summary.json` ← `bytes.json` | `scripts/paper_figures.py` |
-| `paper/figures/ratios.pdf`, `ratios.png` | Exploratory: A/C and B/D against N in every profile, with the ±10% band | `summary.json` ← M9 archives | `scripts/paper_figures.py` |
+| `paper/figures/ratios.pdf`, `ratios.png` | The pre-registered verdict ratios, A/C and B/D, against N in every profile, with the ±10% band | `summary.json` ← M9 archives | `scripts/paper_figures.py` |
 | `paper/figures/captions.tex` | A caption macro per figure, stating what its error bars are | as each figure | `scripts/paper_figures.py` |
 | `paper/tables/verdicts.tex` | The frozen plan's §1 verdicts: B/D, A/C, A/C-batch at every N and profile, with CIs | M9 archives | `crates/dc-bench/src/paper.rs`, `verdicts` |
 | `paper/tables/breakeven.tex` | Q2: break-even N per profile | `bytes.json` | `paper.rs`, `breakeven` |
