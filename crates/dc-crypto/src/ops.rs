@@ -21,6 +21,10 @@ pub struct OpCounts {
     pub policy_store_calls: u64,
     pub contains_calls: u64,
     pub evaluate_calls: u64,
+    /// Ed25519 keys and signatures put through D-81's canonical-encoding
+    /// checks at decode: what D-87's cost model multiplies.
+    pub key_encoding_checks: u64,
+    pub sig_encoding_checks: u64,
 }
 
 impl OpCounts {
@@ -46,6 +50,8 @@ thread_local! {
             policy_store_calls: 0,
             contains_calls: 0,
             evaluate_calls: 0,
+            key_encoding_checks: 0,
+            sig_encoding_checks: 0,
         })
     };
 }

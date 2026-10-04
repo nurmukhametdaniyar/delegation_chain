@@ -11,6 +11,8 @@ Put this file in the repository root as `SPEC.md`.
 
 ## Changelog
 
+**2026-10-04 (after step 3) — instrumentation (§10.3; D-87).** `count-ops` also counts the Ed25519 keys and signatures put through D-81's canonical-encoding checks. They are counted for the exploratory cost of those checks, which the author asked for. The benchmark is unchanged.
+
 **2026-10-04 (step 3) — reconciled with paper revision 2026-10-04: Ed25519 per hop is the default instantiation, and BLS aggregate is a variant.** Agreed with the author.
 - **The flip (§3.2, §5; D-80).**
   - `dc_crypto::{Ed25519, Ed25519List}` are the protocol path, with no feature.
@@ -926,7 +928,7 @@ Line-level notes:
 
 ### 10.3 Instrumentation
 
-Add a cargo feature `count-ops` that counts, per `verify` call: hash-to-curve calls, Miller loops or pairings, final exponentiations, signature verifications, resolver calls, policy-store calls, `Contains` calls and `Evaluate` calls.
+Add a cargo feature `count-ops` that counts, per `verify` call: hash-to-curve calls, Miller loops or pairings, final exponentiations, signature verifications, resolver calls, policy-store calls, `Contains` calls and `Evaluate` calls. It also counts the Ed25519 keys and signatures put through the canonical-encoding checks at decode (D-81), which D-87's cost model multiplies.
 
 Tests use it to prove phase ordering: for example, an expired chain is rejected with zero pairings and zero resolver calls (paper Figure 2).
 

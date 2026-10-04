@@ -25,3 +25,7 @@ results/exploratory/phases/aborted/
 results/exploratory/aip/raw/
 results/exploratory/aip/archive/*.zst
 results/exploratory/aip/aborted/
+# The encoding-check benchmark (D-87): the same rule.
+results/exploratory/encoding/raw/
+results/exploratory/encoding/archive/*.zst
+results/exploratory/encoding/aborted/

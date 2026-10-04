@@ -535,3 +535,18 @@ The author asked for three follow-ups.
   - PAPER_ISSUES.md: statuses against revision 2026-10-04. Resolved: P-06, P-08, P-12, P-26, P-27 and P-28; adopted: P-29 and P-30; open: P-05; new: P-31 to P-33.
   - ARTIFACT.md: re-measuring under the frozen plan uses the measured commit.
 - **(a).** `docs/paper-sections.json` holds the claims table's section numbers and rule names for revision 2026-09-29 (BENCHMARKS.md) and for the current paper (`paper/tables/claims.tex`), filled by content (D-86). `dc-bench paper` refuses a map that is not for `docs/paper.pdf`. `paper/tables/security.tex` reports both instantiations.
+
+## The cost of D-81's encoding checks: built, not run yet (2026-10-04)
+
+- **The question.** D-81's canonical-encoding checks are not in M9's measured binaries, yet the paper reads the default instantiation's latencies as the protocol's cost.
+- **The command (D-87).** `dc-bench encoding` times the checks as the decoders call them (`Ed25519::canonical_signature`, `Ed25519::canonical_key`), on honest inputs and on the worst passing inputs, and the whole decoders for context.
+  - Three runs, on M9's machine state.
+  - The data are archived under a committed manifest.
+  - The run appends its own BENCH_LOG.md entry, which names the measured commit. That commit must have D-81's checks.
+- **The model.** BENCHMARKS.md §8 (exploratory) multiplies the checks' medians by the checks each verification makes, and gives the result as a share of M9's median. It does so in each of M9's states of arms C and D, on the medium profile, at N = 1, 3 and 10.
+  - Warm, hit and miss check N + 1 signatures.
+  - Cold checks 2(N + 1) signatures and N + 1 keys.
+- **The counts are tested.** `tests/encoding_checks.rs` checks them on M9's own chains and subjects, through two new `count-ops` counters (SPEC §10.3 and its changelog).
+- **No measured result changed.** The summary and every paper artifact regenerate unchanged. BENCHMARKS.md changes only in §8's new subsection.
+- **Also.** ARTIFACT.md's first line still gave revision 2026-09-29 as `docs/paper.pdf`; it now gives 2026-10-04.
+- **Not run yet.** The machine was on battery, so only a dry run was made, and its numbers are never reported. Until the full run, §8's block says "Not run yet".

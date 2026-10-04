@@ -62,6 +62,9 @@ dc-crypto.workspace = true
 
 [dev-dependencies]
 dc-baselines.workspace = true
+# tests/encoding_checks.rs counts D-81's checks on the benchmark's own chains
+# and subjects (D-87).
+dc-bench = { path = "crates/dc-bench" }
 dc-cbor.workspace = true
 dc-chain = { workspace = true, features = ["test-hooks"] }
 # The arm tests build every arm, so the BLS variant is always present.

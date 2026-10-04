@@ -554,6 +554,7 @@ name = "delegationchain"
 version = "0.1.0"
 dependencies = [
  "dc-baselines",
+ "dc-bench",
  "dc-cbor",
  "dc-chain",
  "dc-crypto",

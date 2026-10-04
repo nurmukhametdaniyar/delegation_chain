@@ -26,7 +26,7 @@ use crate::report::{
     self, AIP_CHAINED_MS, Key, Raw, Row, criterion_estimates, read_json, us, verdict,
 };
 use crate::stats::{Ratio, quantile_sorted, ratio};
-use crate::{aip, phases};
+use crate::{aip, encoding, phases};
 
 /// AIP's published token sizes for biscuit-auth 6.0 chained mode (SPEC
 /// §13.10; arXiv:2603.24775v1, Table 5, "Size (Rust)", checked on
@@ -79,6 +79,8 @@ pub struct Doc {
     pub(crate) phases: Option<phases::Data>,
     /// AIP's own benchmark run here, once its archives exist (D-79).
     pub(crate) aip: Option<aip::Data>,
+    /// The encoding-check benchmark, once its archives exist (D-87).
+    pub(crate) encoding: Option<encoding::Data>,
     /// `docs/paper-sections.json` (D-86), when the results directory sits
     /// in the repository.
     pub(crate) sections: Option<Value>,
@@ -141,6 +143,12 @@ impl Doc {
         } else {
             None
         };
+        let edir = results.join("exploratory/encoding");
+        let encoding = if edir.join("archive/MANIFEST.sha256").exists() {
+            Some(encoding::load(&edir)?)
+        } else {
+            None
+        };
         let sections = results
             .parent()
             .and_then(|root| read_json(&root.join("docs/paper-sections.json")));
@@ -161,6 +169,7 @@ impl Doc {
             summary: fs::read_to_string(results.join("summary.md")).map_err(|e| e.to_string())?,
             phases,
             aip,
+            encoding,
             sections,
             revision: std::cell::Cell::new(Revision::Checked),
         })
@@ -790,6 +799,14 @@ impl Doc {
                 .as_str()
                 .ok_or(format!("no resolved version of {krate}"))?
                 .to_owned(),
+            // The cost of D-81's encoding checks (D-87). Without its archive,
+            // the block says so; every number in it needs the archive.
+            ["encoding"] => match &self.encoding {
+                Some(d) => d.markdown(&|arm, state, n| {
+                    self.row(arm, state, n, "medium").map(|r| r.pooled.median)
+                })?,
+                None => "_Not run yet: there is no verified archive under `results/exploratory/encoding/archive/`._".into(),
+            },
             // Section references and rule names of the claims table (D-86).
             ["psec", key] => self.paper_ref("sections", key)?,
             ["prule", key] => self.paper_ref("rules", key)?,

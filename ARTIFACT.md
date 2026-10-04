@@ -1,6 +1,6 @@
 # Artifact: reproducing the DelegationChain benchmark's figures and tables
 
-This repository is the reference implementation of DelegationChain (paper revision 2026-09-29, `docs/paper.pdf`) and the benchmark of whether BLS aggregation is a net benefit once caching is accounted for. This file explains how to regenerate, from the archived raw measurements:
+This repository is the reference implementation of DelegationChain (paper revision 2026-10-04, `docs/paper.pdf`) and the benchmark of whether BLS aggregation is a net benefit once caching is accounted for. This file explains how to regenerate, from the archived raw measurements:
 - every figure and table in the paper's evaluation;
 - `BENCHMARKS.md`;
 - the results summary.
@@ -19,6 +19,8 @@ Nothing in them is typed by hand. Every number is computed from the archives by 
 | Their manifest, and the machine record | `results/exploratory/phases/archive/MANIFEST.sha256`, `results/exploratory/phases/env.json` | yes |
 | AIP's own benchmark run here: its outputs and resolved `Cargo.lock`, once run | `results/exploratory/aip/archive/*.zst` | no: in the deposit |
 | Their manifest, and the machine record | `results/exploratory/aip/archive/MANIFEST.sha256`, `results/exploratory/aip/env.json` | yes |
+| The encoding checks' micro-benchmark (D-87): its batch timings and thermal readings, once run | `results/exploratory/encoding/archive/*.zst` | no: in the deposit |
+| Their manifest, and the machine record | `results/exploratory/encoding/archive/MANIFEST.sha256`, `results/exploratory/encoding/env.json` | yes |
 | Bytes on the wire (Q2), memory (Q10), the machine records | `results/bytes.json`, `results/memory.json`, `results/env.json`, `results/env-resume.json` | yes |
 | M9's console log: the safety-valve abort and the three refused resumes that BENCHMARKS.md §7 cites | `results/logs/m9.log` | yes |
 | The generated summary, document and paper artifacts | `results/summary.{md,json}`, `BENCHMARKS.md`, `paper/` | yes |
@@ -43,11 +45,13 @@ cp /path/to/deposit/archive/*.zst results/archive/
 mkdir -p results/criterion && zstd -dc /path/to/deposit/criterion.tar.zst | tar -x -C results
 cp /path/to/deposit/phases/*.zst results/exploratory/phases/archive/   # if deposited
 cp /path/to/deposit/aip/*.zst results/exploratory/aip/archive/         # if deposited
+cp /path/to/deposit/encoding/*.zst results/exploratory/encoding/archive/   # if deposited
 
 # Check every archive against its committed manifest.
 (cd results/archive && shasum -a 256 -c MANIFEST.sha256)
 (cd results/exploratory/phases/archive && shasum -a 256 -c MANIFEST.sha256)
 (cd results/exploratory/aip/archive && shasum -a 256 -c MANIFEST.sha256)
+(cd results/exploratory/encoding/archive && shasum -a 256 -c MANIFEST.sha256)
 ```
 
 The generators check every archive themselves and refuse to run on a missing manifest or a mismatch. They also refuse to run without criterion's output, rather than write a summary without its micro-benchmark section.
@@ -115,6 +119,13 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
   ```
 
   It writes `results/exploratory/phases/` and `results/exploratory/aip/`, and each run appends its own `BENCH_LOG.md` entry. The phase breakdown's build is never used for headline results (SPEC §10.3).
+- **The cost of D-81's encoding checks (D-87).** This one is the exception to the measured-commit rule. It times checks that M9's commits lack, so it runs at the commit its `BENCH_LOG.md` entry names, or a later one, and requires the same machine state as M9.
+
+  ```sh
+  RUSTFLAGS="-C target-cpu=native" cargo run --release -p dc-bench -- encoding
+  ```
+
+  It writes `results/exploratory/encoding/` and appends its own `BENCH_LOG.md` entry. `--resume` continues an interrupted run.
 
 ## 6. Packing a deposit
 

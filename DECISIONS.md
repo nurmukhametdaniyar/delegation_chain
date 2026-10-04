@@ -1007,6 +1007,8 @@ Decision:
 Why: paper §4.7 requires decoders to reject non-canonical encodings and small-order keys. Which line a non-canonical signature fails at is otherwise open (P-32), and rejecting at decode matches the aggregate variant's treatment of points (D-30).
 Affects benchmarks: the default instantiation's decode does a few more byte comparisons than in the measured build.
 
+_2026-10-04: what these checks add to the measured latencies is measured on its own by an exploratory micro-benchmark (D-87)._
+
 ## D-82 — A revoked binding is kept for the maximum lifetime plus the clock-skew bound (paper §5.6)
 Spec section: §6.5, §10.4     Paper section: §5.6 (revision 2026-10-04)
 Decision:
@@ -1065,3 +1067,41 @@ Decision:
   - "the §6 rule" is "the verdict rule of Section 8.3".
 Why: the claims table printed revision 2026-09-29's numbers and the frozen plan's rule name, which the rewritten paper had to explain in its caption. The author asked for them to come from a file updated with the paper.
 Affects benchmarks: no.
+
+## D-87 — The cost of D-81's encoding checks, measured on their own (exploratory)
+Spec section: §10.3, §13.5; D-81     Paper section: §4.7 (revision 2026-10-04)
+Decision:
+- **Why.** D-81 added canonical-encoding checks to the Ed25519 decoders at step 3, after M9.
+  - The measured binaries (`4e134dc`, `b175599`) did not have them. They already decompressed keys and rejected small-order ones.
+  - The paper reads the default instantiation's latencies as the protocol's cost, so the author asked what the checks add.
+- **What is timed.**
+  - The checks as the decoders call them, made public for this: `Ed25519::canonical_signature` (R's y < p, s < ℓ) and `Ed25519::canonical_key` (y < p).
+  - Inputs:
+    - a cycled pool of 1,024 honest keys and signatures from seeded keys;
+    - the worst passing inputs, y = p − 1 and s = ℓ − 1, which agree with their bounds in every byte but the lowest, so that every byte is compared.
+  - For context, the whole decoders on honest inputs: `sig_from_bytes`, and `pk_from_bytes` with its decompression and small-order test.
+  - Inputs go through `black_box`, and every call must accept (asserted after each batch), so nothing is optimized away.
+- **How.**
+  - Each batch is 100,000 calls (2,000 for the key decoder), timed with `Instant`, and gives one figure in ns per call.
+  - Each operation has 10 warm-up batches, then 200 timed, per run.
+  - Three runs, each in its own process, at QoS user-interactive after a 30 s settle.
+  - It requires M9's machine state and records it in `env.json`. pmset and the calibration probe are read around each operation, with no valve and no re-runs.
+  - The raw data are archived with zstd under a committed manifest in `results/exploratory/encoding/`.
+  - The run appends its own BENCH_LOG.md entry, which names the measured commit. That commit must have D-81's checks, so it is not M9's.
+- **Why on their own.** A before-and-after comparison of whole verifications cannot resolve the difference:
+  - it would need M9's configurations re-measured at two commits;
+  - the difference is tens of nanoseconds against tens of microseconds;
+  - the timer ticks every 41.7 ns, and runs differ by a few percent.
+- **The model.** One verification's added cost is the signatures it checks times the signature checks' median, plus the keys it checks times the key check's median. The worst-input medians give the bound.
+  - **The counts** are per signer, for M9's states of arms C and D on the medium profile, which has no receipts (`encoding::LOADS`):
+    - C warm, D hit and D miss: 1 signature and no key, since certificates are cached;
+    - C cold: 2 signatures and 1 key, which are the chain signature, the certificate's signature and its key (line 24).
+  - **The counts are tested.**
+    - `count-ops` counts the keys and signatures the decoders check (`key_encoding_checks`, `sig_encoding_checks`).
+    - `tests/encoding_checks.rs` checks `LOADS` on M9's own chains and subjects (`harness::generate`, `arms::subject`) at N = 1, 3 and 10, warmed as the harness warms them.
+    - For that test the root package dev-depends on `dc-bench`.
+  - **The shares** are of M9's pooled medians for each state (medium profile), read from the verified archives.
+- **Caveat.** The checks are timed in a tight loop, with warm caches and a trained branch predictor. Their cost inside a verification may differ, which the model does not capture.
+- **Reporting.** BENCHMARKS.md §8, exploratory.
+Why: the checks are a few byte comparisons, far below a verification's cost. Measured on their own, with tested counts, they give a number, where a whole-verification comparison would give noise.
+Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only. The two counters exist only in `count-ops` builds, which never make headline runs (SPEC §10.3).

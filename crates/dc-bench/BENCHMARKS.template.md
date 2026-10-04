@@ -292,6 +292,24 @@ The author asked, after M10, for AIP's chained-mode benchmark to be run unmodifi
 - **Q9's ratio splits into these two factors:** the published figures against AIP's code here, and AIP's code here against arm E.
 - **AIP's method is sensitive to a cold start.** In each build, the first process ran slower than the second and third at the shallowest depths (the per-run columns). There, the mean of all timings is above their median. AIP's published figures each come from a single such process.
 
+### The cost of D-81's encoding checks
+
+D-81 added decode-time canonical-encoding checks to the default instantiation after M9 (paper §4.7). The measured binaries did not have them, so the default instantiation's latencies in this report are without them. This exploratory micro-benchmark, which is not in the frozen plan, measures what they add. It changes no measured result.
+- **What is timed.** The checks as the decoders call them (`Ed25519::canonical_signature` and `Ed25519::canonical_key`):
+  - on 1,024 honest keys and signatures;
+  - on the worst inputs that pass, whose bytes force a comparison of every byte.
+
+  The whole decoders are timed for context.
+- **How.** Batches of calls, each giving nanoseconds per call, in three runs, each in its own process, on M9's machine state, with pmset and the calibration probe read around each operation. BENCH_LOG.md records the run (D-87).
+- **What a chain pays.** The medium profile has no receipts, so a chain's N + 1 signers are the only source of checks.
+  - In every state, each signer's signature is checked.
+  - A cold verifier also checks each signer's certificate: its signature and its key. Certificates are cached, so warm verifiers and prefix-cache hits and misses check no key.
+
+  `tests/encoding_checks.rs` checks these counts on M9's own chains and subjects (D-87).
+- **Caveat.** The checks are timed in a tight loop, with warm caches and a trained branch predictor, and inside a verification their cost may differ. A before-and-after comparison of whole verifications cannot resolve a difference of this size: the timer ticks every 41.7 ns.
+
+{{encoding}}
+
 ### Positioning against arm E
 
 {{positioning}}

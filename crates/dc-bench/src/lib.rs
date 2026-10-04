@@ -8,13 +8,15 @@
 //! - [`benchmarks`] and [`paper`]: `BENCHMARKS.md`, and the paper's tables
 //!   and figures, from the verified results.
 //! - [`phases`]: the exploratory phase breakdown (D-77), never a headline
-//!   run; [`aip`]: AIP's own benchmark run here (D-79).
+//!   run; [`aip`]: AIP's own benchmark run here (D-79); [`encoding`]: the
+//!   cost of D-81's encoding checks (D-87).
 //! - [`env`]: writes `results/env.json`.
 //! - [`qos`]: the one permitted `unsafe` call (D-42).
 
 pub mod aip;
 pub mod arms;
 pub mod benchmarks;
+pub mod encoding;
 pub mod env;
 pub mod harness;
 pub mod paper;

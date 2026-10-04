@@ -57,6 +57,23 @@ pub(crate) fn y_canonical(point: &[u8; 32]) -> bool {
 }
 
 impl Ed25519 {
+    /// The canonical-encoding check `pk_from_bytes` makes before
+    /// decompressing a key: its y is below p (paper §4.7; D-81). Public so
+    /// that its cost can be measured on its own (D-87).
+    pub fn canonical_key(bytes: &[u8; 32]) -> bool {
+        y_canonical(bytes)
+    }
+
+    /// The canonical-encoding checks `sig_from_bytes` makes: R's y is below
+    /// p and s is below ℓ (paper §4.7; D-81). Public so that their cost can
+    /// be measured on their own (D-87).
+    pub fn canonical_signature(bytes: &[u8; 64]) -> bool {
+        let (r, s) = bytes.split_at(32);
+        let r: &[u8; 32] = r.try_into().expect("32 bytes");
+        let s: &[u8; 32] = s.try_into().expect("32 bytes");
+        y_canonical(r) && below(s, &L)
+    }
+
     /// `ed25519_dalek::verify_batch` over the triples (SPEC §5.8; arm C-batch
     /// only). Its semantics differ from [`SigScheme::verify`]'s
     /// `verify_strict` at the edges (D-66). The keys are copied, because the
@@ -110,7 +127,8 @@ impl SigScheme for Ed25519 {
             // Non-canonical encodings are rejected (paper §4.7; D-81). The
             // other non-canonical form, x = 0 with the sign bit set, is a
             // small-order point, which `is_weak` rejects below.
-            if !y_canonical(arr) {
+            crate::ops::add(|c| c.key_encoding_checks += 1);
+            if !Ed25519::canonical_key(arr) {
                 return Err(CryptoError::BadEncoding);
             }
             let pk = VerifyingKey::from_bytes(arr).map_err(|_| CryptoError::BadEncoding)?;
@@ -134,10 +152,8 @@ impl SigScheme for Ed25519 {
         })?;
         // Canonical R and s (paper §4.7; D-81). R's order is left to strict
         // verification, which decompresses it.
-        let (r, s) = arr.split_at(32);
-        let r: &[u8; 32] = r.try_into().expect("32 bytes");
-        let s: &[u8; 32] = s.try_into().expect("32 bytes");
-        if !y_canonical(r) || !below(s, &L) {
+        crate::ops::add(|c| c.sig_encoding_checks += 1);
+        if !Ed25519::canonical_signature(arr) {
             return Err(CryptoError::BadEncoding);
         }
         Ok(Signature::from_bytes(arr))

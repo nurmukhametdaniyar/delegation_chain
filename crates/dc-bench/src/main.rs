@@ -12,6 +12,7 @@
 //! dc-bench paper   [--out DIR]                      paper tables and figures (`paper/`)
 //! dc-bench phases  [--mode M] [--out DIR] [--resume] the exploratory phase breakdown (D-77)
 //! dc-bench aip     [--mode M] [--out DIR] [--aip-dir DIR] AIP's own benchmark, here (D-79)
+//! dc-bench encoding [--mode M] [--out DIR] [--resume] the cost of D-81's encoding checks (D-87)
 //! ```
 //!
 //! `scripts/exploratory-session.sh` builds both exploratory runs and then
@@ -46,7 +47,7 @@ use dc_bench::plan::{
 };
 use dc_bench::probe::{self, Probe};
 use dc_bench::workload::{Layout, Profile, hop_agent, p};
-use dc_bench::{aip, env, phases, qos, report, thermal};
+use dc_bench::{aip, encoding, env, phases, qos, report, thermal};
 use dc_registry::Resolver;
 use rand_chacha::ChaCha20Rng;
 use rand_core::{RngCore, SeedableRng};
@@ -69,7 +70,7 @@ struct Args {
 fn parse() -> Result<Args, String> {
     let mut it = std::env::args().skip(1);
     let cmd = it.next().ok_or(
-        "usage: dc-bench <all|run|bytes|env|archive|report|plan|benchmarks|paper|phases|aip> [options]",
+        "usage: dc-bench <all|run|bytes|env|archive|report|plan|benchmarks|paper|phases|aip|encoding> [options]",
     )?;
     let mut a = Args {
         cmd,
@@ -178,6 +179,8 @@ fn main() -> ExitCode {
         "phases" => cmd_phases(&a),
         "phases-run" => cmd_phases_run(&a),
         "aip" => cmd_aip(&a),
+        "encoding" => cmd_encoding(&a),
+        "encoding-run" => cmd_encoding_run(&a),
         c => Err(format!("unknown command {c}")),
     };
     match r {
@@ -1648,6 +1651,223 @@ fn log_aip(log: &Path, out: &Path) -> Result<(), String> {
         s(&m["resolved"]["curve25519-dalek"]),
         s(&m["toolchain"]),
         s(&m["source_check"]),
+        d.flags(),
+        d.archives
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// Where the encoding-check benchmark writes: `results/exploratory/encoding/`,
+/// or under `results/dry-run/` for a dry run.
+fn encoding_dir(a: &Args) -> PathBuf {
+    a.out.clone().unwrap_or_else(|| match a.mode {
+        Mode::Full => root().join("results/exploratory/encoding"),
+        Mode::Dry => root().join("results/dry-run/exploratory/encoding"),
+    })
+}
+
+/// The cost of D-81's canonical-encoding checks (D-87; exploratory): one
+/// `encoding-run` process per run, on the machine state M9 required, then
+/// the archives, their manifest and the BENCH_LOG.md entry.
+fn cmd_encoding(a: &Args) -> Result<(), String> {
+    headline_build()?;
+    if !env!("DC_BENCH_RUSTFLAGS").contains("target-cpu=native") {
+        let msg = "not built with RUSTFLAGS=\"-C target-cpu=native\" (SPEC §3.3)";
+        if a.mode == Mode::Full {
+            return Err(format!("aborting: {msg}"));
+        }
+        eprintln!("dc-bench: warning: {msg}");
+    }
+    let out = encoding_dir(a);
+    let raw = out.join("raw");
+    let runs = if a.mode == Mode::Dry {
+        1
+    } else {
+        encoding::RUNS
+    };
+    let completed: Vec<usize> = (1..=runs)
+        .filter(|r| matches!(process_state(&raw, &format!("run{r}")), Some((true, _))))
+        .collect();
+    if !a.resume && !completed.is_empty() {
+        return Err(format!(
+            "{} already holds completed runs {completed:?}; use `encoding --resume`, or move them away to start over",
+            raw.display()
+        ));
+    }
+    if a.mode == Mode::Full {
+        let r = env::requirements();
+        if r["ac_power"] != json!(true) || r["high_power_mode"] != json!(true) {
+            return Err(format!(
+                "aborting: the encoding-check benchmark needs M9's machine state, AC power and High Power mode: {r}"
+            ));
+        }
+    }
+    require(a.mode)?;
+    fs::create_dir_all(&out).map_err(|e| e.to_string())?;
+    let env = env::capture(&root());
+    fs::write(
+        out.join(env_name(a)),
+        serde_json::to_string_pretty(&env).unwrap() + "\n",
+    )
+    .map_err(|e| e.to_string())?;
+    if a.mode == Mode::Full && env["m9_requirements"]["ok"] != json!(true) {
+        return Err(format!(
+            "aborting: {} does not confirm AC power, High Power mode and an idle machine",
+            env_name(a)
+        ));
+    }
+    let me = std::env::current_exe().map_err(|e| e.to_string())?;
+    let outs = out.to_string_lossy().to_string();
+    for r in 1..=runs {
+        if completed.contains(&r) {
+            eprintln!("== encoding run {r}: completed earlier, skipped");
+            continue;
+        }
+        run_child(
+            Command::new(&me).args([
+                "encoding-run",
+                "--run",
+                &r.to_string(),
+                "--mode",
+                a.mode.label(),
+                "--out",
+                &outs,
+            ]),
+            &format!("encoding run {r}"),
+        )?;
+    }
+    archive(&out)?;
+    let log = if a.mode == Mode::Full {
+        root().join("BENCH_LOG.md")
+    } else {
+        out.join("BENCH_LOG.dry.md")
+    };
+    log_encoding(&log, &out)
+}
+
+/// One run process of the encoding-check benchmark, on a measuring thread
+/// at QoS user-interactive, with the thermal and probe readings around each
+/// operation (recorded, not acted on).
+fn cmd_encoding_run(a: &Args) -> Result<(), String> {
+    headline_build()?;
+    let requirements = require(a.mode)?;
+    let out = encoding_dir(a);
+    let raw = out.join("raw");
+    fs::create_dir_all(&raw).map_err(|e| e.to_string())?;
+    let stem = format!("run{}", a.run);
+    match process_state(&raw, &stem) {
+        Some((true, _)) => {
+            return Err(format!(
+                "{stem} already completed in {}; refusing to overwrite measured data",
+                raw.display()
+            ));
+        }
+        _ if stem_files(&stem).iter().any(|f| raw.join(f).exists()) => {
+            let d = set_aside(&out, &stem)?;
+            eprintln!(
+                "{stem}: the earlier, unfinished attempt's files were moved to {}",
+                d.display()
+            );
+        }
+        _ => {}
+    }
+    let started = Instant::now();
+    let qos_main = qos::set_user_interactive();
+    let inputs = encoding::Inputs::new();
+    std::thread::sleep(Duration::from_secs(if a.mode == Mode::Full {
+        30
+    } else {
+        1
+    }));
+    let mut monitor = Monitor::new(
+        csv::Writer::from_path(raw.join(format!("{stem}-thermal.csv")))
+            .map_err(|e| e.to_string())?,
+        a.run,
+        encoding::OPS.len(),
+        0,
+        false,
+    )?;
+    let batches = if a.mode == Mode::Dry {
+        10
+    } else {
+        encoding::BATCHES
+    };
+    let results = encoding::measure(&inputs, batches, &mut |id, f| {
+        let before = monitor.before(id)?;
+        let v = f();
+        monitor.after(id, before)?;
+        eprintln!("{stem}: {id} ({} batches)", v.len());
+        Ok(v)
+    })?;
+    let mut w =
+        csv::Writer::from_path(raw.join(format!("{stem}.csv"))).map_err(|e| e.to_string())?;
+    w.write_record(encoding::header())
+        .map_err(|e| e.to_string())?;
+    for op in &encoding::OPS {
+        for (b, ns) in results[op.id].iter().enumerate() {
+            w.write_record([
+                a.run.to_string(),
+                op.id.to_owned(),
+                b.to_string(),
+                op.calls.to_string(),
+                ns.to_string(),
+            ])
+            .map_err(|e| e.to_string())?;
+        }
+    }
+    w.flush().map_err(|e| e.to_string())?;
+    let meta = json!({
+        "run": a.run,
+        "mode": a.mode.label(),
+        "exploratory": "not pre-registered (D-87)",
+        "requirements_at_start": requirements,
+        "qos_user_interactive_main_thread": qos_main,
+        "batches": batches,
+        "ops": encoding::OPS.iter().map(|o| json!({"id": o.id, "calls": o.calls})).collect::<Vec<_>>(),
+        "probe_baseline_ns": monitor.baseline,
+        "flagged": monitor.flagged.iter().map(|(id, sig)| json!({"config": id, "signal": sig})).collect::<Vec<_>>(),
+        "aborted": Value::Null,
+        "total_seconds": started.elapsed().as_secs_f64(),
+        "rustflags_at_build": env!("DC_BENCH_RUSTFLAGS"),
+    });
+    fs::write(
+        raw.join(format!("{stem}-meta.json")),
+        serde_json::to_string_pretty(&meta).unwrap() + "\n",
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// Appends the BENCH_LOG.md entry of the encoding-check benchmark, from its
+/// verified archives (D-87).
+fn log_encoding(log: &Path, out: &Path) -> Result<(), String> {
+    let d = encoding::load(out)?;
+    // The measured commit: unlike M9's, it must have D-81's checks.
+    let env: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(out.join("env.json")).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+    let commit = match (env["git"]["commit"].as_str(), env["git"]["dirty"].as_bool()) {
+        (Some(c), Some(false)) => format!("commit `{}`", &c[..c.len().min(7)]),
+        (Some(c), _) => format!("commit `{}` with uncommitted changes", &c[..c.len().min(7)]),
+        _ => "an unrecorded commit".to_owned(),
+    };
+    let date = Command::new("date")
+        .args(["-u", "+%Y-%m-%d"])
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+        .unwrap_or_default();
+    let mut f = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log)
+        .map_err(|e| e.to_string())?;
+    writeln!(
+        f,
+        "\n## {date} — Exploratory run (not pre-registered): the cost of D-81's encoding checks\nReason: D-81 added decode-time canonical-encoding checks to the default instantiation after M9, so the measured binaries did not have them. The author asked what they add to the latencies the paper reads as the protocol's cost.\n- **What ran.** {}, each in its own process, timing the checks as the decoders call them, on honest inputs and on the worst passing inputs, and the whole decoders for context (D-87).\n- **The build.** The default `dc-bench` build with `target-cpu=native`, as M9, at {commit}, which has D-81's checks.\n- **Machine state.** M9's: AC power, High Power mode and an idle machine, checked before the first run and recorded in `results/exploratory/encoding/env.json`.\n- **Thermal readings.** Recorded around each operation, not acted on: {}.\n- **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only. No measured result changes. The raw batch timings are in {} archives under `results/exploratory/encoding/archive/`, pinned by the committed `MANIFEST.sha256`.\n\nConfigurations re-run: none.",
+        match d.runs {
+            1 => "1 run".to_owned(),
+            k => format!("{k} runs"),
+        },
         d.flags(),
         d.archives
     )
