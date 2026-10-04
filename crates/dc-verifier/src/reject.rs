@@ -60,8 +60,8 @@ pub enum Reject {
     L44ReceiptWindow,
     #[error("line 48: two chain digests are equal")]
     L48DuplicateDigest,
-    #[error("line 49: the chain signature does not verify")]
-    L49AggregateInvalid,
+    #[error("line 49: the chain signatures do not verify")]
+    L49ChainSignaturesInvalid,
     #[error("line 50: invoker key and nonce already recorded")]
     L50Replay,
 }
@@ -99,7 +99,7 @@ impl Reject {
             L43ReceiptSignature => 43,
             L44ReceiptWindow => 44,
             L48DuplicateDigest => 48,
-            L49AggregateInvalid => 49,
+            L49ChainSignaturesInvalid => 49,
             L50Replay => 50,
         }
     }

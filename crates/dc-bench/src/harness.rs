@@ -18,8 +18,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier, Mutex};
 use std::time::Instant;
 
-use dc_baselines::{BlsIndividual, Ed25519List};
-use dc_crypto::BlsAggregate;
+use dc_baselines::BlsIndividual;
+use dc_crypto::{BlsAggregate, Ed25519List};
 use dc_types::Envelope;
 use dc_verifier::Path as CachePath;
 use hdrhistogram::Histogram;

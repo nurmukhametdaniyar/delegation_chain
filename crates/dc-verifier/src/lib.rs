@@ -50,8 +50,9 @@ pub struct VerifierConfig {
     /// Upper bound on a cached certificate's life, in seconds (paper §5.4:
     /// "typically one hour").
     pub certificate_cache_ttl: u64,
-    /// Clock-skew term of the nonce TTL, in seconds (D-25).
-    pub nonce_skew: u64,
+    /// The bound on clock skew, in seconds: added to the nonce TTL (D-25)
+    /// and to how long a revocation is kept (paper §5.6; D-82).
+    pub clock_skew: u64,
     /// Security-suite hooks (feature `test-hooks`).
     #[cfg(feature = "test-hooks")]
     pub hooks: TestHooks,
@@ -63,7 +64,7 @@ impl Default for VerifierConfig {
             cache_certificates: true,
             cache_policies: true,
             certificate_cache_ttl: 3600,
-            nonce_skew: 60,
+            clock_skew: 60,
             #[cfg(feature = "test-hooks")]
             hooks: TestHooks::default(),
         }
@@ -172,7 +173,7 @@ fn phase8<C: ChainScheme>(
     // Line 49.
     phases::enter(Phase::Signatures);
     if !C::verify_chain(pks, &m, sigs) {
-        return Err(Reject::L49AggregateInvalid);
+        return Err(Reject::L49ChainSignaturesInvalid);
     }
     Ok(m)
 }
@@ -245,9 +246,13 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
     }
 
     /// Drops revocation records older than the maximum certificate lifetime
-    /// (D-65). Called by the host, never inside `verify`.
+    /// plus the clock-skew bound (paper §5.6; D-65, D-82). Called by the
+    /// host, never inside `verify`.
     pub fn forget_revocations(&self, t: u64) {
-        self.revoked.write().unwrap().forget_before(t);
+        self.revoked
+            .write()
+            .unwrap()
+            .forget_before(t, self.config.clock_skew);
     }
 
     pub fn nonce_cache(&self) -> &NonceCache {
@@ -730,7 +735,7 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
         inv: &InvocationBody<C::Base>,
         t: u64,
     ) -> Result<(), Reject> {
-        let expires_at = inv.exp.saturating_add(self.config.nonce_skew);
+        let expires_at = inv.exp.saturating_add(self.config.clock_skew);
         if !self.nonces.insert_if_absent(nonce_key, expires_at, t) {
             return Err(Reject::L50Replay);
         }

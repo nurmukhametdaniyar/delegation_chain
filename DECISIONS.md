@@ -191,6 +191,7 @@ Why: Step 2 is soundness-critical: getting it wrong lets a delegation widen to e
 Affects benchmarks: no
 
 ## D-25 — Nonce cache key and TTL
+_Revised 2026-10-04: the skew term is `VerifierConfig::clock_skew` (formerly `nonce_skew`), which also extends revocation retention (D-82)._
 Spec section: §10.4     Paper section: §4.6, Theorem 5 (P-07)
 Decision:
 - The key is `(invoker_pk bytes, nonce bytes)`.
@@ -256,6 +257,7 @@ Why: Threaded `blst` gives arm A hidden multi-core help against the single-threa
 Affects benchmarks: yes. It defines the headline arms as one thread per verification. A-mt shows what the default costs or saves.
 
 ## D-30 — Every point is validated once, at decode
+_Revised 2026-10-04: for Ed25519, now the default instantiation, decode also rejects non-canonical key and signature encodings (paper §4.7; D-81)._
 Spec section: §5.3, §5.6     Paper section: §4.7
 Decision:
 - Every received signature goes through `Signature::sig_validate(bytes, true)` when it is decoded: σ_agg, individual chain signatures, receipt signatures, certificate signatures.
@@ -566,6 +568,7 @@ Why: The paper names the checks, not the reject line for each way resolution can
 Affects benchmarks: yes. The warm state depends on these cache rules.
 
 ## D-61 — The phase-ordering row: cold line-34 rejections involve pairings
+_Revised 2026-10-04: the test runs for both instantiations; the pairing counts are asserted under the aggregate variant, and the signature-check counts under both (D-84). Paper revision 2026-10-04 states the cold-path exception (§4.6), resolving P-28._
 Spec section: §11.2 "Phase ordering (Figure 2, count-ops)"     Paper section: §4.6, Figure 2 (P-28)
 Decision: For the line-34 case, SPEC expects 0 pairings. The test instead asserts the counts that actually occur:
 - 0 pairings for a warm verifier;
@@ -606,6 +609,7 @@ Why: The security suite's 64-thread, 1,000-round replay test and the 10,000-chai
 Affects benchmarks: no
 
 ## D-65 — Revocation names a binding, not a certificate (ahead of the paper)
+_Adopted by paper revision 2026-10-04 (§5.6). Retention now adds the clock-skew bound (D-82)._
 Spec section: §2, §6.5, §10.1, §10.2, §11.3, §12.1     Paper section: §5.4, §5.5, §5.6, Algorithm 1 lines 27 and 42 (P-29)
 Decision:
 - **The assertion.** Its body is `{1: registry_id, 2: serial, 3: revoked_at, 4: identifier, 5: pk}`. It revokes the binding of `identifier` to `pk`, whichever certificate `serial` names; the serial is kept for audit and does not affect any decision.
@@ -963,3 +967,101 @@ Decision:
   - arm E's M9 median and E ÷ AIP here (medians), small and medium.
 Why: running the same code on this machine separates the hardware and build from the timed scope, which Q9 could only argue.
 Affects benchmarks: no headline result. BENCHMARKS.md §8 only.
+
+## D-80 — The flip: Ed25519 per hop is the protocol path, BLS aggregate a variant
+Spec section: §3.2, §5.1, §5.8; §0 rule 3     Paper section: §4.2, §4.6, §4.8 (revision 2026-10-04)
+Decision:
+- **The paper.** Revision 2026-10-04 specifies DelegationChain over a scheme Σ. The default instantiation signs each hop with Ed25519 and verifies strictly, and the chain carries σ0 … σN. BLS aggregation is "the aggregate variant", which differs only in line 49's `VerifyChain`. Within one deployment, certificates and receipts use the same scheme.
+- **dc-crypto.**
+  - `Ed25519` and `Ed25519List` (the per-hop chain scheme, moved from dc-baselines) are compiled unconditionally. ed25519-dalek is a normal dependency.
+  - `Bls`, `BlsAggregate`, the `blst` re-export and `BLST_THREADED` are behind a new `variant-bls` feature. blst is an optional dependency that only it enables.
+  - `blst-no-threads` implies `variant-bls`, and the A-mt build is `variant-bls` without it (D-29 unchanged). The old `variant-ed25519` feature is gone.
+  - The list helpers (`from_wire`, `to_wire`, `verify_each`) are a public `list` module, shared with dc-baselines.
+  - Arm D's prefix state (`impl PrefixScheme for Ed25519List`) moved to dc-crypto's `prefix` module, because the orphan rule requires it once the type lives there. Arm B's pairing cache is behind `variant-prefix` and `variant-bls`.
+- **dc-baselines** keeps A-ind (`BlsIndividual`), C-batch (`Ed25519Batch`), arm E and the arm table. It enables `variant-bls`.
+- **dc-bench** enables `variant-bls` and `variant-prefix`. The measured arms are unchanged in what they verify, but the default instantiation's decoder now has D-81's checks. Re-measuring under the frozen plan therefore uses the measured commit (ARTIFACT.md).
+- **The protocol crates are already generic over the scheme** (dc-types, dc-registry, dc-chain, dc-verifier), so none of them changed for the flip. Their tests that use BLS enable `blst-no-threads` as a dev-dependency.
+- **`scripts/check-deps.sh`** keeps blst out of, and ed25519-dalek in, every protocol crate's normal graph, and keeps phase timing out of them as well.
+- **Line 49's rejection variant** is renamed from `L49AggregateInvalid` to `L49ChainSignaturesInvalid`, after the paper's "Phase 8 — chain signatures".
+Why: the paper wins (CLAUDE.md), and it now names Ed25519 per hop as the protocol and BLS aggregation as a variant. SPEC §0 rule 3 requires VARIANT code to stay off the default protocol path.
+Affects benchmarks: not the measured results; the frozen benchmark is described as measured (SPEC §12 note).
+
+## D-81 — Ed25519 encodings are checked at decode (paper §4.7)
+Spec section: §5.3, §5.8     Paper section: §4.7, §5.3 (revision 2026-10-04)
+Decision:
+- **Public keys.** `Ed25519::pk_from_bytes` rejects:
+  - a key whose y (the low 255 bits) is not below p, i.e. a non-canonical encoding;
+  - one that does not decompress;
+  - one of small order (`is_weak`).
+
+  The other non-canonical form, x = 0 with the sign bit set, encodes a small-order point and falls under the last rule. Registries call it at registration (paper §5.3), and certificate decoding calls it when a certificate is verified (line 24).
+- **Signatures.** `Ed25519::sig_from_bytes` rejects:
+  - an R whose y is not below p;
+  - an s not below ℓ.
+
+  Both are byte comparisons, so each point is still decompressed once (D-30). A failure in a chain or receipt is L02.
+- **R's order** is left to `verify_strict`, which rejects a small-order R at line 49, as paper §4.7 says ("strict verification also rejects a signature whose R is of small order").
+- **The check is not redundant.** ed25519-dalek 2.2.0 decompresses a key's y + p alias to the same point (`dc-crypto` unit test `non_canonical_keys_are_ours_to_reject`), so without this check a non-canonical key would be accepted.
+- **One test changed expectation.** `crates/dc-crypto/tests/ed25519.rs::strict_verification_rejects_non_canonical_s` decoded s + ℓ and expected verification to reject it. Decode now rejects it, so the test, renamed `non_canonical_s_is_rejected_at_decode_and_by_strict_verification`, asserts both. The second assertion goes through dalek's unchecked constructor (SPEC §0 rule 10).
+- **Body key fields** are still only length-checked at decode. They are compared as bytes with resolved certificates, whose keys passed these checks (D-05).
+Why: paper §4.7 requires decoders to reject non-canonical encodings and small-order keys. Which line a non-canonical signature fails at is otherwise open (P-32), and rejecting at decode matches the aggregate variant's treatment of points (D-30).
+Affects benchmarks: the default instantiation's decode does a few more byte comparisons than in the measured build.
+
+## D-82 — A revoked binding is kept for the maximum lifetime plus the clock-skew bound (paper §5.6)
+Spec section: §6.5, §10.4     Paper section: §5.6 (revision 2026-10-04)
+Decision:
+- `RevocationSet::forget_before(t, skew)` keeps a record through `revoked_at + MAX_CERT_LIFETIME + skew`.
+- The verifier passes `VerifierConfig::clock_skew`, which was called `nonce_skew` (D-25) and keeps its default of 60 seconds. One bound on clock skew serves both the nonce TTL and revocation retention.
+- The registry test covers both boundaries.
+Why: paper §5.6: "for the registry's maximum certificate lifetime after the revocation, plus a bound on clock skew". The paper gives no value (P-33). Using the verifier's one skew bound avoids two knobs for one quantity.
+Affects benchmarks: no.
+
+## D-83 — Reconciliation notes: paper changes that needed no code
+Spec section: §8.2, §10     Paper section: revision 2026-10-04, §3, §4.5, §4.6, §5.4, §6.4
+Decision:
+- **§3 (signing service).** "At minimum, a signing service refuses to sign a body that does not name its own agent's identifier and key as the signer." `dc_chain::SigningService::sign` already refuses such a body.
+- **§4.5 (receipts).** Receipts' "own domain separation tag" is D-04's BLS DST under the aggregate variant and D-07's `TAG_APR` digest tag under Ed25519, which has no DSTs.
+- **§4.6 (cold path).** The cold-path exception and Figure 2's phase-5 label describe what D-61 tests.
+- **§5.4 (resolution, P-30) and §5.6 (revocation by binding, P-29)** are what D-26 (revised) and D-65 implement.
+- **§6.4.** It now states the string checks' incompleteness and their polynomial cost, which is what SPEC §9.5 implements (P-08).
+Why: recorded so that the reconciliation is complete.
+Affects benchmarks: no.
+
+## D-84 — The workspace suites run for both instantiations
+Spec section: §11.2, §11.3     Paper section: §4.2, §4.8, §8.2 (revision 2026-10-04)
+Decision:
+- **Selecting the instantiation.** `tests/common` picks the instantiation under test (`A`, `S`): `Ed25519List` and `Ed25519` by default, or `BlsAggregate` and `Bls` with the root package's `aggregate-variant` feature. CI runs both.
+- **Instantiation-specific tests** are separate functions under `#[cfg(feature = "aggregate-variant")]` or its negation, so that each instantiation's table rows are its own:
+  - `point_validation_bls` and `point_validation_ed25519` (D-30, D-81);
+  - `t5a_pop_under_the_chain_dst` (BLS) and `t5a_chain_signature_as_pop` (Ed25519, where the challenge digest's tag separates a PoP from a chain signature, paper §5.3).
+  Each instantiation runs 52 tests: 50 shared and 2 of its own.
+- **Tests rewritten to run under both:**
+  - `t1a_foreign_aggregate` became `t1a_foreign_signatures`: N+1 signatures by an unrelated key, whose sum is an unrelated G2 point under the variant.
+  - Theorem 3's reorder case permutes the signatures with the bodies.
+  - `phase_ordering_count_ops` asserts no signature check and no pairing warm, and N+1 certificate checks cold, with the pairing counts asserted under the variant only (`#[cfg]` on those assertions; D-61).
+- **Dropped hops.** `t1b_truncation`, `t1b_drop_session_or_invocation` and `structure` drop the removed body's signature with it under per-hop signatures (`drop_body`), as an attacker who drops a hop can. Without that, the signature count fails at line 2 before the line under test. Under the aggregate variant `drop_body` leaves the aggregate as before. The expected lines are unchanged in both.
+Why: the paper specifies two instantiations, and the security suite must show each one's rejecting lines (paper §8.2).
+Affects benchmarks: no.
+
+## D-85 — No containment cache on the default verifier (paper §6.5)
+Spec section: §10.5     Paper section: §6.5 (revision 2026-10-04)
+Decision: Paper §6.5 says "a verifier should cache containment results by scope digest, as the prefix cache of Section 8.4 does". The default `Verifier` keeps no containment cache (SPEC §10.5: warm uses certificate and policy caches only). The prefix-cache VARIANT (arms B and D) caches a prefix's verified containment.
+Why: it is a recommendation, not a check. A cache of a deterministic function changes cost, not outcome, but on the default verifier it would change the measured warm state and SPEC §10.5's cache table. It can be added when an evaluation wants it.
+Affects benchmarks: no.
+
+## D-86 — Paper section numbers and rule names come from a mapping file
+Spec section: §13.11; D-78     Paper section: §8.5, Table 5 (revision 2026-10-04)
+Decision:
+- `docs/paper-sections.json` maps each claim's section references and each rule name to two texts:
+  - `checked`, for revision 2026-09-29, against which the claims were judged, used by BENCHMARKS.md;
+  - `current`, for the paper in `docs/paper.pdf`, used by `paper/tables/claims.tex`.
+- The template's claims table cites `{{psec:KEY}}` and `{{prule:KEY}}` instead of typed numbers.
+- `dc-bench paper` refuses to run if the file's `current.sha256` is not `docs/paper.pdf`'s, so the map must be updated whenever the paper changes.
+- For revision 2026-10-04 the map follows each claim's content, not its old number:
+  - old §2.2, §4.6 and Figure 2 are §2.2, §4.6 and Figure 2;
+  - old §4.3's 96-byte aggregate is in §4.8;
+  - old §8.2 is §9.2;
+  - the non-aggregating baseline claim (old §4.6, §8.3) is §8.3, where the question is posed;
+  - "the §6 rule" is "the verdict rule of Section 8.3".
+Why: the claims table printed revision 2026-09-29's numbers and the frozen plan's rule name, which the rewritten paper had to explain in its caption. The author asked for them to come from a file updated with the paper.
+Affects benchmarks: no.

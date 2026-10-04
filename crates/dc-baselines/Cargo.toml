@@ -1,6 +1,6 @@
 [package]
 name = "dc-baselines"
-description = "VARIANT benchmark arms: BLS-individual, Ed25519, prefix caches, Biscuit (SPEC §12)."
+description = "VARIANT benchmark arms: BLS-individual, Ed25519 batch, the arm table, Biscuit (SPEC §12)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -16,7 +16,8 @@ dc-policy.workspace = true
 # ed25519-dalek features (rand_core, zeroize) are already on for dc-crypto,
 # so arm C's build is unchanged (D-68).
 biscuit-auth = { version = "=6.0.0", default-features = false, features = ["datalog-macro", "regex-full"] }
-dc-crypto = { workspace = true, features = ["variant-ed25519", "variant-prefix"] }
+# A-ind and the arm table need the BLS variant (D-80).
+dc-crypto = { workspace = true, features = ["variant-bls", "variant-prefix"] }
 dc-registry.workspace = true
 dc-types.workspace = true
 dc-verifier = { workspace = true, features = ["variant-prefix-cache"] }
@@ -27,7 +28,7 @@ dc-policy.workspace = true
 # Pinned to the version ed25519-dalek already uses, for the D-66 edge cases.
 curve25519-dalek = "=4.1.3"
 ed25519-dalek.workspace = true
-dc-crypto = { workspace = true, features = ["blst-no-threads", "variant-ed25519", "variant-prefix", "count-ops"] }
+dc-crypto = { workspace = true, features = ["blst-no-threads", "variant-prefix", "count-ops"] }
 dc-types.workspace = true
 rand_chacha.workspace = true
 rand_core.workspace = true

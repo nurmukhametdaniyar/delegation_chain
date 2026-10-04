@@ -1,13 +1,15 @@
 //! VARIANT benchmark arms (SPEC §12). Nothing here is on the protocol path.
+//! Arm C's chain scheme, `dc_crypto::Ed25519List`, is the protocol's default
+//! instantiation and lives in dc-crypto, with arm D's prefix state (D-80).
 //!
 //! | Arm     | Chain scheme                    | Verifier                          |
 //! | ------- | ------------------------------- | --------------------------------- |
 //! | A       | `dc_crypto::BlsAggregate`       | `dc_verifier::Verifier`           |
 //! | A-ind   | [`BlsIndividual`]               | `Verifier`                        |
 //! | B       | `BlsAggregate`                  | `dc_verifier::PrefixVerifier`     |
-//! | C       | [`Ed25519List`]                 | `Verifier`                        |
+//! | C       | `dc_crypto::Ed25519List`        | `Verifier`                        |
 //! | C-batch | [`Ed25519Batch`]                | `Verifier`                        |
-//! | D       | [`Ed25519List`]                 | `PrefixVerifier`                  |
+//! | D       | `Ed25519List`                   | `PrefixVerifier`                  |
 //! | E       | Biscuit (biscuit-auth 6.0)      | [`biscuit::BiscuitArm`]           |
 //!
 //! A, A-ind, C and C-batch run the same generic verifier; only line 49 and
@@ -18,15 +20,15 @@
 pub mod biscuit;
 mod schemes;
 
-pub use schemes::{BlsIndividual, Ed25519Batch, Ed25519List};
+pub use schemes::{BlsIndividual, Ed25519Batch};
 
 /// The verifier types of the arms, over any resolver, policy store and
 /// clock.
 pub mod arms {
-    use dc_crypto::BlsAggregate;
+    use dc_crypto::{BlsAggregate, Ed25519List};
     use dc_verifier::{PrefixVerifier, Verifier};
 
-    use crate::{BlsIndividual, Ed25519Batch, Ed25519List};
+    use crate::{BlsIndividual, Ed25519Batch};
 
     pub type A<R, P, K> = Verifier<BlsAggregate, R, P, K>;
     pub type AInd<R, P, K> = Verifier<BlsIndividual, R, P, K>;

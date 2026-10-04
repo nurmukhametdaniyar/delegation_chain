@@ -1,6 +1,6 @@
 [package]
 name = "dc-crypto"
-description = "Signature-scheme trait, BLS and Ed25519 implementations, pairing cache (SPEC §5)."
+description = "Signature-scheme traits; Ed25519 per hop (the protocol) and the BLS aggregate variant, pairing cache (SPEC §5)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,13 +10,17 @@ publish.workspace = true
 workspace = true
 
 [features]
-default = ["blst-no-threads"]
-# One verification runs on one thread in every arm (D-29).
-blst-no-threads = ["blst/no-threads"]
-# VARIANT (SPEC §0 rule 3): Ed25519, for arms C, C-batch and D only.
-variant-ed25519 = ["dep:ed25519-dalek"]
-# VARIANT (SPEC §0 rule 3): the prefix-cache trait and arm B's pairing cache
-# (SPEC §5.7, §12.1).
+# The default instantiation is Ed25519 per hop (paper §4.2) and needs no
+# feature.
+default = []
+# VARIANT (SPEC §0 rule 3): BLS12-381, the aggregate variant (paper §4.8) and
+# the BLS benchmark arms (A, A-ind, B, A-mt). blst is built only with it.
+variant-bls = ["dep:blst"]
+# One verification runs on one thread in every arm (D-29). Implies the BLS
+# variant; arm A-mt is the BLS variant without it.
+blst-no-threads = ["variant-bls", "blst/no-threads"]
+# VARIANT (SPEC §0 rule 3): the prefix-cache trait (arms B and D), and, with
+# `variant-bls`, arm B's pairing cache (SPEC §5.7, §12.1).
 variant-prefix = []
 # Per-verification operation counts (SPEC §10.3). Never in headline runs.
 count-ops = []
@@ -25,13 +29,10 @@ count-ops = []
 phase-timing = []
 
 [dependencies]
-blst.workspace = true
-ed25519-dalek = { workspace = true, optional = true }
+blst = { workspace = true, optional = true }
+ed25519-dalek.workspace = true
 thiserror.workspace = true
 
-[dev-dependencies]
-ed25519-dalek.workspace = true
-
 [[test]]
-name = "ed25519"
-required-features = ["variant-ed25519"]
+name = "bls"
+required-features = ["variant-bls"]

@@ -13,11 +13,10 @@
 use std::alloc::System;
 use std::path::PathBuf;
 
-use dc_baselines::Ed25519List;
 use dc_bench::plan::{Mode, memory_entries};
 use dc_bench::workload::{Layout, Profile, SEED, Setting, T0, chains, p};
 use dc_chain::{ChainBuilder, IssuanceService, World};
-use dc_crypto::{Bls, BlsAggregate, ChainScheme, Ed25519, PrefixScheme, SigScheme};
+use dc_crypto::{Bls, BlsAggregate, ChainScheme, Ed25519, Ed25519List, PrefixScheme, SigScheme};
 use dc_policy::Scope;
 use dc_types::Params;
 use dc_verifier::{NonceCache, PrefixVerifier, Verifier, VerifierConfig, nonce_key};

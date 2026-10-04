@@ -590,10 +590,13 @@ fn revocation_records_are_kept_for_the_maximum_lifetime() {
     let mut set = RevocationSet::new();
     set.ingest::<Bls>(&a, |_| Some(f.reg.root_pk())).unwrap();
     // A certificate issued at revocation time can be valid through
-    // revoked_at + MAX_CERT_LIFETIME (closed interval), so the record stays.
-    set.forget_before(T0 + MAX_CERT_LIFETIME);
+    // revoked_at + MAX_CERT_LIFETIME (closed interval), and a verifier's
+    // clock may lag by the skew bound, so the record stays through
+    // revoked_at + MAX_CERT_LIFETIME + skew (paper §5.6; D-82).
+    let skew = 60;
+    set.forget_before(T0 + MAX_CERT_LIFETIME + skew, skew);
     assert!(set.is_revoked("orga", &id, &pk::<Bls>(&sk)));
-    set.forget_before(T0 + MAX_CERT_LIFETIME + 1);
+    set.forget_before(T0 + MAX_CERT_LIFETIME + skew + 1, skew);
     assert!(set.is_empty());
 }
 

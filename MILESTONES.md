@@ -508,3 +508,30 @@ The author asked for three follow-ups.
   - Its §8 still has `[PENDING]` placeholders; the author asked for them to be ignored in step 3.
 - **Its predecessor.** Revision 2026-09-29 (sha256 `51eff0ec…6e14`) stays in git history. The benchmark's claims were judged against it.
 - **Q-02 is answered** (QUESTIONS.md). Step 3, the reconciliation, starts from this commit.
+
+## Step 3 — reconciled with revision 2026-10-04; defaults flipped (2026-10-04)
+
+- **The comparison.** Read §3–§7 and Algorithms 1–2 of revision 2026-10-04 (sha256 `0ed3f589…8bbd`) and diffed them word by word against revision 2026-09-29, which the code implemented. Algorithm line numbering is unchanged; line 49 is now `VerifyChain`.
+- **The flip (D-80).**
+  - Ed25519 per hop (`dc_crypto::{Ed25519, Ed25519List}`) is the protocol path, with no feature.
+  - BLS (`Bls`, `BlsAggregate`, `blst`, arm B's pairing cache) is a VARIANT behind `variant-bls`.
+  - `dc-baselines` keeps A-ind, C-batch and arm E.
+  - The protocol crates were already generic and did not change.
+  - `check-deps.sh` keeps blst out of, and ed25519-dalek in, the protocol crates' normal graphs.
+- **Paper changes that needed code.**
+  - §4.7: decoders reject non-canonical Ed25519 keys and signatures (D-81). ed25519-dalek alone accepts a non-canonical key encoding.
+  - §5.6: revocation retention adds the clock-skew bound (D-82).
+  - Line 49's rejection variant is renamed `L49ChainSignaturesInvalid`.
+  - The rest (§3's signing-service minimum, §4.5, §4.6's cold path, §5.4, §6.4) was already implemented (D-83).
+  - §6.5's recommended containment cache is not on the default verifier (D-85).
+- **Security suite (D-84).** It runs for both instantiations, each 52 tests (50 shared, 2 of its own), and all pass.
+  - T1a, theorem 3's reorder, and phase ordering were rewritten to run under both.
+  - Three tests drop a hop's signature with its body under per-hop signatures.
+  - One dc-crypto unit test changed expectation (D-81).
+  - CI runs both instantiations.
+- **Documents.**
+  - SPEC.md has a changelog entry, the new source of truth, §2's exception closed, and §3.2, §5, §11.2, §12 and Appendix A updated.
+  - DECISIONS.md: D-80 to D-86, with notes on D-25, D-30, D-61 and D-65.
+  - PAPER_ISSUES.md: statuses against revision 2026-10-04. Resolved: P-06, P-08, P-12, P-26, P-27 and P-28; adopted: P-29 and P-30; open: P-05; new: P-31 to P-33.
+  - ARTIFACT.md: re-measuring under the frozen plan uses the measured commit.
+- **(a).** `docs/paper-sections.json` holds the claims table's section numbers and rule names for revision 2026-09-29 (BENCHMARKS.md) and for the current paper (`paper/tables/claims.tex`), filled by content (D-86). `dc-bench paper` refuses a map that is not for `docs/paper.pdf`. `paper/tables/security.tex` reports both instantiations.

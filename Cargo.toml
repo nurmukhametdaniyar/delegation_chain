@@ -19,8 +19,9 @@ unsafe_code = "deny"
 
 [workspace.dependencies]
 dc-cbor = { path = "crates/dc-cbor" }
-# Internal crates take dc-crypto without its default `blst-no-threads`; leaf
-# packages switch it on, so that A-mt can be built without it (D-29).
+# dc-crypto's default is the protocol's instantiation, Ed25519 per hop. Its
+# BLS variant is switched on by the packages that need it, with
+# `blst-no-threads` except in the A-mt build (D-29, D-80).
 dc-crypto = { path = "crates/dc-crypto", default-features = false }
 dc-types = { path = "crates/dc-types" }
 # Measurement-affecting crates are pinned exactly (D-47).
@@ -50,14 +51,21 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[features]
+# Runs the workspace-level suites over the aggregate variant (paper §4.8:
+# `Bls` with `BlsAggregate`) instead of the default instantiation (Ed25519
+# per hop). `tests/common` picks the scheme (D-84).
+aggregate-variant = []
+
 [dependencies]
-dc-crypto = { workspace = true, features = ["blst-no-threads"] }
+dc-crypto.workspace = true
 
 [dev-dependencies]
 dc-baselines.workspace = true
 dc-cbor.workspace = true
 dc-chain = { workspace = true, features = ["test-hooks"] }
-dc-crypto = { workspace = true, features = ["blst-no-threads", "count-ops"] }
+# The arm tests build every arm, so the BLS variant is always present.
+dc-crypto = { workspace = true, features = ["blst-no-threads", "count-ops", "variant-prefix"] }
 dc-policy = { workspace = true, features = ["test-hooks"] }
 dc-registry = { workspace = true, features = ["test-hooks"] }
 dc-types.workspace = true

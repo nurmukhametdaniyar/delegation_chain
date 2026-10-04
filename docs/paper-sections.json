@@ -1,0 +1,24 @@
+{
+  "description": "Section numbers and rule names that the claims table cites (D-86). 'checked' is the paper revision the claims were judged against, used by BENCHMARKS.md; 'current' is the paper in docs/paper.pdf, used by paper/tables/claims.tex. Update 'current' whenever docs/paper.pdf changes: dc-bench paper refuses a map whose current.sha256 is not docs/paper.pdf's. Each entry follows the claim's content, not its old section number.",
+  "checked": {
+    "revision": "2026-09-29",
+    "sha256": "51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14"
+  },
+  "current": {
+    "revision": "2026-10-04",
+    "sha256": "0ed3f58978ef0c8b670034ba717fa394c2970a57dd9ebdeb329a53ecbfae8bbd"
+  },
+  "sections": {
+    "aggregation-saving": { "checked": "§2.2", "current": "§2.2" },
+    "cost-model": { "checked": "§4.6", "current": "§4.6" },
+    "constant-signature": { "checked": "§2.2, §4.3", "current": "§2.2, §4.8" },
+    "inline-certificates": { "checked": "§8.2", "current": "§9.2" },
+    "steady-state": { "checked": "§8.2", "current": "§9.2" },
+    "cheap-checks": { "checked": "§4.6, Figure 2", "current": "§4.6, Figure 2" },
+    "baseline": { "checked": "§4.6, §8.3", "current": "§8.3" }
+  },
+  "rules": {
+    "verdict-rule": { "checked": "the §6 rule", "current": "the verdict rule of Section 8.3" },
+    "inline-arithmetic": { "checked": "Paper §8.2's arithmetic assumes", "current": "The 2026-09-29 text's arithmetic (its §8.2) assumed" }
+  }
+}

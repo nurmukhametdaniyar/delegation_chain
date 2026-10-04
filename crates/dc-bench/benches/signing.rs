@@ -78,7 +78,7 @@ fn scheme<S: SigScheme, C: ChainScheme<Base = S>>(c: &mut Criterion, name: &str)
 
 fn bench(c: &mut Criterion) {
     scheme::<Bls, BlsAggregate>(c, "bls");
-    scheme::<Ed25519, dc_baselines::Ed25519List>(c, "ed25519");
+    scheme::<Ed25519, dc_crypto::Ed25519List>(c, "ed25519");
 }
 
 criterion_group!(benches, bench);

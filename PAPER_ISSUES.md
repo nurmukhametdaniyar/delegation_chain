@@ -1,11 +1,12 @@
 # Paper issues
 
-Problems in the paper, _DelegationChain: Aggregatable Capability Chains for Cross-Organizational Agent Authorization_. The format is SPEC Appendix B, plus a `Status` line.
+Problems in the paper, _DelegationChain_ (titled _Aggregatable Capability Chains for Cross-Organizational Agent Authorization_ until revision 2026-09-29, _Parameter-Bound Delegation Chains …_ from revision 2026-10-04). The format is SPEC Appendix B, plus a `Status` line.
 
 | Revision | Pages | sha256 | In `docs/` |
 | --- | --- | --- | --- |
 | 2026-09-28 | 42 | `bd94cef24e50a5bfca09375ef495b54e07aeba986e8c5096a2fc0c329f62e81e` | until 2026-09-29 (commit `e223f05`) |
-| 2026-09-29 | 44 | `51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14` | current |
+| 2026-09-29 | 44 | `51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14` | until 2026-10-04 (commit `973ecab`); the benchmark's claims were judged against it |
+| 2026-10-04 | 56 | `0ed3f58978ef0c8b670034ba717fa394c2970a57dd9ebdeb329a53ecbfae8bbd` | current: Ed25519 per hop by default, BLS aggregate as a variant |
 
 - **Sources:** P-03 to P-14 come from SPEC Appendix C; P-01, P-02, P-04, P-11 and P-13 were resolved before 2026-09-28 and are not logged. P-15 to P-25 were found in the pre-M0 review (2026-09-28). P-26 was found while reconciling revision 2026-09-29, P-27 during M4, P-28 and P-29 during M6, and P-30 while resolving P-29.
 - **Status after revision 2026-09-29:**
@@ -13,7 +14,15 @@ Problems in the paper, _DelegationChain: Aggregatable Capability Chains for Cros
   - resolved ahead of the paper: P-29 (D-65), P-30 (D-26, revised);
   - open: P-05, P-06, P-08, P-12, P-26, P-27, P-28.
 - **Final status (M10, 2026-10-01).** The benchmarks found no new paper issue. They confirm P-28: §13.11's "cheap checks reject hostile chains before any pairing" is supported for warm verifiers and not supported for cold ones (`BENCHMARKS.md` §5). Every claim was evaluated against revision 2026-09-29.
-- "Location" and "Evidence" below refer to revision 2026-09-28, where the issue was found. Each `Status` line says where revision 2026-09-29 addresses it.
+- **Status after revision 2026-10-04 (step 3, 2026-10-04).** Revision 2026-10-04 makes Ed25519 per hop the default instantiation (§4.2, §4.8), and the implementation follows (D-80).
+  - resolved in it: P-06, P-08, P-12, P-26, P-27 and P-28;
+  - adopted from the implementation: P-29 and P-30;
+  - still open: P-05;
+  - new: P-31 (line 2), P-32 (where non-canonical Ed25519 encodings are rejected) and P-33 (the skew bound in revocation retention).
+- **Not issues, for the record.**
+  - Revision 2026-10-04's §8 has `[PENDING]` placeholders, which the author is filling.
+  - Its Table 5 caption maps revision 2026-09-29's section numbers by hand; `paper/tables/claims.tex` now prints this revision's numbers (D-86).
+- "Location" and "Evidence" below refer to revision 2026-09-28, where the issue was found. Each `Status` line says where revision 2026-09-29, and since step 3 revision 2026-10-04, addresses it.
 
 ---
 
@@ -34,6 +43,7 @@ What the implementation does: Implements them as written, untagged (SPEC §5.4).
 Suggested fix to the paper: Tag both, or state why an untagged hash is safe in these two places.
 Severity: clarity
 Status: open in revision 2026-09-29. §4.4 and §5.4 are unchanged.
+Status (revision 2026-10-04): still open. §4.4's `params_hash` and §5.4's policy hash are still untagged.
 
 ## P-06 — Encodings of the auxiliary structures are unspecified
 Paper location: §4 (introduction), §4.5, §5.2, §5.3, §5.6
@@ -43,6 +53,7 @@ What the implementation does: D-04 (DSTs), D-07 (message tags), D-09 (kind enum)
 Suggested fix to the paper: Defer to a normative specification, as the paper already says. No change is needed beyond cross-referencing one when it exists.
 Severity: interoperability
 Status: open in revision 2026-09-29, as the paper intends: §4 still leaves field numbering and byte layout to a normative specification. One piece is now fixed: the InvocationDigest tag (§4.5, P-03).
+Status (revision 2026-10-04): resolved. §4 now says that the specification published with the reference implementation fixes field numbering and byte layout for that implementation (SPEC.md).
 
 ## P-07 — Clock skew is handled inconsistently
 Paper location: Algorithm 1 line 13; §4.6 ("Replay protection"); Theorem 5
@@ -67,6 +78,7 @@ Measured at M4 (`docs/test-reports/policy-oracle-m4.json`, 150,000 cases per typ
   - Against the SPEC enumeration: `implies` 0.841, `unsat` 0.743.
   - Against a richer enumeration (concatenations of up to three constants): 0.919 and 0.855.
 - Most of the gap between the two is the SPEC enumeration being too small to show that a constraint is satisfiable, not a flaw in the procedure. What remains includes genuine misses, for example `ends_with "/" ∧ under "/a"`, which is unsatisfiable because canonical paths do not end in `/`. The procedure stays conservative there (D-57).
+Status (revision 2026-10-04): resolved. §6.4 states that string checks without a finite value set are sound but incomplete, and gives a polynomial, not constant-time, cost.
 
 ## P-09 — `allow all` ignores the audience clause
 Paper location: §6.1, §6.3 ("The audience clause")
@@ -94,6 +106,7 @@ What the implementation does: A pluggable `EnforcementPolicy` hook, accepting by
 Suggested fix to the paper: Specify the minimum checks, or state that security never relies on the signing service's enforcement.
 Severity: clarity
 Status: open in revision 2026-09-29. §3.1 is unchanged. §5.2 now describes a signing service's own `signer` identity (P-24), but not what it checks before signing.
+Status (revision 2026-10-04): resolved. §3 states the minimum: a signing service refuses to sign a body that does not name its own agent's identifier and key as the signer. `dc-chain` already enforced it (D-83).
 
 ## P-14 — Line 41 has no reject clause
 Paper location: Algorithm 2 lines 41–42
@@ -252,6 +265,7 @@ What the implementation does: Treats validity as the closed interval `t ∈ [nbf
 Suggested fix to the paper: "reject unless t ∈ [cert_k.nbf, cert_k.exp] and cert_k is not revoked at t".
 Severity: interoperability
 Status: open in revision 2026-09-29, where it was introduced by the rewording of line 27.
+Status (revision 2026-10-04): resolved. Line 27 reads "reject unless t ∈ [cert_k.nbf, cert_k.exp] and (sid(B_k), spk(B_k)) is not revoked at t".
 
 ## P-27 — Remark 1 understates where the containment procedure is incomplete
 Paper location: §6.4, the containment procedure (steps 3(a) and 3(b)) and Remark 1 (revision 2026-09-29)
@@ -271,6 +285,7 @@ What the implementation does: The procedure as written, which is sound. The orac
 Suggested fix to the paper: Extend Remark 1 to name dead child rules and step 3(b)'s single-rule, whole-clause skip test. Whether to refine the procedure, for example by skipping child rules whose clause is unsatisfiable, is for the author to decide.
 Severity: clarity (soundness is unaffected)
 Status: open in revision 2026-09-29.
+Status (revision 2026-10-04): resolved. §6.5 names dead child rules and step 3(b)'s single-rule skip test as sources of incompleteness, and leaves the refinement to future work (§9.3).
 
 ## P-28 — Cold verifiers pair before phase 8, because of line 24
 Paper location: §4.6 ("Figure 2 shows why the order matters … only a chain that has survived every structural, temporal, and policy check reaches the pairing computation"); Figure 2 and its caption; Algorithm 1 line 24 (revision 2026-09-29)
@@ -292,6 +307,7 @@ What the implementation does: The algorithm as written. The test asserts the act
 Suggested fix to the paper: State that the cheap-checks-first ordering bounds pairing work only for cached certificates. Account for line 24's verifications in Figure 2 (phase 5: "may query registry and verify certificates"). Note the cold-path cost in §8.2.
 Severity: clarity (a performance and denial-of-service claim; soundness is unaffected)
 Status: open in revision 2026-09-29.
+Status (revision 2026-10-04): resolved. §4.6 states the cold-path exception and its per-binding bound; Figure 2's phase 5 reads "may query registry and verify certificates"; §9.2 notes the cold cost; and §9.3 defers moving the policy checks before identity resolution.
 
 ## P-29 — Revocation by serial, "most recent certificate" resolution, and caching disagree when a key is renewed
 Paper location: §5.4 (resolution returns the most recently issued certificate for an identifier and key; a revocation "immediately evicts the corresponding cached entry"); §5.6 (a revocation assertion names one certificate, by serial); §5.5 (revision 2026-09-29)
@@ -310,6 +326,7 @@ Suggested fix to the paper: Author to decide. Options:
 - have verifiers evict every cached entry for the binding a revoked serial belongs to. This needs the assertion to name the binding.
 Severity: soundness (a revoked renewal can leave the key accepted by caching verifiers; bounded by the cache TTL and the older certificate's expiry)
 Status: resolved ahead of the paper (D-65). Open in revision 2026-09-29, whose §5.6 still revokes by serial.
+Status (revision 2026-10-04): adopted. §5.6 revokes by binding, and line 27 checks the binding.
 
 ## P-30 — "Most recent certificate" resolution and caching disagree on a renewal that does not cover the older certificate's window
 Paper location: §5.4 (resolution returns the most recently issued certificate for an identifier and key, "whether or not it is currently valid"; certificate cache TTL min(exp, one hour)); §4.6 (caches change cost, "not, within the propagation bound of Section 5.6, their outcome"); Algorithm 1 line 27 (revision 2026-09-29)
@@ -336,3 +353,33 @@ Suggested fix to the paper: Author to decide. Options:
 - state the exception in §4.6.
 Severity: liveness and clarity. The warm verifier accepts only under a certificate that is valid and unrevoked. The uncached verifier rejects a binding that has one. The §4.6 claim that caches do not change outcomes is false for these renewals.
 Status: resolved ahead of the paper (D-26, revised 2026-09-30). Open in revision 2026-09-29, whose §5.4 returns the most recent certificate "whether or not it is currently valid".
+Status (revision 2026-10-04): adopted. §5.4 returns the newest certificate whose validity window contains t, or otherwise the newest.
+
+## P-31 — Line 2 still decodes an aggregate
+Paper location: Algorithm 1 line 2 (revision 2026-10-04)
+Problem: Line 2 reads "(B0, …, BN, σagg) ← Decode(C)". The default instantiation carries one signature per hop (§4.1, §4.3, Figure 1), and line 49 checks `VerifyChain(pk_0..pk_N, m_0..m_N, σ)`. σagg exists only under the aggregate variant (§4.8).
+Evidence: line 2 against §4.1 ("all token bodies and one signature per hop") and line 49.
+What the implementation does: Line 2 decodes the instantiation's signature container: N+1 signatures, or one aggregate (`ChainScheme::from_wire`).
+Suggested fix to the paper: "(B0, …, BN, σ) ← Decode(C)", with σ the instantiation's chain signatures, as at line 49.
+Severity: clarity
+Status: open in revision 2026-10-04.
+
+## P-32 — §4.7 does not say where non-canonical Ed25519 encodings are rejected
+Paper location: §4.7 (revision 2026-10-04): "Decoders reject non-canonical encodings and small-order public keys, and strict verification also rejects a signature whose R is of small order."
+Problem:
+- **Signatures.** It is unclear whether "non-canonical encodings" covers a signature's R and s. A non-canonical s or R also fails strict verification, so two implementations can reject the same chain at different lines: line 2 or line 49.
+- **Keys.** It is unclear which decoder must check public keys. Body key fields are compared as bytes with certificates and never used as points.
+Evidence: §4.7; Algorithm 1 lines 2 and 49.
+What the implementation does: Decoding rejects non-canonical key encodings (at registration and certificate decoding) and non-canonical R and s (L02). Strict verification rejects small-order R (L49) (D-81).
+Suggested fix to the paper: Name the structures whose decoders check (certificates, registration requests, chain and receipt signatures), and say that a non-canonical signature encoding is a decoding failure.
+Severity: interoperability (which line rejects; never whether)
+Status: open in revision 2026-10-04.
+
+## P-33 — Revocation retention's clock-skew bound is unspecified
+Paper location: §5.6 (revision 2026-10-04): "for the registry's maximum certificate lifetime after the revocation, plus a bound on clock skew"
+Problem: No value is given, and nothing relates it to §4.6's clock-skew tolerance in the nonce TTL, which bounds the same quantity: how far one verifier's clock may differ from another's, or from a registry's.
+Evidence: §5.6 against §4.6 ("TTL equal to the chain's remaining validity window plus a clock-skew tolerance").
+What the implementation does: One bound, `VerifierConfig::clock_skew` (60 seconds), serves both (D-82).
+Suggested fix to the paper: Say that the two are the same deployment parameter, or give each its own.
+Severity: clarity
+Status: open in revision 2026-10-04.

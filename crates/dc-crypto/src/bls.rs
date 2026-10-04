@@ -1,4 +1,5 @@
 //! BLS12-381, minimal-pubkey-size variant, via `blst::min_pk` (SPEC §5.2).
+//! VARIANT: the aggregate variant of paper §4.8, behind `variant-bls`.
 
 use blst::BLST_ERROR;
 use blst::min_pk::{AggregateSignature, PublicKey, SecretKey, Signature};
@@ -90,8 +91,8 @@ impl SigScheme for Bls {
     }
 }
 
-/// Arm A, the paper's protocol: one 96-byte aggregate, checked with a single
-/// multi-pairing (SPEC §5.5, §5.6).
+/// The aggregate variant (paper §4.8; arm A): one 96-byte aggregate,
+/// checked with a single multi-pairing (SPEC §5.5, §5.6).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BlsAggregate;
 

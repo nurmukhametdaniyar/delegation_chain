@@ -79,6 +79,20 @@ pub struct Doc {
     pub(crate) phases: Option<phases::Data>,
     /// AIP's own benchmark run here, once its archives exist (D-79).
     pub(crate) aip: Option<aip::Data>,
+    /// `docs/paper-sections.json` (D-86), when the results directory sits
+    /// in the repository.
+    pub(crate) sections: Option<Value>,
+    /// Which revision's section numbers `psec` and `prule` print.
+    revision: std::cell::Cell<Revision>,
+}
+
+/// The paper revision whose section numbers the claims table cites (D-86).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Revision {
+    /// The revision the claims were judged against (BENCHMARKS.md).
+    Checked,
+    /// The paper in `docs/paper.pdf` (the paper's own tables).
+    Current,
 }
 
 /// The two arms and states of each verdict kind.
@@ -127,6 +141,9 @@ impl Doc {
         } else {
             None
         };
+        let sections = results
+            .parent()
+            .and_then(|root| read_json(&root.join("docs/paper-sections.json")));
         let adir = results.join("exploratory/aip");
         let aip = if adir.join("archive/MANIFEST.sha256").exists() {
             Some(aip::load(&adir)?)
@@ -144,7 +161,33 @@ impl Doc {
             summary: fs::read_to_string(results.join("summary.md")).map_err(|e| e.to_string())?,
             phases,
             aip,
+            sections,
+            revision: std::cell::Cell::new(Revision::Checked),
         })
+    }
+
+    /// Fills `tpl` with section numbers from `revision` (D-86).
+    pub fn fill_for(&self, tpl: &str, revision: Revision) -> Result<String, String> {
+        let before = self.revision.replace(revision);
+        let out = self.fill(tpl);
+        self.revision.set(before);
+        out
+    }
+
+    /// One entry of `docs/paper-sections.json` for the selected revision.
+    fn paper_ref(&self, table: &str, key: &str) -> Result<String, String> {
+        let map = self
+            .sections
+            .as_ref()
+            .ok_or("no docs/paper-sections.json next to the results")?;
+        let which = match self.revision.get() {
+            Revision::Checked => "checked",
+            Revision::Current => "current",
+        };
+        map[table][key][which]
+            .as_str()
+            .map(str::to_owned)
+            .ok_or_else(|| format!("docs/paper-sections.json has no {table}.{key}.{which}"))
     }
 
     /// Resolves every placeholder in `tpl`. Any that cannot be resolved is
@@ -747,6 +790,9 @@ impl Doc {
                 .as_str()
                 .ok_or(format!("no resolved version of {krate}"))?
                 .to_owned(),
+            // Section references and rule names of the claims table (D-86).
+            ["psec", key] => self.paper_ref("sections", key)?,
+            ["prule", key] => self.paper_ref("rules", key)?,
             ["phaseflags"] => self.phase_data()?.flags(),
             ["phaseflaglist"] => self.phase_data()?.flag_list(),
             ["phaseflagcount"] => {

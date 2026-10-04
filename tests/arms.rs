@@ -7,9 +7,9 @@ mod common;
 use std::sync::Arc;
 
 use common::*;
-use dc_baselines::{BlsIndividual, Ed25519Batch, Ed25519List};
+use dc_baselines::{BlsIndividual, Ed25519Batch};
 use dc_chain::{Chain, ChainBuilder};
-use dc_crypto::{BlsAggregate, ChainScheme, PrefixScheme, WireForm};
+use dc_crypto::{BlsAggregate, ChainScheme, Ed25519List, PrefixScheme, WireForm};
 use dc_registry::{Directory, MemoryPolicyStore, Resolver};
 use dc_types::{ManualClock, ParsedCert};
 use dc_verifier::{OpCounts, Path, PrefixVerifier, Reject, VerifierConfig};
@@ -57,8 +57,9 @@ fn crypto(n: &OpCounts) -> (u64, u64, u64, u64) {
 
 #[test]
 fn warm_counts_per_arm_at_n_3() {
-    // Arm A: one aggregate over N + 1 = 4 messages.
-    let mut a = Suite::new();
+    // Arm A: one aggregate over N + 1 = 4 messages. Each arm is named
+    // explicitly; `Suite` follows the instantiation under test (D-84).
+    let mut a = ArmSuite::<BlsAggregate>::new();
     let v = a.verifier();
     assert!(v.verify(&a.chain(3).to_bytes()).is_ok());
     let (r, n) = v.verify_counted(&a.chain(3).to_bytes());
@@ -144,11 +145,11 @@ fn arm_d_needs_byte_identical_prefix_signatures() {
     let t = s.now();
     assert_eq!(
         uncached.verify_at(&bytes, t),
-        Err(Reject::L49AggregateInvalid)
+        Err(Reject::L49ChainSignaturesInvalid)
     );
     assert_eq!(
         v.verify_traced(&bytes, t),
-        (Err(Reject::L49AggregateInvalid), Path::Miss)
+        (Err(Reject::L49ChainSignaturesInvalid), Path::Miss)
     );
 }
 
@@ -163,7 +164,10 @@ fn revoking_a_prefix_signer_evicts_the_entry() {
     // Revoke a2, a prefix signer (D-65).
     let reg = s.w.org("orga");
     let cert = reg.resolve(&p(&agent(2)), &s.pk(&agent(2)), t).unwrap();
-    let serial = ParsedCert::<S>::decode(&cert).unwrap().body.serial;
+    let serial = ParsedCert::<dc_crypto::Bls>::decode(&cert)
+        .unwrap()
+        .body
+        .serial;
     v.ingest_revocation(&reg.revoke(serial).unwrap()).unwrap();
     assert_eq!(v.cached_prefixes(), 0);
     assert_eq!(

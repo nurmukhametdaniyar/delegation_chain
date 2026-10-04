@@ -21,9 +21,13 @@ jobs:
       - name: Format
         run: cargo fmt --all --check
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Test
-        run: cargo test --workspace
+        run: |
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo clippy -p delegationchain --features aggregate-variant --all-targets -- -D warnings
+      - name: Test (default instantiation, Ed25519 per hop)
+        run: cargo test --workspace --no-fail-fast
+      - name: Test (aggregate variant, D-84)
+        run: cargo test -p delegationchain --features aggregate-variant --no-fail-fast
       - name: Phase timing (D-77)
         run: |
           cargo clippy -p dc-bench --features phase-timing --all-targets -- -D warnings

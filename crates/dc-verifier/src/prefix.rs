@@ -237,7 +237,7 @@ impl<C: PrefixScheme, R: Resolver, P: PolicyStore, K: Clock> PrefixVerifier<C, R
         }
         // Step 8. Line 49.
         if !C::verify_last(&e.state, &c.pk, &m_n, &sigs) {
-            return Err(Reject::L49AggregateInvalid);
+            return Err(Reject::L49ChainSignaturesInvalid);
         }
         // Step 9. Line 50.
         v.line50(nonce_key, inv, t)?;

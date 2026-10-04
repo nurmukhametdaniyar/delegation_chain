@@ -102,15 +102,18 @@ impl RevocationSet {
         })
     }
 
-    /// Forgets revocations older than the maximum certificate lifetime. A
+    /// Forgets revocations older than the maximum certificate lifetime plus
+    /// `skew`, the verifier's bound on clock skew (paper §5.6; D-82). A
     /// certificate issued no later than the revocation expires no later than
     /// `revoked_at + MAX_CERT_LIFETIME`, and is valid through that instant
-    /// (closed interval, D-35), so a record is kept through it. After that,
-    /// every certificate for the binding has expired, and the registry
-    /// certifies it no more (D-65).
-    pub fn forget_before(&mut self, t: u64) {
+    /// (closed interval, D-35); a verifier whose clock lags the registry's by
+    /// up to `skew` can still be inside that window, so a record is kept
+    /// through `revoked_at + MAX_CERT_LIFETIME + skew`. After that, every
+    /// certificate for the binding has expired, and the registry certifies
+    /// it no more (D-65).
+    pub fn forget_before(&mut self, t: u64, skew: u64) {
         for v in self.revoked.values_mut() {
-            v.retain(|(_, _, at)| at.saturating_add(MAX_CERT_LIFETIME) >= t);
+            v.retain(|(_, _, at)| at.saturating_add(MAX_CERT_LIFETIME).saturating_add(skew) >= t);
         }
         self.revoked.retain(|_, v| !v.is_empty());
     }

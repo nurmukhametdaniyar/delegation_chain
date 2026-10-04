@@ -25,7 +25,8 @@ phase-timing = ["dc-crypto/phase-timing", "dc-verifier/phase-timing"]
 dc-baselines.workspace = true
 dc-cbor.workspace = true
 dc-chain.workspace = true
-dc-crypto = { workspace = true, features = ["variant-ed25519", "variant-prefix"] }
+# Every arm: the default instantiation and the BLS variant (D-80).
+dc-crypto = { workspace = true, features = ["variant-bls", "variant-prefix"] }
 dc-policy.workspace = true
 dc-registry.workspace = true
 dc-types.workspace = true

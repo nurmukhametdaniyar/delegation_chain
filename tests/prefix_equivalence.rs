@@ -33,9 +33,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use common::*;
-use dc_baselines::{BlsIndividual, Ed25519Batch, Ed25519List};
+use dc_baselines::{BlsIndividual, Ed25519Batch};
 use dc_chain::{ChainBuilder, ChainError};
-use dc_crypto::{BlsAggregate, ChainScheme, PrefixScheme};
+use dc_crypto::{BlsAggregate, ChainScheme, Ed25519List, PrefixScheme};
 use dc_registry::{Directory, MemoryPolicyStore, RegistryError, Resolver};
 use dc_types::digest::Digest32;
 use dc_types::{Body, ManualClock, ParsedCert, RevocationAssertion};

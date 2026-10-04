@@ -87,8 +87,12 @@ fn rejects_non_decompressible_keys() {
     assert!(rejected > 0);
 }
 
+/// Paper §4.7 (D-81): s + ℓ is rejected at decode. Before the 2026-10-04
+/// reconciliation this test decoded it and expected strict verification to
+/// reject it; it now checks both, the second through dalek's unchecked
+/// constructor.
 #[test]
-fn strict_verification_rejects_non_canonical_s() {
+fn non_canonical_s_is_rejected_at_decode_and_by_strict_verification() {
     let sk = Ed25519::keygen(&[5; 32]);
     let pk = Ed25519::public_key(&sk);
     let sig = Ed25519::sign(&sk, &msg(1), Dst::Chain);
@@ -106,6 +110,10 @@ fn strict_verification_rejects_non_canonical_s() {
         carry = t >> 8;
     }
     assert_eq!(carry, 0, "s + ℓ fits in 32 bytes for a reduced s");
-    let tampered = Ed25519::sig_from_bytes(&b).unwrap();
-    assert!(!Ed25519::verify(&pk, &msg(1), Dst::Chain, &tampered));
+    assert!(matches!(
+        Ed25519::sig_from_bytes(&b),
+        Err(dc_crypto::CryptoError::BadEncoding)
+    ));
+    let unchecked = ed25519_dalek::Signature::from_bytes(&b.try_into().unwrap());
+    assert!(!Ed25519::verify(&pk, &msg(1), Dst::Chain, &unchecked));
 }

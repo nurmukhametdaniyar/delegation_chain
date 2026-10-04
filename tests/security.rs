@@ -15,6 +15,7 @@ mod common;
 use common::*;
 use dc_cbor::{Key, Value};
 use dc_chain::{ApprovalService, combine};
+#[cfg(feature = "aggregate-variant")]
 use dc_crypto::blst::min_pk::Signature;
 use dc_crypto::{ChainScheme, Dst, SigScheme, WireForm};
 use dc_policy::{Decision, Scope};
@@ -23,16 +24,32 @@ use dc_types::digest::m_delegation;
 use dc_types::{Body, CertBody, Identifier, Kind, ParsedCert, RawScope};
 use dc_verifier::{Reject, VerifierConfig, check_phase8};
 
+/// Removes body `k` from an envelope, and its signature with it when the
+/// chain carries one per hop, as an attacker who drops a hop would: per-hop
+/// signatures are on the wire. A single aggregate stays as it is (D-84).
+fn drop_body(env: &mut dc_types::Envelope, k: usize) {
+    env.bodies.remove(k);
+    if let WireForm::List(list) = &mut env.sigs {
+        list.remove(k);
+    }
+}
+
 // ============================================================ T1a forgery
 
 #[test]
-fn t1a_foreign_aggregate() {
+fn t1a_foreign_signatures() {
+    // The chain's signatures replaced by valid signatures from an unrelated
+    // key: per hop, N + 1 of them; under the aggregate variant, their sum, an
+    // unrelated valid G2 point in place of σ_agg.
     let mut s = Suite::new();
     let v = s.verifier();
     let mut env = s.chain(2).envelope();
     let stranger = S::sign(&S::keygen(&[9; 32]), &[1; 32], Dst::Chain);
-    env.sigs = A::to_wire(&stranger);
-    assert_eq!(v.verify(&env.to_bytes()), Err(Reject::L49AggregateInvalid));
+    env.sigs = A::to_wire(&combine::<A>(&[stranger; 3]).unwrap());
+    assert_eq!(
+        v.verify(&env.to_bytes()),
+        Err(Reject::L49ChainSignaturesInvalid)
+    );
 }
 
 #[test]
@@ -47,7 +64,7 @@ fn t1a_victim_identity_signed_by_attacker() {
     let forged = s.resign(c.bodies.clone(), &keys);
     assert_eq!(
         v.verify(&forged.to_bytes()),
-        Err(Reject::L49AggregateInvalid)
+        Err(Reject::L49ChainSignaturesInvalid)
     );
 }
 
@@ -96,7 +113,7 @@ fn t1b_truncation() {
     let mut s = Suite::new();
     let v = s.verifier();
     let mut env = s.chain(4).envelope();
-    env.bodies.remove(2);
+    drop_body(&mut env, 2);
     assert_eq!(
         v.verify(&env.to_bytes()),
         Err(Reject::L11HopOrSession { k: 2 })
@@ -109,13 +126,14 @@ fn t1b_drop_session_or_invocation() {
     let v = s.verifier();
     let c = s.chain(3);
     let mut env = c.envelope();
-    env.bodies.remove(0);
+    drop_body(&mut env, 0);
     assert_eq!(
         v.verify(&env.to_bytes()),
         Err(Reject::L07KindMismatch { k: 0 })
     );
     let mut env = c.envelope();
-    env.bodies.pop();
+    let last = env.bodies.len() - 1;
+    drop_body(&mut env, last);
     assert_eq!(
         v.verify(&env.to_bytes()),
         Err(Reject::L07KindMismatch { k: 2 })
@@ -184,9 +202,10 @@ fn t1b_splice() {
 fn theorem_3_digest_recursion_catches_what_line_11_catches() {
     // Line 11 rejects reordering, truncation and insertion before phase 8,
     // but the paper says those checks are redundant with the digest
-    // recursion. This calls phase 8 (lines 47–49) directly on the mutated
-    // bodies, with the aggregate an attacker could build from the individual
-    // signatures (recoverable from partial sums, paper §4.3).
+    // recursion (Theorem 3). This calls phase 8 (lines 47–49) directly on the
+    // mutated bodies, with the signatures moved, dropped or added along with
+    // them, as an attacker could: per hop they are on the wire; under the
+    // aggregate variant they are recoverable from partial sums (paper §4.8).
     let mut s = Suite::new();
     let c = s.chain(3); // session, d1 (a1→a2), d2 (a2→a3), invocation (a3)
     let pk_of = |b: &Body<S>| S::pk_from_bytes(b.signer_pk()).unwrap();
@@ -203,19 +222,27 @@ fn theorem_3_digest_recursion_catches_what_line_11_catches() {
     // The unmutated chain passes, so the check is not vacuous.
     assert_eq!(run(&c.bodies, &c.sigs), Ok(()));
 
-    // Reorder: the sum is the same, the digests are not.
+    // Reorder, with the signatures permuted alike (under the aggregate
+    // variant the sum is unchanged); the digests are not.
     let mut reordered = c.bodies.clone();
     reordered.swap(1, 2);
-    assert_eq!(run(&reordered, &c.sigs), Err(Reject::L49AggregateInvalid));
+    let sigs = combine::<A>(&[c.parts[0], c.parts[2], c.parts[1], c.parts[3]]).unwrap();
+    assert_eq!(
+        run(&reordered, &sigs),
+        Err(Reject::L49ChainSignaturesInvalid)
+    );
 
-    // Truncation: drop d2, and subtract σ_2 from the aggregate.
+    // Truncation: drop d2 and σ_2.
     let truncated = vec![
         c.bodies[0].clone(),
         c.bodies[1].clone(),
         c.bodies[3].clone(),
     ];
     let sigs = combine::<A>(&[c.parts[0], c.parts[1], c.parts[3]]).unwrap();
-    assert_eq!(run(&truncated, &sigs), Err(Reject::L49AggregateInvalid));
+    assert_eq!(
+        run(&truncated, &sigs),
+        Err(Reject::L49ChainSignaturesInvalid)
+    );
 
     // Insertion: a hop by a2 signed over the digest of its position; the
     // later digests change.
@@ -235,7 +262,10 @@ fn theorem_3_digest_recursion_catches_what_line_11_catches() {
         c.bodies[3].clone(),
     ];
     let sigs = combine::<A>(&[c.parts[0], c.parts[1], sig_x, c.parts[2], c.parts[3]]).unwrap();
-    assert_eq!(run(&inserted, &sigs), Err(Reject::L49AggregateInvalid));
+    assert_eq!(
+        run(&inserted, &sigs),
+        Err(Reject::L49ChainSignaturesInvalid)
+    );
 }
 
 // ============================================================ T2a / T2b
@@ -262,7 +292,10 @@ fn t2a_parameter_substitution_recomputing_the_hash() {
     inv.params_hash = inv.params.hash().unwrap();
     let mut env = c.envelope();
     env.bodies[2] = Body::Invocation(inv).canonical_bytes().unwrap();
-    assert_eq!(v.verify(&env.to_bytes()), Err(Reject::L49AggregateInvalid));
+    assert_eq!(
+        v.verify(&env.to_bytes()),
+        Err(Reject::L49ChainSignaturesInvalid)
+    );
 }
 
 #[test]
@@ -679,12 +712,40 @@ fn t5a_misattribution_at_registration() {
         reg.register(&ch, &pop).unwrap_err(),
         RegistryError::NonceUsed
     );
-    // A PoP signed under the chain DST.
+}
+
+/// A registration proof is never presentable as a chain signature, or the
+/// reverse (paper §5.3). Under BLS a separate DST separates them: a PoP
+/// signed under the chain DST.
+#[cfg(feature = "aggregate-variant")]
+#[test]
+fn t5a_pop_under_the_chain_dst() {
+    let mut s = Suite::new();
+    let reg = s.w.org("orga");
     let ch = reg
         .challenge(&p("orga:agent:m2"), &s.pk("m2"), Kind::Agent)
         .unwrap();
     let pop = S::sign(&s.sk("m2"), &ch.message().unwrap(), Dst::Chain);
     assert_eq!(reg.register(&ch, &pop).unwrap_err(), RegistryError::BadPop);
+}
+
+/// Under Ed25519, which has no domain separation tags, the challenge
+/// digest's own tag separates them (paper §5.3): the registrant's chain
+/// signature, over a hop's digest, presented as the PoP.
+#[cfg(not(feature = "aggregate-variant"))]
+#[test]
+fn t5a_chain_signature_as_pop() {
+    let mut s = Suite::new();
+    let c = s.chain(1);
+    let chain_sig = S::sign(&s.sk("m2"), &c.digests[1], Dst::Chain);
+    let reg = s.w.org("orga");
+    let ch = reg
+        .challenge(&p("orga:agent:m2"), &s.pk("m2"), Kind::Agent)
+        .unwrap();
+    assert_eq!(
+        reg.register(&ch, &chain_sig).unwrap_err(),
+        RegistryError::BadPop
+    );
 }
 
 /// A certificate body for `id` under key `label`, from registry `registry`.
@@ -1133,7 +1194,7 @@ fn structure() {
     // A single body (N = 0).
     let c = s.chain(1);
     let mut env = c.envelope();
-    env.bodies.truncate(1);
+    drop_body(&mut env, 1);
     assert_eq!(v.verify(&env.to_bytes()), Err(Reject::L03TooShort));
     // A non-canonical body encoding: hop_index 1 written as 0x18 0x01.
     let c = s.chain(2);
@@ -1231,6 +1292,7 @@ fn reencoding_alone_catches_non_canonical_bodies() {
 }
 
 /// An off-subgroup G2 point in compressed form.
+#[cfg(feature = "aggregate-variant")]
 fn off_subgroup_g2() -> Vec<u8> {
     (1u8..=255)
         .map(|x| {
@@ -1243,9 +1305,11 @@ fn off_subgroup_g2() -> Vec<u8> {
         .unwrap()
 }
 
+#[cfg(feature = "aggregate-variant")]
 #[test]
-fn point_validation() {
-    // D-30: every signature point is validated at decode.
+fn point_validation_bls() {
+    // The aggregate variant (paper §4.8; D-30): every signature point is
+    // validated at decode.
     let mut s = Suite::new();
     let v = s.verifier();
     let c = s.chain(2);
@@ -1282,6 +1346,105 @@ fn point_validation() {
         v.verify(&sign_raw(bytes, &keys)),
         Err(Reject::L02Decode(_))
     ));
+}
+
+/// p = 2^255 − 19 and ℓ, the Ed25519 group order, little-endian.
+#[cfg(not(feature = "aggregate-variant"))]
+const P_LE: [u8; 32] = [
+    0xed, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f,
+];
+#[cfg(not(feature = "aggregate-variant"))]
+const L_LE: [u8; 32] = [
+    0xed, 0xd3, 0xf5, 0x5c, 0x1a, 0x63, 0x12, 0x58, 0xd6, 0x9c, 0xf7, 0xa2, 0xde, 0xf9, 0xde, 0x14,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10,
+];
+
+#[cfg(not(feature = "aggregate-variant"))]
+#[test]
+fn point_validation_ed25519() {
+    // The default instantiation (paper §4.7; D-30, D-81): a signature needs
+    // a canonically encoded R and a canonical s at decode, and strict
+    // verification rejects a small-order R. Registries reject small-order and
+    // non-canonically encoded keys (paper §5.3).
+    let mut s = Suite::new();
+    let v = s.verifier();
+    let c = s.chain(2);
+    let honest: Vec<Vec<u8>> = c.parts.iter().map(S::sig_bytes).collect();
+    let with_sig1 = |r: Option<[u8; 32]>, sv: Option<[u8; 32]>| {
+        let mut list = honest.clone();
+        if let Some(r) = r {
+            list[1][..32].copy_from_slice(&r);
+        }
+        if let Some(sv) = sv {
+            list[1][32..].copy_from_slice(&sv);
+        }
+        let mut env = c.envelope();
+        env.sigs = WireForm::List(list);
+        env.to_bytes()
+    };
+    // R = p + 1, a non-canonical encoding of y = 1.
+    let mut r_alias = P_LE;
+    r_alias[0] += 1;
+    assert!(matches!(
+        v.verify(&with_sig1(Some(r_alias), None)),
+        Err(Reject::L02Decode(_))
+    ));
+    // s = ℓ, not below the group order.
+    assert!(matches!(
+        v.verify(&with_sig1(None, Some(L_LE))),
+        Err(Reject::L02Decode(_))
+    ));
+    // R the identity, canonically encoded: it decodes, and strict
+    // verification rejects it, being of small order.
+    let mut identity = [0u8; 32];
+    identity[0] = 1;
+    assert_eq!(
+        v.verify(&with_sig1(Some(identity), None)),
+        Err(Reject::L49ChainSignaturesInvalid)
+    );
+    // A receipt signature with s = ℓ.
+    let c = s.approval_chain(2);
+    let inv = invocation(&c);
+    let mut bad = S::sig_bytes(&inv.receipts[0].sig);
+    bad[32..].copy_from_slice(&L_LE);
+    let receipt = Value::Array(vec![
+        Value::bytes(inv.receipts[0].approval_bytes.clone()),
+        Value::bytes(bad),
+    ]);
+    let mut bytes = c.bytes.clone();
+    bytes[2] = with_field(
+        &inv.to_value().unwrap(),
+        9,
+        Some(Value::Array(vec![receipt])),
+    );
+    let keys = s.keys_for(&c.bodies);
+    assert!(matches!(
+        v.verify(&sign_raw(bytes, &keys)),
+        Err(Reject::L02Decode(_))
+    ));
+    // Registration: a small-order key (the identity), and y + p for a valid
+    // key's small y, a non-canonical encoding of that key.
+    let valid_y = (2u8..19)
+        .find(|&y| {
+            let mut b = [0u8; 32];
+            b[0] = y;
+            S::pk_from_bytes(&b).is_ok()
+        })
+        .expect("a valid key with y below 19");
+    let mut alias = P_LE;
+    alias[0] += valid_y;
+    let reg = s.w.org("orga");
+    for key in [identity, alias] {
+        let ch = reg
+            .challenge(&p("orga:agent:z"), &key, Kind::Agent)
+            .unwrap();
+        let pop = S::sign(&s.sk("z"), &ch.message().unwrap(), Dst::Pop);
+        assert!(matches!(
+            reg.register(&ch, &pop),
+            Err(RegistryError::InvalidKey(_))
+        ));
+    }
 }
 
 const P15_CHILD: &str = r#"
@@ -1446,7 +1609,9 @@ fn distinct_messages() {
 
 #[test]
 fn phase_ordering_count_ops() {
-    // Paper Figure 2: cheap checks reject before any pairing. A fresh (cold)
+    // Paper §4.6, Figure 2: once certificates are cached, a chain that cannot
+    // succeed is discarded before any signature is verified; a cold verifier
+    // verifies the N + 1 certificates first (phase 5). A fresh (cold)
     // verifier for each case, so that resolver counts mean something.
     let mut s = Suite::new();
     // An expired chain.
@@ -1454,7 +1619,11 @@ fn phase_ordering_count_ops() {
     s.w.clock().set(invocation(&c).exp + 1);
     let (r, n) = s.verifier().verify_counted(&c.to_bytes());
     assert_eq!(r, Err(Reject::L13TimeWindow));
-    assert_eq!((n.pairings(), n.resolver_calls), (0, 0), "{n:?}");
+    assert_eq!(
+        (n.sig_verifications, n.pairings(), n.resolver_calls),
+        (0, 0, 0),
+        "{n:?}"
+    );
     s.w.clock().set(T0);
     // A wrong audience.
     let c = s.chain_with(
@@ -1466,12 +1635,14 @@ fn phase_ordering_count_ops() {
     );
     let (r, n) = s.verifier().verify_counted(&c.to_bytes());
     assert_eq!(r, Err(Reject::L08WrongAudience));
-    assert_eq!((n.pairings(), n.resolver_calls), (0, 0), "{n:?}");
-    // A line-34 rejection. SPEC §11.2 expects 0 pairings here, which is what
-    // paper Figure 2 claims. That holds for a warm verifier. A cold one has
-    // already checked N + 1 certificate signatures at line 24 (phase 5
-    // precedes phase 6), and under a BLS registry root each is a pairing.
-    // Asserting the actual counts, not 0: see D-61 and P-28.
+    assert_eq!(
+        (n.sig_verifications, n.pairings(), n.resolver_calls),
+        (0, 0, 0),
+        "{n:?}"
+    );
+    // A line-34 rejection. Warm, nothing is verified. Cold, phase 5 has
+    // already checked the N + 1 = 3 certificates (issuer, a1, a2) at line 24,
+    // and under BLS registry roots each is a pairing check (D-61, P-28).
     let c = s.chain_with(
         &[policy_with_bound(500), s.policy.clone()],
         PAYMENTS,
@@ -1483,30 +1654,37 @@ fn phase_ordering_count_ops() {
     assert!(warm.verify(&s.chain(2).to_bytes()).is_ok()); // caches a1, a2, the issuer, the policy
     let (r, n) = warm.verify_counted(&c.to_bytes());
     assert_eq!(r, Err(Reject::L34ScopeEscalation { k: 1 }));
-    assert_eq!((n.pairings(), n.resolver_calls), (0, 0), "warm: {n:?}");
+    assert_eq!(
+        (n.sig_verifications, n.pairings(), n.resolver_calls),
+        (0, 0, 0),
+        "warm: {n:?}"
+    );
     let (r, n) = s.verifier().verify_counted(&c.to_bytes());
     assert_eq!(r, Err(Reject::L34ScopeEscalation { k: 1 }));
-    // Cold: exactly three certificate verifications (issuer, a1, a2), each
-    // one hash-to-G2, two Miller loops and one final exponentiation, and no
-    // aggregate or receipt check.
     assert_eq!(
-        (
-            n.sig_verifications,
-            n.hash_to_curve,
-            n.miller_loops,
-            n.final_exps,
-            n.resolver_calls
-        ),
-        (3, 3, 6, 3, 3),
+        (n.sig_verifications, n.resolver_calls),
+        (3, 3),
         "cold: {n:?}"
     );
-    // Sanity check of the counters on an accepted chain, warm: one
-    // aggregate over N + 1 = 3 messages is 3 hash-to-G2, 4 Miller loops and
-    // 1 final exponentiation.
+    // Each certificate check is one hash-to-G2, two Miller loops and one
+    // final exponentiation; there is no aggregate or receipt check.
+    #[cfg(feature = "aggregate-variant")]
+    assert_eq!(
+        (n.hash_to_curve, n.miller_loops, n.final_exps),
+        (3, 6, 3),
+        "cold: {n:?}"
+    );
+    // Sanity check of the counters on an accepted chain, warm: N + 1 = 3
+    // chain signatures per hop; under the aggregate variant, one aggregate
+    // over 3 messages, which is 3 hash-to-G2, 4 Miller loops and 1 final
+    // exponentiation.
     let v = s.verifier();
     assert!(v.verify(&s.chain(2).to_bytes()).is_ok());
     let (r, n) = v.verify_counted(&s.chain(2).to_bytes());
     assert!(r.is_ok());
+    #[cfg(not(feature = "aggregate-variant"))]
+    assert_eq!((n.sig_verifications, n.pairings()), (3, 0), "{n:?}");
+    #[cfg(feature = "aggregate-variant")]
     assert_eq!(
         (
             n.hash_to_curve,

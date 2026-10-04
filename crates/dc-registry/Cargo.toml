@@ -23,5 +23,6 @@ thiserror.workspace = true
 test-hooks = []
 
 [dev-dependencies]
-dc-crypto = { workspace = true, features = ["variant-ed25519"] }
+# The tests exercise both instantiations (D-80).
+dc-crypto = { workspace = true, features = ["blst-no-threads"] }
 dc-registry = { path = ".", features = ["test-hooks"] }

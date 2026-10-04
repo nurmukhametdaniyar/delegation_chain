@@ -12,8 +12,8 @@
 use curve25519_dalek::edwards::{CompressedEdwardsY, EdwardsPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::Identity;
-use dc_baselines::{Ed25519Batch, Ed25519List};
-use dc_crypto::{ChainScheme, Dst, Ed25519, SigScheme};
+use dc_baselines::Ed25519Batch;
+use dc_crypto::{ChainScheme, Dst, Ed25519, Ed25519List, SigScheme};
 use dc_types::digest::sha256;
 use ed25519_dalek::{Signature, SigningKey};
 use sha2::{Digest, Sha512};

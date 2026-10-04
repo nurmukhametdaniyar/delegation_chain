@@ -10,9 +10,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dc_baselines::biscuit::{BiscuitArm, Request};
-use dc_baselines::{BlsIndividual, Ed25519Batch, Ed25519List};
+use dc_baselines::{BlsIndividual, Ed25519Batch};
 use dc_cbor::Value;
-use dc_crypto::{Bls, BlsAggregate, ChainScheme, Ed25519, PrefixScheme};
+use dc_crypto::{Bls, BlsAggregate, ChainScheme, Ed25519, Ed25519List, PrefixScheme};
 use dc_registry::{Directory, MemoryPolicyStore, WithLatency};
 use dc_types::{Clock, Identifier, ManualClock, Principal};
 use dc_verifier::{Path, PrefixVerifier, Verifier, VerifierConfig};

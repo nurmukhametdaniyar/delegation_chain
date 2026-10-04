@@ -23,3 +23,7 @@ thiserror.workspace = true
 [features]
 # A registry root that signs anything (T5b, T5d), passed through to dc-registry.
 test-hooks = ["dc-registry/test-hooks"]
+
+[dev-dependencies]
+# The smoke test runs on the BLS variant too (D-80).
+dc-crypto = { workspace = true, features = ["blst-no-threads"] }

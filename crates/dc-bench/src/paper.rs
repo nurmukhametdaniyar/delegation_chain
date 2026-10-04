@@ -26,7 +26,7 @@ use std::process::Command;
 
 use serde_json::Value;
 
-use crate::benchmarks::{Doc, POSITIONING_CAPTION, cells};
+use crate::benchmarks::{Doc, POSITIONING_CAPTION, Revision, cells};
 use crate::report::us;
 
 /// LaTeX for a cell of `BENCHMARKS.md`: `**bold**` and `` `code` `` become
@@ -171,8 +171,10 @@ fn breakeven(doc: &Doc) -> Result<String, String> {
 /// The claims table: `BENCHMARKS.md`'s §5 table, rendered from the same
 /// template and converted.
 fn claims(doc: &Doc, template: &Path) -> Result<String, String> {
-    let md = doc
-        .fill(&fs::read_to_string(template).map_err(|e| format!("{}: {e}", template.display()))?)?;
+    let md = doc.fill_for(
+        &fs::read_to_string(template).map_err(|e| format!("{}: {e}", template.display()))?,
+        Revision::Current,
+    )?;
     let start = md
         .find("\n## 5. Paper claims checked")
         .ok_or("BENCHMARKS template has no §5 claims table")?;
@@ -330,10 +332,28 @@ fn captions() -> Result<String, String> {
 
 // ---- the security suite ----
 
+/// Which instantiation a test or an assertion is compiled for (D-84).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Inst {
+    Both,
+    Default,
+    Aggregate,
+}
+
+/// The instantiation a `#[cfg]` line selects, if it is one of the suite's.
+fn cfg_of(line: &str) -> Option<Inst> {
+    match line.trim() {
+        "#[cfg(feature = \"aggregate-variant\")]" => Some(Inst::Aggregate),
+        "#[cfg(not(feature = \"aggregate-variant\"))]" => Some(Inst::Default),
+        _ => None,
+    }
+}
+
 /// The argument text of each `assert!`, `assert_eq!` or `assert_ne!` in
-/// `body`, whitespace-collapsed, in order. String literals and comments are
-/// skipped when matching parentheses.
-fn assertions(body: &str) -> Vec<String> {
+/// `body`, whitespace-collapsed, in order, with the instantiation a `#[cfg]`
+/// on the line before it selects. String literals are skipped when matching
+/// parentheses.
+fn assertions(body: &str) -> Vec<(String, Inst)> {
     let b = body.as_bytes();
     let mut out = vec![];
     let mut i = 0;
@@ -366,12 +386,16 @@ fn assertions(body: &str) -> Vec<String> {
             }
             k += 1;
         }
-        out.push(
+        let line_start = body[..at].rfind('\n').unwrap_or(0);
+        let prev_start = body[..line_start].rfind('\n').map_or(0, |x| x + 1);
+        let inst = cfg_of(&body[prev_start..line_start]).unwrap_or(Inst::Both);
+        out.push((
             body[start..k - 1]
                 .split_whitespace()
                 .collect::<Vec<_>>()
                 .join(" "),
-        );
+            inst,
+        ));
         i = k;
     }
     out
@@ -465,9 +489,19 @@ fn compress(v: &[String]) -> String {
         .join("; ")
 }
 
-/// (section, test, asserted outcomes) for every `#[test]` in `src`, in file
-/// order. Sections are the `// ====…==== title` lines.
-fn tests_of(src: &str, default_section: &str) -> Result<Vec<(String, String, String)>, String> {
+/// One test: its section, name, the instantiations it is compiled for, and
+/// its asserted outcomes.
+struct TestRow {
+    section: String,
+    name: String,
+    inst: Inst,
+    asserted: String,
+}
+
+/// Every `#[test]` in `src`, in file order. Sections are the
+/// `// ====…==== title` lines; a `#[cfg]` just before `#[test]` limits the
+/// test to one instantiation.
+fn tests_of(src: &str, default_section: &str) -> Result<Vec<TestRow>, String> {
     let mut out = vec![];
     let mut section = default_section.to_owned();
     let lines: Vec<&str> = src.lines().collect();
@@ -493,12 +527,28 @@ fn tests_of(src: &str, default_section: &str) -> Result<Vec<(String, String, Str
             let body = lines[i + 1..=j.min(lines.len() - 1)].join("\n");
             let asserted: Vec<String> = assertions(&body)
                 .iter()
-                .map(|a| classify(a).map_err(|e| format!("{name}: {e}")))
-                .collect::<Result<_, _>>()?;
+                .map(|(a, inst)| {
+                    let c = classify(a).map_err(|e| format!("{name}: {e}"))?;
+                    Ok(match inst {
+                        Inst::Both => c,
+                        Inst::Default => format!("default: {c}"),
+                        Inst::Aggregate => format!("aggregate variant: {c}"),
+                    })
+                })
+                .collect::<Result<_, String>>()?;
             if asserted.is_empty() {
                 return Err(format!("{name}: no assertion found"));
             }
-            out.push((section.clone(), name, compress(&asserted)));
+            let inst = i
+                .checked_sub(1)
+                .and_then(|k| cfg_of(lines[k]))
+                .unwrap_or(Inst::Both);
+            out.push(TestRow {
+                section: section.clone(),
+                name,
+                inst,
+                asserted: compress(&asserted),
+            });
             i = j;
         }
         i += 1;
@@ -506,23 +556,25 @@ fn tests_of(src: &str, default_section: &str) -> Result<Vec<(String, String, Str
     Ok(out)
 }
 
-/// Runs the two suites in release mode and returns each test's result.
-fn run_suites(root: &Path) -> Result<BTreeMap<String, bool>, String> {
+/// Runs the two suites in release mode, for the default instantiation or,
+/// with `aggregate`, the aggregate variant, and returns each test's result.
+fn run_suites(root: &Path, aggregate: bool) -> Result<BTreeMap<String, bool>, String> {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
-    let out = Command::new(cargo)
-        .current_dir(root)
-        .args([
-            "test",
-            "--release",
-            "-p",
-            "delegationchain",
-            "--test",
-            "security",
-            "--test",
-            "concurrency",
-        ])
-        .output()
-        .map_err(|e| format!("cargo test: {e}"))?;
+    let mut cmd = Command::new(cargo);
+    cmd.current_dir(root).args([
+        "test",
+        "--release",
+        "-p",
+        "delegationchain",
+        "--test",
+        "security",
+        "--test",
+        "concurrency",
+    ]);
+    if aggregate {
+        cmd.args(["--features", "aggregate-variant"]);
+    }
+    let out = cmd.output().map_err(|e| format!("cargo test: {e}"))?;
     let text = String::from_utf8_lossy(&out.stdout);
     let mut m = BTreeMap::new();
     for l in text.lines() {
@@ -541,7 +593,8 @@ fn run_suites(root: &Path) -> Result<BTreeMap<String, bool>, String> {
     Ok(m)
 }
 
-/// The security suite as threat → asserted line (SPEC §11.2).
+/// The security suite as threat → asserted line (SPEC §11.2), for both
+/// instantiations (D-84).
 fn security(root: &Path) -> Result<String, String> {
     let read = |p: &str| fs::read_to_string(root.join(p)).map_err(|e| format!("{p}: {e}"));
     let mut rows = tests_of(&read("tests/security.rs")?, "security")?;
@@ -549,41 +602,62 @@ fn security(root: &Path) -> Result<String, String> {
         &read("tests/concurrency.rs")?,
         "T3b replay, concurrent (Theorem 5)",
     )?);
-    let results = run_suites(root)?;
+    let runs = [run_suites(root, false)?, run_suites(root, true)?];
     let mut w = String::from(HEADER);
-    w.push_str("% The security suite (SPEC §11.2): each test's assertions in order, from tests/security.rs and\n% tests/concurrency.rs. Ln is the Algorithm line whose Reject variant the test asserts.\n% \"Passed\" is the result of running the suites when this file was generated.\n");
+    w.push_str("% The security suite (SPEC §11.2): each test's assertions in order, from tests/security.rs and\n% tests/concurrency.rs. Ln is the Algorithm line whose Reject variant the test asserts.\n% The last two columns are the results of running the suites when this file was generated, for the\n% default instantiation (Ed25519 per hop) and the aggregate variant (BLS); --- marks a test compiled\n% for the other instantiation only (D-84).\n");
     w.push_str(
-        "\\begin{longtable}{>{\\raggedright\\arraybackslash}p{0.36\\linewidth}>{\\raggedright\\arraybackslash}p{0.47\\linewidth}l}\n\\toprule\n",
+        "\\begin{longtable}{>{\\raggedright\\arraybackslash}p{0.33\\linewidth}>{\\raggedright\\arraybackslash}p{0.42\\linewidth}ll}\n\\toprule\n",
     );
     w.push_str(
-        "Test & Asserted, in order & Passed \\\\\n\\midrule\n\\endhead\n\\bottomrule\n\\endfoot\n",
+        "Test & Asserted, in order & Default & Aggregate \\\\\n\\midrule\n\\endhead\n\\bottomrule\n\\endfoot\n",
     );
     let mut section = String::new();
-    let (mut passed, mut total) = (0, 0);
-    for (s, name, asserted) in &rows {
-        if *s != section {
+    let mut passed = [0usize; 2];
+    let mut total = [0usize; 2];
+    for r in &rows {
+        if r.section != section {
             if !section.is_empty() {
                 w.push_str("\\midrule\n");
             }
-            let _ = writeln!(w, "\\multicolumn{{3}}{{l}}{{\\emph{{{}}}}} \\\\", tex(s)?);
-            section = s.clone();
+            let _ = writeln!(
+                w,
+                "\\multicolumn{{4}}{{l}}{{\\emph{{{}}}}} \\\\",
+                tex(&r.section)?
+            );
+            section = r.section.clone();
         }
-        let ok = *results
-            .get(name.as_str())
-            .ok_or_else(|| format!("{name} did not run"))?;
-        total += 1;
-        passed += usize::from(ok);
+        let mut cells = vec![];
+        for (k, inst) in [Inst::Default, Inst::Aggregate].iter().enumerate() {
+            if r.inst != Inst::Both && r.inst != *inst {
+                cells.push("---".to_owned());
+                continue;
+            }
+            let ok = *runs[k]
+                .get(r.name.as_str())
+                .ok_or_else(|| format!("{} did not run ({inst:?})", r.name))?;
+            total[k] += 1;
+            passed[k] += usize::from(ok);
+            cells.push(if ok {
+                "yes".into()
+            } else {
+                "\\textbf{no}".into()
+            });
+        }
         let _ = writeln!(
             w,
             "\\texttt{{{}}} & {} & {} \\\\",
             // Long test names may break after an underscore.
-            tex(name)?.replace("\\_", "\\_\\allowbreak{}"),
-            tex(asserted)?,
-            if ok { "yes" } else { "\\textbf{no}" }
+            tex(&r.name)?.replace("\\_", "\\_\\allowbreak{}"),
+            tex(&r.asserted)?,
+            cells.join(" & ")
         );
     }
     w.push_str("\\end{longtable}\n");
-    let _ = writeln!(w, "% {passed} of {total} tests passed.");
+    let _ = writeln!(
+        w,
+        "% Default: {} of {} tests passed. Aggregate variant: {} of {} tests passed.",
+        passed[0], total[0], passed[1], total[1]
+    );
     Ok(w)
 }
 
@@ -687,6 +761,20 @@ pub fn render(
     threads: usize,
 ) -> Result<(), String> {
     let doc = Doc::load(results, criterion, threads)?;
+    // The claims table cites the paper in docs/; its section map must be for
+    // that file (D-86).
+    let pdf = fs::read(root.join("docs/paper.pdf")).map_err(|e| format!("docs/paper.pdf: {e}"))?;
+    let have = crate::report::hex(&dc_types::digest::sha256(&[&pdf]));
+    let want = doc
+        .sections
+        .as_ref()
+        .and_then(|m| m["current"]["sha256"].as_str())
+        .ok_or("docs/paper-sections.json has no current.sha256")?;
+    if have != want {
+        return Err(format!(
+            "docs/paper-sections.json is for another paper (current.sha256 {want}, docs/paper.pdf {have}): update it from the new paper (D-86)"
+        ));
+    }
     let tables = out.join("tables");
     fs::create_dir_all(&tables).map_err(|e| e.to_string())?;
     let template = root.join("crates/dc-bench/BENCHMARKS.template.md");
@@ -740,13 +828,17 @@ mod tests {
         "#;
         let got: Vec<String> = assertions(body)
             .iter()
-            .map(|a| classify(a).unwrap())
+            .map(|(a, _)| classify(a).unwrap())
             .collect();
         assert_eq!(
             got,
             ["L23", "accept", "pairings 0, resolver calls 0", "L02"]
         );
         assert!(classify("something_else()").is_err());
+        // A #[cfg] on the line before an assertion selects an instantiation.
+        let body = "    #[cfg(feature = \"aggregate-variant\")]\n    assert!(r.is_ok());\n    assert!(q.is_ok());";
+        let insts: Vec<Inst> = assertions(body).iter().map(|x| x.1).collect();
+        assert_eq!(insts, [Inst::Aggregate, Inst::Both]);
         assert_eq!(
             compress(&["L02".into(), "L02".into(), "L05".into()]),
             "L02 (×2); L05"

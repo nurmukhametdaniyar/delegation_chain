@@ -6,7 +6,11 @@ use std::sync::Arc;
 
 use dc_cbor::{Key, Value};
 use dc_chain::{Chain, ChainBuilder, World, assemble, combine};
-use dc_crypto::{Bls, BlsAggregate, ChainScheme, Dst, SigScheme};
+#[cfg(feature = "aggregate-variant")]
+use dc_crypto::{Bls, BlsAggregate};
+use dc_crypto::{ChainScheme, Dst, SigScheme};
+#[cfg(not(feature = "aggregate-variant"))]
+use dc_crypto::{Ed25519, Ed25519List};
 use dc_policy::Scope;
 use dc_registry::{Directory, MemoryPolicyStore};
 use dc_types::digest::{Digest32, chain_digests};
@@ -15,7 +19,16 @@ use dc_types::{
 };
 use dc_verifier::{Verifier, VerifierConfig};
 
+/// The instantiation the suites run against (D-84): the default, Ed25519
+/// per hop (paper §4.2), or, with the root package's `aggregate-variant`
+/// feature, the BLS aggregate variant (paper §4.8).
+#[cfg(not(feature = "aggregate-variant"))]
+pub type A = Ed25519List;
+#[cfg(not(feature = "aggregate-variant"))]
+pub type S = Ed25519;
+#[cfg(feature = "aggregate-variant")]
 pub type A = BlsAggregate;
+#[cfg(feature = "aggregate-variant")]
 pub type S = Bls;
 /// The verifier of an arm, over the test world's resolver, store and clock.
 pub type VOf<C> = Verifier<C, Directory, Arc<MemoryPolicyStore>, Arc<ManualClock>>;
@@ -88,7 +101,7 @@ pub struct ArmSuite<C: ChainScheme> {
     arm: PhantomData<C>,
 }
 
-/// The suite for arm A, the protocol.
+/// The suite for the instantiation under test (`A`).
 pub type Suite = ArmSuite<A>;
 
 impl<C: ChainScheme> ArmSuite<C> {

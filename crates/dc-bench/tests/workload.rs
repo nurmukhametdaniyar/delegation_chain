@@ -1,9 +1,9 @@
 //! Every profile's chains are accepted at every N, by the arms of both base
 //! schemes, from a verifier built in the same deterministic world.
 
-use dc_baselines::{BlsIndividual, Ed25519List};
+use dc_baselines::BlsIndividual;
 use dc_bench::workload::{Layout, Profile, Setting, chains, p};
-use dc_crypto::{Bls, BlsAggregate, ChainScheme, Ed25519};
+use dc_crypto::{Bls, BlsAggregate, ChainScheme, Ed25519, Ed25519List};
 use dc_verifier::{Verifier, VerifierConfig};
 
 fn accepts<C: ChainScheme>(setting: &Setting<C::Base>, profile: Profile, n: usize) {
