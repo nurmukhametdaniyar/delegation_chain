@@ -1,6 +1,6 @@
 # Artifact: reproducing the DelegationChain benchmark's figures and tables
 
-This repository is the reference implementation of DelegationChain (paper revision 2026-10-04, `docs/paper.pdf`) and the benchmark of whether BLS aggregation is a net benefit once caching is accounted for. This file explains how to regenerate, from the archived raw measurements:
+This repository is the reference implementation of DelegationChain (paper revision 2026-10-06, `docs/paper.pdf`) and the benchmark of whether BLS aggregation is a net benefit once caching is accounted for. This file explains how to regenerate, from the archived raw measurements:
 - every figure and table in the paper's evaluation;
 - `BENCHMARKS.md`;
 - the results summary.
@@ -25,7 +25,7 @@ Nothing in them is typed by hand. Every number is computed from the archives by 
 | M9's console log: the safety-valve abort and the three refused resumes that BENCHMARKS.md §7 cites | `results/logs/m9.log` | yes |
 | The generated summary, document and paper artifacts | `results/summary.{md,json}`, `BENCHMARKS.md`, `paper/` | yes |
 
-The frozen measurement plan is `BENCH_PLAN_FROZEN.md` (tag `bench-freeze-2`). The paper in `docs/paper.pdf` is revision 2026-10-04; `docs/paper-sections.json` maps the section numbers that the claims table and the positioning caption cite (D-86, D-88), and `dc-bench paper` refuses to run when that map is not for the paper in `docs/`. Nothing under `paper/` carries an identifier internal to this repository, and `crates/dc-bench/tests/paper_text.rs` checks it (D-88). Every change after the freeze is in `BENCH_LOG.md`, and every open choice in `DECISIONS.md`.
+The frozen measurement plan is `BENCH_PLAN_FROZEN.md` (tag `bench-freeze-2`). The paper in `docs/paper.pdf` is revision 2026-10-06; `docs/paper-sections.json` maps the section numbers that the claims table and the positioning caption cite (D-86, D-88), and `dc-bench paper` refuses to run when that map is not for the paper in `docs/`. Nothing under `paper/` carries an identifier internal to this repository, and `crates/dc-bench/tests/paper_text.rs` checks it (D-88). Every change after the freeze is in `BENCH_LOG.md`, and every open choice in `DECISIONS.md`.
 
 ## 2. Requirements
 

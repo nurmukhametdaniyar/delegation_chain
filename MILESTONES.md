@@ -570,3 +570,14 @@ The author asked for three follow-ups.
 - **The test.** `crates/dc-bench/tests/paper_text.rs` fails on any identifier in a text file under `paper/`. Before regeneration it failed on the ten offending lines; after, it passes.
 - **Unchanged.** BENCHMARKS.md, the summary and the figures regenerate byte-identically. Both security suites pass, 52 of 52 each. `scripts/ci.sh` passes.
 - **Not covered by the test.** The figures' text, which is binary; `pdftotext` found no identifier in it. Comments still cite SPEC and BENCHMARKS.md sections.
+
+## Reconciled with paper revision 2026-10-06 (2026-10-06)
+
+- **`docs/paper.pdf`** is revision 2026-10-06: 58 pages, sha256 `b2b18866447f794b60bdbd2164b85dfceb4c4d4e9ffa8c2a1181c157f3cbb3b2`, placed by the author. Revision 2026-10-04 (sha256 `0ed3f589…8bbd`) stays in git history.
+- **The comparison.** The whole text was diffed word by word against revision 2026-10-04. Section and Algorithm line numbers are unchanged. The protocol text changes in three places, each adopting the implementation, so no code changed:
+  - Algorithm 1 line 2 decodes σ, not σagg (P-31);
+  - §4.7 says where non-canonical Ed25519 encodings are rejected, as D-81 does (P-32);
+  - §5.6 makes the revocation skew bound the nonce TTL's tolerance, one value of 60 s, as D-82 does (P-33).
+- **The rest is §8 and the appendices.** The `[PENDING]` placeholders are filled except the repository URL and archive DOI. A positioning table (Table 6) and the ratio figure (Figure 3) were added, so later tables and figures are renumbered: the comparison with related systems is Table 7, the security suite Table 8 (Appendix A), the primitives Table 9.
+- **Records.** SPEC.md (source of truth, Appendix A line 2, changelog), PAPER_ISSUES.md (P-31 to P-33 resolved; P-05 still open), D-81 and D-82 paper status, ARTIFACT.md, and `docs/paper-sections.json`'s current revision. Every section the map cites has the same number and title in this revision.
+- **Unchanged.** Every paper artifact and BENCHMARKS.md regenerate byte-identically against it.

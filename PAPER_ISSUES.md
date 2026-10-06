@@ -6,7 +6,8 @@ Problems in the paper, _DelegationChain_ (titled _Aggregatable Capability Chains
 | --- | --- | --- | --- |
 | 2026-09-28 | 42 | `bd94cef24e50a5bfca09375ef495b54e07aeba986e8c5096a2fc0c329f62e81e` | until 2026-09-29 (commit `e223f05`) |
 | 2026-09-29 | 44 | `51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14` | until 2026-10-04 (commit `973ecab`); the benchmark's claims were judged against it |
-| 2026-10-04 | 56 | `0ed3f58978ef0c8b670034ba717fa394c2970a57dd9ebdeb329a53ecbfae8bbd` | current: Ed25519 per hop by default, BLS aggregate as a variant |
+| 2026-10-04 | 56 | `0ed3f58978ef0c8b670034ba717fa394c2970a57dd9ebdeb329a53ecbfae8bbd` | until 2026-10-06 (commit `60819a5`): Ed25519 per hop by default, BLS aggregate as a variant |
+| 2026-10-06 | 58 | `b2b18866447f794b60bdbd2164b85dfceb4c4d4e9ffa8c2a1181c157f3cbb3b2` | current: the same protocol; §8 filled in |
 
 - **Sources:** P-03 to P-14 come from SPEC Appendix C; P-01, P-02, P-04, P-11 and P-13 were resolved before 2026-09-28 and are not logged. P-15 to P-25 were found in the pre-M0 review (2026-09-28). P-26 was found while reconciling revision 2026-09-29, P-27 during M4, P-28 and P-29 during M6, and P-30 while resolving P-29.
 - **Status after revision 2026-09-29:**
@@ -22,6 +23,10 @@ Problems in the paper, _DelegationChain_ (titled _Aggregatable Capability Chains
 - **Not issues, for the record.**
   - Revision 2026-10-04's §8 has `[PENDING]` placeholders, which the author is filling.
   - Its Table 5 caption maps revision 2026-09-29's section numbers by hand; `paper/tables/claims.tex` now prints this revision's numbers (D-86).
+- **Status after revision 2026-10-06 (2026-10-06).** Its protocol text adopts the implementation in three places; section and line numbers are unchanged.
+  - resolved in it: P-31, P-32 and P-33;
+  - still open: P-05.
+  - Its §8 is filled in except the repository URL and archive DOI, and its Table 5 caption now says the "Paper" column gives this paper's sections.
 - "Location" and "Evidence" below refer to revision 2026-09-28, where the issue was found. Each `Status` line says where revision 2026-09-29, and since step 3 revision 2026-10-04, addresses it.
 
 ---
@@ -362,7 +367,7 @@ Evidence: line 2 against §4.1 ("all token bodies and one signature per hop") an
 What the implementation does: Line 2 decodes the instantiation's signature container: N+1 signatures, or one aggregate (`ChainScheme::from_wire`).
 Suggested fix to the paper: "(B0, …, BN, σ) ← Decode(C)", with σ the instantiation's chain signatures, as at line 49.
 Severity: clarity
-Status: open in revision 2026-10-04.
+Status: resolved in revision 2026-10-06. Line 2 reads "(B0, …, BN, σ) ← Decode(C)".
 
 ## P-32 — §4.7 does not say where non-canonical Ed25519 encodings are rejected
 Paper location: §4.7 (revision 2026-10-04): "Decoders reject non-canonical encodings and small-order public keys, and strict verification also rejects a signature whose R is of small order."
@@ -373,7 +378,7 @@ Evidence: §4.7; Algorithm 1 lines 2 and 49.
 What the implementation does: Decoding rejects non-canonical key encodings (at registration and certificate decoding) and non-canonical R and s (L02). Strict verification rejects small-order R (L49) (D-81).
 Suggested fix to the paper: Name the structures whose decoders check (certificates, registration requests, chain and receipt signatures), and say that a non-canonical signature encoding is a decoding failure.
 Severity: interoperability (which line rejects; never whether)
-Status: open in revision 2026-10-04.
+Status: resolved in revision 2026-10-06. §4.7: a non-canonical signature encoding "is a decoding failure: in a chain or a receipt, line 2 rejects it"; a non-canonical or small-order key is rejected "by the registry at registration (Section 5.3), and by the verifier when it checks a certificate (line 24)"; body key fields "are compared as bytes with the resolved certificate's key and never used as points"; a small-order R fails "at line 49". That is D-81.
 
 ## P-33 — Revocation retention's clock-skew bound is unspecified
 Paper location: §5.6 (revision 2026-10-04): "for the registry's maximum certificate lifetime after the revocation, plus a bound on clock skew"
@@ -382,4 +387,4 @@ Evidence: §5.6 against §4.6 ("TTL equal to the chain's remaining validity wind
 What the implementation does: One bound, `VerifierConfig::clock_skew` (60 seconds), serves both (D-82).
 Suggested fix to the paper: Say that the two are the same deployment parameter, or give each its own.
 Severity: clarity
-Status: open in revision 2026-10-04.
+Status: resolved in revision 2026-10-06. §5.6: the skew bound "bounds the same quantity as the clock-skew tolerance in the nonce cache's TTL (Section 4.6), and the reference implementation uses one value, 60 seconds, for both". That is D-82.

@@ -6,7 +6,7 @@ Every choice the paper leaves open, in the format of SPEC Appendix B.
 - D-28 to D-47 were agreed with the author in the pre-M0 review (2026-09-28; SPEC changelog).
 - Later entries were added during implementation. The milestone that added each one is in `MILESTONES.md`.
 
-"Paper" means `docs/paper.pdf`. It was revision 2026-09-28 until 2026-09-29, and is now revision 2026-09-29 (sha256 `51eff0ec…6da84e14`). Entries the revision affected carry a "Paper status" line.
+"Paper" means `docs/paper.pdf`. It was revision 2026-09-28 until 2026-09-29, revision 2026-09-29 until 2026-10-04, revision 2026-10-04 until 2026-10-06, and is now revision 2026-10-06 (sha256 `b2b18866…57f3cbb3b2`). Entries the revision affected carry a "Paper status" line.
 
 ---
 
@@ -1009,6 +1009,8 @@ Affects benchmarks: the default instantiation's decode does a few more byte comp
 
 _2026-10-04: what these checks add to the measured latencies is measured on its own by an exploratory micro-benchmark (D-87)._
 
+Paper status (revision 2026-10-06): adopted. §4.7 now names where each encoding is rejected: signatures at line 2 in a chain or receipt, keys at registration and at the certificate check of line 24, body key fields compared as bytes only, and a small-order R at line 49 (P-32 resolved).
+
 ## D-82 — A revoked binding is kept for the maximum lifetime plus the clock-skew bound (paper §5.6)
 Spec section: §6.5, §10.4     Paper section: §5.6 (revision 2026-10-04)
 Decision:
@@ -1017,6 +1019,8 @@ Decision:
 - The registry test covers both boundaries.
 Why: paper §5.6: "for the registry's maximum certificate lifetime after the revocation, plus a bound on clock skew". The paper gives no value (P-33). Using the verifier's one skew bound avoids two knobs for one quantity.
 Affects benchmarks: no.
+
+Paper status (revision 2026-10-06): adopted. §5.6 says the skew bound "bounds the same quantity as the clock-skew tolerance in the nonce cache's TTL", with one value, 60 seconds, for both (P-33 resolved).
 
 ## D-83 — Reconciliation notes: paper changes that needed no code
 Spec section: §8.2, §10     Paper section: revision 2026-10-04, §3, §4.5, §4.6, §5.4, §6.4

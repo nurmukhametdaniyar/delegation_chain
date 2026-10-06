@@ -1,15 +1,20 @@
 # DelegationChain — Reference Implementation and Benchmark Specification
 
 **Audience:** Claude Code, working in a fresh Rust repository.
-**Protocol source of truth:** the paper _DelegationChain: Parameter-Bound Delegation Chains for Cross-Organizational Agent Authorization_, revision dated 2026-10-04 (56 pages; sha256 `0ed3f58978ef0c8b670034ba717fa394c2970a57dd9ebdeb329a53ecbfae8bbd`), in `docs/paper.pdf`. It specifies the protocol over per-hop Ed25519 signatures, with BLS aggregation as a variant (its §4.2, §4.8).
+**Protocol source of truth:** the paper _DelegationChain: Parameter-Bound Delegation Chains for Cross-Organizational Agent Authorization_, revision dated 2026-10-06 (58 pages; sha256 `b2b18866447f794b60bdbd2164b85dfceb4c4d4e9ffa8c2a1181c157f3cbb3b2`), in `docs/paper.pdf`. It specifies the protocol over per-hop Ed25519 signatures, with BLS aggregation as a variant (its §4.2, §4.8).
 - **Line numbers** ("Algorithm 1 line 26") are the same in every revision since 2026-09-28.
-- **Section numbers** in §2–§7 below are the same in revision 2026-10-04, which adds §4.8, the aggregate variant.
-- **The benchmark sections (§12, §13) cite revision 2026-09-29,** against which the benchmark was frozen and its claims judged (sha256 `51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14`; in git history). Their "§8.2" and "§8.3" are revision 2026-10-04's §9.2 and §9.3. `docs/paper-sections.json` maps them (D-86).
+- **Section numbers** in §2–§7 below are the same in revisions 2026-10-04 and 2026-10-06. Revision 2026-10-04 added §4.8, the aggregate variant.
+- **The benchmark sections (§12, §13) cite revision 2026-09-29,** against which the benchmark was frozen and its claims judged (sha256 `51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14`; in git history). Their "§8.2" and "§8.3" are §9.2 and §9.3 since revision 2026-10-04. `docs/paper-sections.json` maps them (D-86).
 **What this document adds:** every bit-level and engineering decision the paper deliberately leaves open (§4 says field numbering and byte layout "are not fixed by this paper"), a test plan, and a benchmark plan.
 
 Put this file in the repository root as `SPEC.md`.
 
 ## Changelog
+
+**2026-10-06 — reconciled with paper revision 2026-10-06.** Its protocol text changes in three places, each adopting what the implementation does, so no code changes. Section and line numbers are unchanged.
+- Algorithm 1 line 2 decodes σ, the instantiation's chain signatures (P-31). Appendix A follows.
+- §4.7 says where non-canonical Ed25519 encodings are rejected, as D-81 does (P-32).
+- §5.6 makes the revocation skew bound the nonce TTL's clock-skew tolerance, one value of 60 s, as D-82 does (P-33).
 
 **2026-10-04 (after step 3) — instrumentation (§10.3; D-87).** `count-ops` also counts the Ed25519 keys and signatures put through D-81's canonical-encoding checks. They are counted for the exploratory cost of those checks, which the author asked for. The benchmark is unchanged.
 
@@ -1396,7 +1401,7 @@ Work through the milestones in order. Each ends with all tests green, a commit, 
 ```
  1: procedure Verify(received chain C, current time t)
     ▷ Phase 1 — structure and encoding
- 2:   (B0, ..., BN, σagg) ← Decode(C); reject if decoding fails
+ 2:   (B0, ..., BN, σ) ← Decode(C); reject if decoding fails
  3:   reject if N < 1
  4:   for all Bk do
  5:     reject if Canon(Bk) ≠ received bytes of Bk
@@ -1459,10 +1464,10 @@ Work through the milestones in order. Each ends with all tests green, a commit, 
 
 `sid(B_k)` is `issuer_id`, `delegator_id` or `invoker_id`, and `spk(B_k)` is `issuer_pk`, `delegator_pk` or `invoker_pk`, by position. `role(k)` is `issuer` for k = 0 and `agent` for k ≥ 1. `self` is the verifier's own service identifier.
 
-The listing above is paper revision 2026-10-04, checked line by line on 2026-10-04.
+The listing above is paper revision 2026-10-06, checked against revision 2026-10-04 word by word on 2026-10-06: only line 2 changed.
 - **Line 49** is `VerifyChain`. In the default instantiation it checks each σk against (pkk, mk) with strict Ed25519 verification. Under the aggregate variant it is the multi-pairing e(g1, σagg) = ∏ e(pkk, HashToG2(mk)) (paper §4.8, Eq. 5).
 - **Line 27** states the closed interval and revocation by binding (P-26, P-29).
-- **Line 2** still names σagg, the aggregate (PAPER_ISSUES.md, P-31). The implementation decodes the instantiation's signature container: N+1 signatures, or one aggregate.
+- **Line 2** decodes σ, the instantiation's chain signatures: N+1 signatures, or one aggregate. Revision 2026-10-04 named σagg (P-31).
 - **Earlier revisions.** Revision 2026-09-29 differed from 2026-09-28 only at lines 18 and 20 (D-36, P-16), line 27 (D-35, P-17) and line 41 (D-27, P-14). The numbering has never changed.
 - The implementation reads line 27 as `t ∈ [certk.nbf, certk.exp]`, closed at both ends (P-26).
 - A malformed scope (D-28; paper §6.1) fails decoding at line 2, or makes the policy unavailable at line 31.
