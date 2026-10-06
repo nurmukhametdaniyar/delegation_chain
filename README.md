@@ -89,3 +89,9 @@ Editing these files for presentation would rewrite that record after the fact. A
 - They use internal identifiers: D- for decisions, P- for paper issues, Q- for questions, M0–M10 for milestones.
 
 Read them as dated records. A later entry can supersede an earlier one, and where anything conflicts with the paper, the paper wins (SPEC.md §2). Git history has every change made to them.
+
+## License
+
+The code in this repository is licensed under the Apache License, Version 2.0 ([LICENSE](LICENSE)).
+
+The data in the Zenodo deposit is licensed under the Creative Commons Attribution 4.0 International license (CC-BY-4.0). That is everything ARTIFACT.md §1 lists as kept in the deposit: the raw measurements and criterion's output.
