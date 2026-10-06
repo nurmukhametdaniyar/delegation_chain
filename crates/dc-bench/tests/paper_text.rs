@@ -1,9 +1,11 @@
 //! The text the paper reads carries no internal identifiers (D-88): no
 //! decision, paper-issue or question numbers (D-79, P-28, Q-02), no
-//! pre-registered question numbers (Q5), no milestones (M9) and no dates
-//! (2026-09-29). BENCHMARKS.md keeps them; `paper/` must not, comments
-//! included, since a LaTeX source is published with its comments. The arm
-//! letters are allowed: the paper defines them (§8.3).
+//! numbers of the frozen plan's questions (Q5), no milestones (M9), no
+//! dates (2026-09-29), and not "pre-registered", for which the paper says
+//! "not in the frozen plan". BENCHMARKS.md keeps them; `paper/` must not,
+//! comments included, since a LaTeX source is published with its comments.
+//! The arm letters are allowed: the paper defines them (§8.3). The claims
+//! table cites the security suite as an appendix, not test files.
 //!
 //! Every text file under `paper/` is scanned in full. The figures (PDF and
 //! PNG) are binary, with their text in compressed streams or pixels, and
@@ -42,6 +44,18 @@ fn identifiers(s: &str) -> Vec<String> {
                 }
                 end
             }
+            // "pre-registered", in any case or spelling.
+            b'p' | b'P'
+                if ["pre-regist", "preregist"].iter().any(|x| {
+                    b.get(i..i + x.len())
+                        .is_some_and(|w| w.eq_ignore_ascii_case(x.as_bytes()))
+                }) =>
+            {
+                i + b[i..]
+                    .iter()
+                    .take_while(|c| c.is_ascii_alphabetic() || **c == b'-')
+                    .count()
+            }
             // 2026-09-29.
             c if c.is_ascii_digit()
                 && digits(i) == 4
@@ -75,7 +89,10 @@ fn files(dir: &Path, out: &mut Vec<PathBuf>) {
 #[test]
 fn the_matcher_finds_identifiers_and_nothing_else() {
     assert_eq!(
-        identifiers("(D-79) M9's medians, (Q5), P-28, Q-02; revision 2026-09-29. \\S{}Q4 M10"),
+        identifiers(
+            "(D-79) M9's medians, (Q5), P-28, Q-02; revision 2026-09-29. \\S{}Q4 M10 \
+             Exploratory (not pre-registered); Pre-registered, preregistered"
+        ),
         [
             "D-79",
             "M9",
@@ -84,11 +101,15 @@ fn the_matcher_finds_identifiers_and_nothing_else() {
             "Q-02",
             "2026-09-29",
             "Q4",
-            "M10"
+            "M10",
+            "pre-registered",
+            "Pre-registered",
+            "preregistered"
         ]
     );
     let clean = "Arms A, A-ind, B, C, C-batch, D and E; T3b, L23, Theorem 5, \\S{}9.2, \
-                 N = 3, BLS12-381, Ed25519, ad2faa6, an Apple M4 Max, AD-1, QM9, M9x, 26-09-29";
+                 N = 3, BLS12-381, Ed25519, ad2faa6, an Apple M4 Max, AD-1, QM9, M9x, 26-09-29, \
+                 Exploratory (not in the frozen plan); registered at registration; prepare";
     assert_eq!(identifiers(clean), Vec::<String>::new());
 }
 
@@ -125,5 +146,20 @@ fn paper_artifacts_carry_no_internal_identifiers() {
         hits.is_empty(),
         "internal identifiers under paper/:\n{}",
         hits.join("\n")
+    );
+}
+
+#[test]
+fn the_claims_table_cites_no_test_files() {
+    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../paper/tables/claims.tex");
+    let s = fs::read_to_string(&p).unwrap();
+    let hits: Vec<(usize, &str)> = s
+        .lines()
+        .enumerate()
+        .filter(|(_, l)| l.contains("tests/"))
+        .collect();
+    assert!(
+        hits.is_empty(),
+        "paper/tables/claims.tex cites test files: {hits:?}"
     );
 }

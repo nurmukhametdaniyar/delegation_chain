@@ -1,5 +1,5 @@
 {
-  "description": "Section numbers and rule names that the claims table and the positioning caption cite (D-86, D-88). 'checked' is the paper revision the claims were judged against, used by BENCHMARKS.md; 'current' is the paper in docs/paper.pdf, used by paper/tables/. Update 'current' whenever docs/paper.pdf changes: dc-bench paper refuses a map whose current.sha256 is not docs/paper.pdf's. Each entry follows the claim's content, not its old section number. An entry with only 'current' is a section the paper cites where BENCHMARKS.md keeps an internal reference ({{iref:...}} in the template, or the positioning caption).",
+  "description": "Section numbers and rule names that the claims table and the positioning caption cite (D-86, D-88). 'checked' is the paper revision the claims were judged against, used by BENCHMARKS.md; 'current' is the paper in docs/paper.pdf, used by paper/tables/. Update 'current' whenever docs/paper.pdf changes: dc-bench paper refuses a map whose current.sha256 is not docs/paper.pdf's. Each entry follows the claim's content, not its old section number. An entry with only 'current' is a section, table or appendix the paper cites where BENCHMARKS.md keeps an internal reference or a test file ({{iref:...}} in the template, or the positioning caption).",
   "checked": {
     "revision": "2026-09-29",
     "sha256": "51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14"
@@ -19,7 +19,8 @@
     "cold-path": { "current": "§8.4" },
     "cold-certificates": { "current": "§4.6" },
     "individual-bls": { "current": "§8.4" },
-    "related-systems": { "current": "§9.1" }
+    "related-systems": { "current": "Table 7" },
+    "security-suite": { "current": "Appendix A" }
   },
   "rules": {
     "verdict-rule": { "checked": "the §6 rule", "current": "the verdict rule of Section 8.3" },

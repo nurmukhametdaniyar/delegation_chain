@@ -1131,3 +1131,9 @@ Decision:
   - Comments still cite SPEC and BENCHMARKS.md sections, which are files of the artifact.
 Why: the author asked that the text the paper reads carry no internal identifiers.
 Affects benchmarks: no. Only wording and comments under `paper/tables/` changed; every number, BENCHMARKS.md and the figures regenerate unchanged.
+
+_Revised 2026-10-06, for paper revision 2026-10-06:_
+- _"Pre-registered" is internal too: the paper says "not in the frozen plan", and the test matches it._
+- _The positioning caption cites the comparison with related systems as Table 7 (map entry `related-systems`; it was §9.1)._
+- _The claims table cites the security suite as Appendix A (map entry `security-suite`) where BENCHMARKS.md cites test files. `tests/arms.rs`, which also covers the prefix-cache arms, is not in Appendix A. Both rows still stand on Appendix A alone: `steady_state_is_offline` asserts no resolver or policy-store call when warm, and `phase_ordering_count_ops` the warm rejections without a pairing, under both instantiations. A second test checks that the claims table cites nothing under `tests/`._
+- _An `iref` reference may contain colons (`tests/security.rs::name`)._

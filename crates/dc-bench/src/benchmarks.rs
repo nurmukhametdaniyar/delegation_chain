@@ -204,16 +204,22 @@ impl Doc {
     /// has none, and cites the comparison with related systems through
     /// `docs/paper-sections.json` (D-88).
     pub(crate) fn positioning_caption(&self, revision: Revision) -> Result<String, String> {
-        let (medians, related, session) = match revision {
-            Revision::Checked => ("M9's pooled medians", "paper Table 1".to_owned(), " (D-79)"),
+        let (plan, medians, related, session) = match revision {
+            Revision::Checked => (
+                "not pre-registered",
+                "M9's pooled medians",
+                "paper Table 1".to_owned(),
+                " (D-79)",
+            ),
             Revision::Current => (
+                "not in the frozen plan",
                 "medians pooled over the three runs",
                 self.paper_ref_in("sections", "related-systems", revision)?,
                 "",
             ),
         };
         Ok(format!(
-            "Exploratory (not pre-registered). Medium profile, {medians} on this machine, in µs. DC's N corresponds to Biscuit depth N − 1. Arm E (Biscuit) is a positioning reference, not a like-for-like arm: it has no registry resolution, no proof of possession, no revocation, no approval receipts, no nonce cache and no parameter binding ({related}). The AIP column, also exploratory, is AIP's own code (`bench_chained` at `ad2faa6`) measured on this machine in the exploratory session{session}: the median of all its timings at the same Biscuit depth. It runs AIP's own benchmark workload, not the medium profile; AIP's benchmark stops at depth 5 (—)."
+            "Exploratory ({plan}). Medium profile, {medians} on this machine, in µs. DC's N corresponds to Biscuit depth N − 1. Arm E (Biscuit) is a positioning reference, not a like-for-like arm: it has no registry resolution, no proof of possession, no revocation, no approval receipts, no nonce cache and no parameter binding ({related}). The AIP column, also exploratory, is AIP's own code (`bench_chained` at `ad2faa6`) measured on this machine in the exploratory session{session}: the median of all its timings at the same Biscuit depth. It runs AIP's own benchmark workload, not the medium profile; AIP's benchmark stops at depth 5 (—)."
         ))
     }
 
@@ -830,9 +836,10 @@ impl Doc {
             ["psec", key] => self.paper_ref("sections", key)?,
             ["prule", key] => self.paper_ref("rules", key)?,
             // An internal reference, which BENCHMARKS.md prints; the paper
-            // cites the section KEY instead (D-88).
-            ["iref", internal, key] => match self.revision.get() {
-                Revision::Checked => (*internal).to_owned(),
+            // cites the section KEY instead (D-88). The reference may
+            // contain colons (`tests/security.rs::name`).
+            ["iref", internal @ .., key] if !internal.is_empty() => match self.revision.get() {
+                Revision::Checked => internal.join(":"),
                 Revision::Current => self.paper_ref("sections", key)?,
             },
             ["phaseflags"] => self.phase_data()?.flags(),

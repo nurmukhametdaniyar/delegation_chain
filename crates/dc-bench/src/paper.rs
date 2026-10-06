@@ -294,7 +294,7 @@ fn primitives(doc: &Doc) -> Result<String, String> {
 /// `\\tabcapPositioning` in `paper/tables/captions.tex`.
 fn positioning(doc: &Doc) -> Result<String, String> {
     let mut w = String::from(HEADER);
-    w.push_str("% EXPLORATORY (not pre-registered): BENCHMARKS.md §8. Caption: \\tabcapPositioning (paper/tables/captions.tex).\n");
+    w.push_str("% Exploratory (not in the frozen plan): BENCHMARKS.md §8. Caption: \\tabcapPositioning (paper/tables/captions.tex).\n");
     w.push_str("\\begin{tabular}{lrrrrrr}\n\\toprule\n");
     w.push_str("$N$ (Biscuit depth) & C, warm (\\textmu{}s) & D, warm+prefix (\\textmu{}s) & E (\\textmu{}s) & AIP's code here (\\textmu{}s; exploratory) & C $\\div$ E & D $\\div$ E \\\\\n\\midrule\n");
     for r in doc.positioning()? {

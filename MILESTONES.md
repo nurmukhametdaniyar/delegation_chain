@@ -581,3 +581,11 @@ The author asked for three follow-ups.
 - **The rest is §8 and the appendices.** The `[PENDING]` placeholders are filled except the repository URL and archive DOI. A positioning table (Table 6) and the ratio figure (Figure 3) were added, so later tables and figures are renumbered: the comparison with related systems is Table 7, the security suite Table 8 (Appendix A), the primitives Table 9.
 - **Records.** SPEC.md (source of truth, Appendix A line 2, changelog), PAPER_ISSUES.md (P-31 to P-33 resolved; P-05 still open), D-81 and D-82 paper status, ARTIFACT.md, and `docs/paper-sections.json`'s current revision. Every section the map cites has the same number and title in this revision.
 - **Unchanged.** Every paper artifact and BENCHMARKS.md regenerate byte-identically against it.
+
+## Paper text for revision 2026-10-06 (2026-10-06)
+
+- **`paper/` (D-88, revised).**
+  - The positioning caption says "not in the frozen plan" for "pre-registered", and cites the comparison with related systems as Table 7 through the map.
+  - The claims table cites the security suite as Appendix A, through the map, where BENCHMARKS.md cites test files.
+- **Tests.** `paper_text.rs` also matches "pre-registered", and a new test checks that the claims table cites nothing under `tests/`. Both failed on the old files and pass after regeneration.
+- **Unchanged.** BENCHMARKS.md and the figures regenerate byte-identically; only `captions.tex`, `claims.tex` and `positioning.tex` changed. `scripts/ci.sh` passes.
