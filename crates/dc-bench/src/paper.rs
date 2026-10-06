@@ -759,19 +759,27 @@ pub fn render(
     threads: usize,
 ) -> Result<(), String> {
     let doc = Doc::load(results, criterion, threads)?;
-    // The claims table cites the paper in docs/; its section map must be for
-    // that file (D-86).
-    let pdf = fs::read(root.join("docs/paper.pdf")).map_err(|e| format!("docs/paper.pdf: {e}"))?;
-    let have = crate::report::hex(&dc_types::digest::sha256(&[&pdf]));
+    // The claims table cites the paper; its section map must be for the paper
+    // in docs/ (D-86). The paper is not in the repository (D-90): without a
+    // local copy, the map is used as committed.
     let want = doc
         .sections
         .as_ref()
         .and_then(|m| m["current"]["sha256"].as_str())
         .ok_or("docs/paper-sections.json has no current.sha256")?;
-    if have != want {
-        return Err(format!(
-            "docs/paper-sections.json is for another paper (current.sha256 {want}, docs/paper.pdf {have}): update it from the new paper (D-86)"
-        ));
+    match fs::read(root.join("docs/paper.pdf")) {
+        Ok(pdf) => {
+            let have = crate::report::hex(&dc_types::digest::sha256(&[&pdf]));
+            if have != want {
+                return Err(format!(
+                    "docs/paper-sections.json is for another paper (current.sha256 {want}, docs/paper.pdf {have}): update it from the new paper (D-86)"
+                ));
+            }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => eprintln!(
+            "paper: no docs/paper.pdf, so docs/paper-sections.json is used as committed (current.sha256 {want})"
+        ),
+        Err(e) => return Err(format!("docs/paper.pdf: {e}")),
     }
     let tables = out.join("tables");
     fs::create_dir_all(&tables).map_err(|e| e.to_string())?;

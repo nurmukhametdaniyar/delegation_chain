@@ -28,3 +28,6 @@ results/exploratory/encoding/raw/
 results/exploratory/encoding/aborted/
 # A packed deposit (ARTIFACT.md §6): uploaded, never committed.
 deposit/
+# The paper is published separately (D-90). A local copy stays here as the
+# protocol source of truth; docs/paper-sections.json pins its sha256.
+docs/paper.pdf

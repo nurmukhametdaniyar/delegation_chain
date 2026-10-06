@@ -1,7 +1,7 @@
 # DelegationChain: reference implementation and benchmark
 
 This repository contains two things:
-- the reference implementation of DelegationChain, the protocol specified in _DelegationChain: Parameter-Bound Delegation Chains for Cross-Organizational Agent Authorization_ ([docs/paper.pdf](docs/paper.pdf));
+- the reference implementation of DelegationChain, the protocol specified in _DelegationChain: Parameter-Bound Delegation Chains for Cross-Organizational Agent Authorization_, which is published separately;
 - the benchmark behind the paper's evaluation.
 
 - **The implementation** follows paper §4–§6 and Algorithms 1–2. It covers:
@@ -23,7 +23,7 @@ This repository contains two things:
   - re-measure.
 
   The benchmark was measured while BLS aggregation was still the protocol's default. To re-measure under the frozen plan, use the commits named in ARTIFACT.md §5, not the current one.
-- **For the protocol, read [docs/paper.pdf](docs/paper.pdf).** It is the source of truth: where SPEC.md disagrees with it, the paper wins.
+- **For the protocol, read the paper.** It is published separately, not in this repository; the revisions the work used are in git history as `docs/paper.pdf`. It is the source of truth: where SPEC.md disagrees with it, the paper wins.
 
 To build and test (the toolchain is pinned by [rust-toolchain.toml](rust-toolchain.toml)):
 
@@ -48,7 +48,7 @@ scripts/ci.sh                                               # all checks: the lo
 | `fuzz/` | Fuzz target and seed corpus for the CBOR decoder |
 | `results/` | The raw measurements as zstd archives, with their manifests; machine records, bytes, memory and the generated summary. Criterion's output is `criterion.tar.zst` at the root |
 | `paper/` | The paper's tables and figures, as generated |
-| `docs/` | The paper, its section map, and test reports |
+| `docs/` | The paper's section map, and test reports |
 | `scripts/` | Plotting, CI and checks |
 
 ## How it was built

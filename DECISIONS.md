@@ -1151,3 +1151,16 @@ Why:
 - The frozen plan's "the author keeps the archives" still holds; only where they are kept changed.
 - No archive changed: all 84 matched their manifests on 2026-10-06, and none contains the hostname or home path found in the committed `env.json` files.
 Affects benchmarks: no.
+
+## D-90 — The paper is not in the repository
+Spec section: §2; D-86     Paper section: none
+Decision:
+- `docs/paper.pdf` is no longer tracked, and `.gitignore` names it.
+  - Its revisions up to 2026-10-06's final text (commit `cef131c`) stay in git history.
+  - A local copy stays at `docs/paper.pdf`, where CLAUDE.md and SPEC.md look for the protocol source of truth.
+- `docs/paper-sections.json` still pins the paper the tables cite, by sha256.
+  - With a local `docs/paper.pdf`, `dc-bench paper` checks the pin as before (D-86).
+  - Without one, as in a clone or the deposit, it says so and uses the map as committed, rather than failing.
+- README.md and ARTIFACT.md say the paper is published separately.
+Why: the author is still editing the paper, and it will change shape. A snapshot of the repository, and the Zenodo deposit made from it, should not carry a draft. No generated file depends on the PDF's content, only on the map: `paper/` regenerates byte-identically with and without it.
+Affects benchmarks: no.

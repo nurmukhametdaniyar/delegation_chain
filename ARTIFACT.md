@@ -1,6 +1,6 @@
 # Artifact: reproducing the DelegationChain benchmark's figures and tables
 
-This repository is the reference implementation of DelegationChain (paper revision 2026-10-06, `docs/paper.pdf`) and the benchmark of whether BLS aggregation is a net benefit once caching is accounted for. This file explains how to regenerate, from the archived raw measurements:
+This repository is the reference implementation of DelegationChain (paper revision 2026-10-06, published separately) and the benchmark of whether BLS aggregation is a net benefit once caching is accounted for. This file explains how to regenerate, from the archived raw measurements:
 - every figure and table in the paper's evaluation;
 - `BENCHMARKS.md`;
 - the results summary.
@@ -26,7 +26,7 @@ The deposit is a snapshot of this repository at the commit its description names
 
 The raw CSVs stay out of git (frozen plan §5): the archives are their zstd compression, and the generators read only the verified archives. The first version of the Zenodo record (doi:10.5281/zenodo.23192309) is the snapshot of tag `v0.1.0`, made before the archives were committed, so it holds no measurement data; use a version made from a later commit.
 
-The frozen measurement plan is `BENCH_PLAN_FROZEN.md` (tag `bench-freeze-2`). The paper in `docs/paper.pdf` is revision 2026-10-06; `docs/paper-sections.json` maps the section numbers that the claims table and the positioning caption cite (D-86, D-88), and `dc-bench paper` refuses to run when that map is not for the paper in `docs/`. Nothing under `paper/` carries an identifier internal to this repository, and `crates/dc-bench/tests/paper_text.rs` checks it (D-88). Every change after the freeze is in `BENCH_LOG.md`, and every open choice in `DECISIONS.md`.
+The frozen measurement plan is `BENCH_PLAN_FROZEN.md` (tag `bench-freeze-2`). The paper is not in the repository (D-90); the revisions the work used, up to 2026-10-06's final text, are in git history as `docs/paper.pdf`. `docs/paper-sections.json` maps the section numbers that the claims table and the positioning caption cite, for that final text, which it pins by sha256 (D-86, D-88). With a copy of the paper at `docs/paper.pdf`, `dc-bench paper` refuses a map that is not for it; without one, it uses the map as committed. Nothing under `paper/` carries an identifier internal to this repository, and `crates/dc-bench/tests/paper_text.rs` checks it (D-88). Every change after the freeze is in `BENCH_LOG.md`, and every open choice in `DECISIONS.md`.
 
 ## 2. Requirements
 

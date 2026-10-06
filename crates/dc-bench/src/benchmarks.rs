@@ -89,7 +89,7 @@ pub struct Doc {
 pub enum Revision {
     /// The revision the claims were judged against (BENCHMARKS.md).
     Checked,
-    /// The paper in `docs/paper.pdf` (the paper's own tables).
+    /// The current paper, which `docs/paper-sections.json` pins (the paper's own tables).
     Current,
 }
 

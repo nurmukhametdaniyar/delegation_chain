@@ -609,3 +609,9 @@ The author asked for three follow-ups.
 - **README.md.** The `results/` row, and the CC-BY-4.0 note now names the files, in the repository and in the deposit.
 - **Pushed.** `main`, and the tags `bench-freeze` and `bench-freeze-2`, which the README and ARTIFACT.md cite but which were not on GitHub.
 - **Waiting on the author.** Uploading the deposit as a new version of the Zenodo record, and the paper's DOI, which still names 23192309 and carries a `\pending` note.
+
+## The paper out of the repository (2026-10-06)
+
+- **D-90.** `docs/paper.pdf` is untracked and ignored, and a local copy stays as the source of truth. `dc-bench paper` checks the section map's pin when the copy is there, and uses the map as committed when it is not. README.md and ARTIFACT.md say the paper is published separately.
+- **Checked.** `paper/` regenerates byte-identically to `271d519`'s with the PDF and without it. `scripts/ci.sh` passes.
+- **The deposit of `b212d93`, checked from a fresh copy.** `DEPOSIT.sha256` verified, all 84 archives matched their manifests, and a clean build regenerated BENCHMARKS.md and the summary byte-identically. The deposit is now repacked from the commit that removes the paper.
