@@ -550,3 +550,12 @@ The author asked for three follow-ups.
 - **No measured result changed.** The summary and every paper artifact regenerate unchanged. BENCHMARKS.md changes only in §8's new subsection.
 - **Also.** ARTIFACT.md's first line still gave revision 2026-09-29 as `docs/paper.pdf`; it now gives 2026-10-04.
 - **Not run yet.** The machine was on battery, so only a dry run was made, and its numbers are never reported. Until the full run, §8's block says "Not run yet".
+
+## The cost of D-81's encoding checks: run (2026-10-04)
+
+- **What ran.** `dc-bench encoding`, three runs at `25242b8` with no uncommitted changes, on M9's machine state (`results/exploratory/encoding/env.json`). Nothing was flagged, and nothing was re-run. The run logged its own BENCH_LOG.md entry.
+- **The result** (BENCHMARKS.md §8, exploratory).
+  - The checks cost a few nanoseconds per signature or key, on honest inputs and on the worst passing ones.
+  - The whole signature decoder costs about what its checks cost. The key decoder is dominated by decompression, which M9's binaries already did.
+  - In every state of arms C and D, at N = 1, 3 and 10, the added cost is a small fraction of a percent of M9's median, even on the worst inputs. The default instantiation's measured latencies therefore stand as the protocol's cost.
+- **No measured result changed.** BENCHMARKS.md changes only in §8's block.

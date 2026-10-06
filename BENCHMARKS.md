@@ -1056,7 +1056,39 @@ D-81 added decode-time canonical-encoding checks to the default instantiation af
   `tests/encoding_checks.rs` checks these counts on M9's own chains and subjects (D-87).
 - **Caveat.** The checks are timed in a tight loop, with warm caches and a trained branch predictor, and inside a verification their cost may differ. A before-and-after comparison of whole verifications cannot resolve a difference of this size: the timer ticks every 41.7 ns.
 
-_Not run yet: there is no verified archive under `results/exploratory/encoding/archive/`._
+#### The checks
+
+Nanoseconds per call: the median of all batches, pooled over 3 runs, and each run's median. 200 batches per operation per run.
+
+| Operation | Calls per batch | Median, ns | Per run, ns |
+|---|---|---|---|
+| signature checks (R's y < p, s < ℓ), honest signatures | 100000 | 1.89 | 1.85, 1.85, 1.89 |
+| signature checks, worst passing input (R's y = p − 1, s = ℓ − 1) | 100000 | 11.16 | 10.92, 11.19, 11.17 |
+| key check (y < p), honest keys | 100000 | 1.17 | 1.22, 1.19, 1.14 |
+| key check, worst passing input (y = p − 1) | 100000 | 6.10 | 6.11, 6.07, 6.11 |
+| the whole signature decoder (`sig_from_bytes`), honest signatures | 100000 | 1.91 | 1.89, 1.87, 1.92 |
+| the whole key decoder (`pk_from_bytes`: the check, decompression, the small-order test), honest keys | 2000 | 2171.50 | 2171.55, 2171.19, 2171.96 |
+
+#### What they add to a chain (medium profile)
+
+Each of a chain's N + 1 signers contributes its signature. A warm verifier (arm C) and a prefix-cache hit or miss (arm D) find every signer's certificate cached, so they check N + 1 signatures and no key. A cold verifier (arm C) also decodes each signer's certificate, its signature and its key. `tests/encoding_checks.rs` checks these counts on M9's chains and subjects. "Added" is the counts times the honest medians, with the worst-input medians in brackets. The shares are of M9's pooled medians.
+
+| N | Arm, state | Signatures, keys checked | Added, ns | M9 median, µs | Share |
+|---|---|---|---|---|---|
+| 1 | C, warm | 2, 0 | 3.78 [22.31] | 52.2 | 0.0072% [0.0428%] |
+| 1 | C, cold | 4, 2 | 9.90 [56.83] | 104 | 0.0095% [0.0546%] |
+| 1 | D, hit | 2, 0 | 3.78 [22.31] | 24.5 | 0.0154% [0.0911%] |
+| 1 | D, miss | 2, 0 | 3.78 [22.31] | 54.2 | 0.0070% [0.0411%] |
+| 3 | C, warm | 4, 0 | 7.56 [44.63] | 109 | 0.0070% [0.0411%] |
+| 3 | C, cold | 8, 4 | 19.79 [113.65] | 208 | 0.0095% [0.0546%] |
+| 3 | D, hit | 4, 0 | 7.56 [44.63] | 26.4 | 0.0287% [0.1692%] |
+| 3 | D, miss | 4, 0 | 7.56 [44.63] | 113 | 0.0067% [0.0396%] |
+| 10 | C, warm | 11, 0 | 20.79 [122.73] | 304 | 0.0068% [0.0404%] |
+| 10 | C, cold | 22, 11 | 54.44 [312.54] | 573 | 0.0095% [0.0545%] |
+| 10 | D, hit | 11, 0 | 20.79 [122.73] | 33.8 | 0.0614% [0.3628%] |
+| 10 | D, miss | 11, 0 | 20.79 [122.73] | 318 | 0.0065% [0.0386%] |
+
+Thermal readings around each operation: none was flagged.
 
 ### Positioning against arm E
 

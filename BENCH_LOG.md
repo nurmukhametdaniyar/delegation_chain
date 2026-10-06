@@ -170,3 +170,13 @@ Configurations re-run: none.
 Reason: the author deleted the first session's phase data themselves, between the two sessions, because they believed the session had not finished properly (its AIP step did not run). They then re-ran the whole session. The notes above stand unchanged; this closes the matter.
 
 Configurations re-run: none.
+
+## 2026-10-04 — Exploratory run (not pre-registered): the cost of D-81's encoding checks
+Reason: D-81 added decode-time canonical-encoding checks to the default instantiation after M9, so the measured binaries did not have them. The author asked what they add to the latencies the paper reads as the protocol's cost.
+- **What ran.** 3 runs, each in its own process, timing the checks as the decoders call them, on honest inputs and on the worst passing inputs, and the whole decoders for context (D-87).
+- **The build.** The default `dc-bench` build with `target-cpu=native`, as M9, at commit `25242b8`, which has D-81's checks.
+- **Machine state.** M9's: AC power, High Power mode and an idle machine, checked before the first run and recorded in `results/exploratory/encoding/env.json`.
+- **Thermal readings.** Recorded around each operation, not acted on: none was flagged.
+- **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only. No measured result changes. The raw batch timings are in 9 archives under `results/exploratory/encoding/archive/`, pinned by the committed `MANIFEST.sha256`.
+
+Configurations re-run: none.
