@@ -26,7 +26,7 @@ use std::process::Command;
 
 use serde_json::Value;
 
-use crate::benchmarks::{Doc, POSITIONING_CAPTION, Revision, cells};
+use crate::benchmarks::{Doc, Revision, cells};
 use crate::report::us;
 
 /// LaTeX for a cell of `BENCHMARKS.md`: `**bold**` and `` `code` `` become
@@ -153,7 +153,7 @@ fn verdicts(doc: &Doc) -> Result<String, String> {
 /// A's saving over C at N = 10.
 fn breakeven(doc: &Doc) -> Result<String, String> {
     let mut w = String::from(HEADER);
-    w.push_str("% Q2: chain bytes, A against C. Break-even is the first N in 1-10 at which A's and C's sizes change order.\n");
+    w.push_str("% Chain bytes, A against C. Break-even is the first N in 1-10 at which A's and C's sizes change order.\n");
     w.push_str("\\begin{tabular}{lrrr}\n\\toprule\n");
     w.push_str("Profile & Break-even $N$ & A $-$ C at $N = 1$ (bytes) & A smaller than C at $N = 10$ \\\\\n\\midrule\n");
     for profile in ["small", "medium", "large", "medium-approval"] {
@@ -193,7 +193,7 @@ fn claims(doc: &Doc, template: &Path) -> Result<String, String> {
         .collect();
     let mut w = String::from(HEADER);
     w.push_str(
-        "% The paper claims checked against revision 2026-09-29 (SPEC §13.11): BENCHMARKS.md §5.\n",
+        "% The paper claims, judged against the design as specified before measurement (SPEC §13.11):\n% BENCHMARKS.md §5.\n",
     );
     w.push_str(
         "\\begin{tabular}{>{\\raggedright\\arraybackslash}p{0.27\\linewidth}l>{\\raggedright\\arraybackslash}p{0.11\\linewidth}>{\\raggedright\\arraybackslash}p{0.42\\linewidth}}\n\\toprule\n",
@@ -233,9 +233,7 @@ fn primitives(doc: &Doc) -> Result<String, String> {
             .ok_or_else(|| format!("no criterion estimate {id}"))
     };
     let mut w = String::from(HEADER);
-    w.push_str(
-        "% Primitive costs on this machine: criterion medians, 95% CIs, microseconds (D-73).\n",
-    );
+    w.push_str("% Primitive costs on this machine: criterion medians, 95% CIs, microseconds.\n");
     w.push_str("\\begin{tabular}{lrr}\n\\toprule\n");
     w.push_str("Operation & Median (\\textmu{}s) & 95\\% CI (\\textmu{}s) \\\\\n\\midrule\n");
     let line = |w: &mut String, label: &str, id: &str| -> Result<(), String> {
@@ -320,12 +318,12 @@ fn positioning(doc: &Doc) -> Result<String, String> {
 /// Caption macros for the tables that need one (`paper/tables/captions.tex`;
 /// the figures' are in `paper/figures/captions.tex`, from
 /// `scripts/paper_figures.py`).
-fn captions() -> Result<String, String> {
+fn captions(doc: &Doc) -> Result<String, String> {
     let mut w = String::from(HEADER);
     let _ = writeln!(
         w,
         "\\newcommand{{\\tabcapPositioning}}{{{}}}",
-        tex(POSITIONING_CAPTION)?
+        tex(&doc.positioning_caption(Revision::Current)?)?
     );
     Ok(w)
 }
@@ -604,7 +602,7 @@ fn security(root: &Path) -> Result<String, String> {
     )?);
     let runs = [run_suites(root, false)?, run_suites(root, true)?];
     let mut w = String::from(HEADER);
-    w.push_str("% The security suite (SPEC §11.2): each test's assertions in order, from tests/security.rs and\n% tests/concurrency.rs. Ln is the Algorithm line whose Reject variant the test asserts.\n% The last two columns are the results of running the suites when this file was generated, for the\n% default instantiation (Ed25519 per hop) and the aggregate variant (BLS); --- marks a test compiled\n% for the other instantiation only (D-84).\n");
+    w.push_str("% The security suite (SPEC §11.2): each test's assertions in order, from tests/security.rs and\n% tests/concurrency.rs. Ln is the Algorithm line whose Reject variant the test asserts.\n% The last two columns are the results of running the suites when this file was generated, for the\n% default instantiation (Ed25519 per hop) and the aggregate variant (BLS); --- marks a test compiled\n% for the other instantiation only.\n");
     w.push_str(
         "\\begin{longtable}{>{\\raggedright\\arraybackslash}p{0.33\\linewidth}>{\\raggedright\\arraybackslash}p{0.42\\linewidth}ll}\n\\toprule\n",
     );
@@ -687,7 +685,7 @@ fn oracle(root: &Path) -> Result<String, String> {
     let mut w = String::from(HEADER);
     let _ = writeln!(
         w,
-        "% The M4 differential oracle (SPEC §9.7; seed {}): test statistics, not benchmark results.\n% Soundness: the procedure never answers true where the enumerating oracle answers false.\n% Completeness: the share of the oracle's true answers that the procedure also finds.",
+        "% The differential test of Contains, Implies and Unsat against an enumerating oracle (SPEC §9.7;\n% seed {}): test statistics, not benchmark results.\n% Soundness: the procedure never answers true where the enumerating oracle answers false.\n% Completeness: the share of the oracle's true answers that the procedure also finds.",
         v["seed"]
     );
     w.push_str("\\begin{tabular}{llrrrr}\n\\toprule\n");
@@ -784,7 +782,7 @@ pub fn render(
         ("claims.tex", claims(&doc, &template)?),
         ("primitives.tex", primitives(&doc)?),
         ("positioning.tex", positioning(&doc)?),
-        ("captions.tex", captions()?),
+        ("captions.tex", captions(&doc)?),
         ("oracle.tex", oracle(root)?),
         ("security.tex", security(root)?),
     ] {

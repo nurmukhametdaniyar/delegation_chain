@@ -1,5 +1,5 @@
 {
-  "description": "Section numbers and rule names that the claims table cites (D-86). 'checked' is the paper revision the claims were judged against, used by BENCHMARKS.md; 'current' is the paper in docs/paper.pdf, used by paper/tables/claims.tex. Update 'current' whenever docs/paper.pdf changes: dc-bench paper refuses a map whose current.sha256 is not docs/paper.pdf's. Each entry follows the claim's content, not its old section number.",
+  "description": "Section numbers and rule names that the claims table and the positioning caption cite (D-86, D-88). 'checked' is the paper revision the claims were judged against, used by BENCHMARKS.md; 'current' is the paper in docs/paper.pdf, used by paper/tables/. Update 'current' whenever docs/paper.pdf changes: dc-bench paper refuses a map whose current.sha256 is not docs/paper.pdf's. Each entry follows the claim's content, not its old section number. An entry with only 'current' is a section the paper cites where BENCHMARKS.md keeps an internal reference ({{iref:...}} in the template, or the positioning caption).",
   "checked": {
     "revision": "2026-09-29",
     "sha256": "51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14"
@@ -15,10 +15,14 @@
     "inline-certificates": { "checked": "§8.2", "current": "§9.2" },
     "steady-state": { "checked": "§8.2", "current": "§9.2" },
     "cheap-checks": { "checked": "§4.6, Figure 2", "current": "§4.6, Figure 2" },
-    "baseline": { "checked": "§4.6, §8.3", "current": "§8.3" }
+    "baseline": { "checked": "§4.6, §8.3", "current": "§8.3" },
+    "cold-path": { "current": "§8.4" },
+    "cold-certificates": { "current": "§4.6" },
+    "individual-bls": { "current": "§8.4" },
+    "related-systems": { "current": "§9.1" }
   },
   "rules": {
     "verdict-rule": { "checked": "the §6 rule", "current": "the verdict rule of Section 8.3" },
-    "inline-arithmetic": { "checked": "Paper §8.2's arithmetic assumes", "current": "The 2026-09-29 text's arithmetic (its §8.2) assumed" }
+    "inline-arithmetic": { "checked": "Paper §8.2's arithmetic assumes", "current": "The arithmetic as specified before measurement assumed" }
   }
 }

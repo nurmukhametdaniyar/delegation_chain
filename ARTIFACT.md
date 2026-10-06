@@ -25,7 +25,7 @@ Nothing in them is typed by hand. Every number is computed from the archives by 
 | M9's console log: the safety-valve abort and the three refused resumes that BENCHMARKS.md §7 cites | `results/logs/m9.log` | yes |
 | The generated summary, document and paper artifacts | `results/summary.{md,json}`, `BENCHMARKS.md`, `paper/` | yes |
 
-The frozen measurement plan is `BENCH_PLAN_FROZEN.md` (tag `bench-freeze-2`). The paper in `docs/paper.pdf` is revision 2026-10-04; `docs/paper-sections.json` maps the section numbers its claims table cites (D-86), and `dc-bench paper` refuses to run when that map is not for the paper in `docs/`. Every change after the freeze is in `BENCH_LOG.md`, and every open choice in `DECISIONS.md`.
+The frozen measurement plan is `BENCH_PLAN_FROZEN.md` (tag `bench-freeze-2`). The paper in `docs/paper.pdf` is revision 2026-10-04; `docs/paper-sections.json` maps the section numbers that the claims table and the positioning caption cite (D-86, D-88), and `dc-bench paper` refuses to run when that map is not for the paper in `docs/`. Nothing under `paper/` carries an identifier internal to this repository, and `crates/dc-bench/tests/paper_text.rs` checks it (D-88). Every change after the freeze is in `BENCH_LOG.md`, and every open choice in `DECISIONS.md`.
 
 ## 2. Requirements
 
@@ -81,7 +81,7 @@ The summary, `BENCHMARKS.md`, the tables and the PDF figures regenerate byte-ide
 | `paper/tables/claims.tex` | The paper claims and their verdicts (BENCHMARKS.md §5), citing the current paper's sections | everything above, through the template, and `docs/paper-sections.json` | `paper.rs`, `claims` |
 | `paper/tables/primitives.tex` | BLS and Ed25519 primitive costs | `results/criterion/` | `paper.rs`, `primitives` |
 | `paper/tables/positioning.tex` | Exploratory: C (warm) and D (warm+prefix) against arm E, medium, at matching depth | M9 archives | `paper.rs`, `positioning` |
-| `paper/tables/captions.tex` | The positioning table's caption, with arm E's functional gaps | — | `paper.rs`, `captions` |
+| `paper/tables/captions.tex` | The positioning table's caption, with arm E's functional gaps | `docs/paper-sections.json` | `paper.rs`, `captions` |
 | `paper/tables/security.tex` | The security suite: each test's asserted Algorithm line, and whether it passed in each instantiation | `tests/security.rs`, `tests/concurrency.rs`, and a run of them for the default instantiation and for the aggregate variant | `paper.rs`, `security` |
 | `paper/tables/oracle.tex` | The M4 differential oracle for Contains, Implies and Unsat | `docs/test-reports/policy-oracle-m4.json` | `paper.rs`, `oracle` |
 

@@ -1067,6 +1067,7 @@ Decision:
   - "the §6 rule" is "the verdict rule of Section 8.3".
 Why: the claims table printed revision 2026-09-29's numbers and the frozen plan's rule name, which the rewritten paper had to explain in its caption. The author asked for them to come from a file updated with the paper.
 Affects benchmarks: no.
+_Revised 2026-10-06: the map also holds the sections the paper cites where BENCHMARKS.md keeps an internal reference, and `inline-arithmetic`'s current text changed (D-88)._
 
 ## D-87 — The cost of D-81's encoding checks, measured on their own (exploratory)
 Spec section: §10.3, §13.5; D-81     Paper section: §4.7 (revision 2026-10-04)
@@ -1105,3 +1106,24 @@ Decision:
 - **Reporting.** BENCHMARKS.md §8, exploratory.
 Why: the checks are a few byte comparisons, far below a verification's cost. Measured on their own, with tested counts, they give a number, where a whole-verification comparison would give noise.
 Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only. The two counters exist only in `count-ops` builds, which never make headline runs (SPEC §10.3).
+
+## D-88 — The paper's generated text carries no internal identifiers
+Spec section: §13.8; D-78, D-86     Paper section: §4.6, §8.4, §8.5, §9.1 (revision 2026-10-04)
+Decision:
+- **The rule.** Nothing under `paper/` carries an identifier internal to this repository: no D-, P- or Q-numbers, no pre-registered question numbers (Q2, Q4, Q5), no milestone numbers (M4, M9) and no dates.
+  - LaTeX comments are included, since a LaTeX source is published with its comments.
+  - Arm letters stay: the paper defines them (§8.3).
+  - BENCHMARKS.md keeps its internal references, and regenerates unchanged.
+- **The claims table.**
+  - `{{iref:REF:KEY}}` prints REF in BENCHMARKS.md, and section KEY's `current` text from `docs/paper-sections.json` in the paper.
+  - Q4 (A against A-ind) and Q5 (the cold path's calls) cite §8.4, where the paper reports both.
+  - P-28 and D-61 cite §4.6, which now states the cold-path exception (§8.5 says so).
+  - "The 2026-09-29 text's arithmetic (its §8.2)" became "The arithmetic as specified before measurement", Table 5's own phrase.
+- **The positioning caption** (`Doc::positioning_caption`). The paper's says "medians pooled over the three runs" for "M9's pooled medians" and drops "(D-79)". For "paper Table 1" it cites §9.1, where the comparison with related systems (revision 2026-09-29's Table 1, now Table 6) is.
+- **The map.** An entry with only `current` is a section the paper cites where BENCHMARKS.md keeps an internal reference.
+- **The test.** `crates/dc-bench/tests/paper_text.rs` scans every text file under `paper/`, and fails on any identifier. It also checks its matcher on positive and negative cases; "Apple M4 Max" is the chip, not a milestone.
+- **Not covered.**
+  - The figures' text (axis labels and legends) is in compressed PDF streams and PNG pixels, which the test cannot read without a new dependency. `scripts/paper_figures.py` draws it, and `pdftotext` found no identifier in the PDFs on 2026-10-06. A binary file under `paper/` that is not a PDF or PNG fails the test.
+  - Comments still cite SPEC and BENCHMARKS.md sections, which are files of the artifact.
+Why: the author asked that the text the paper reads carry no internal identifiers.
+Affects benchmarks: no. Only wording and comments under `paper/tables/` changed; every number, BENCHMARKS.md and the figures regenerate unchanged.

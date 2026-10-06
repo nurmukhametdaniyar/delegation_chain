@@ -50,10 +50,6 @@ pub fn base64_len(n: usize) -> usize {
     n.div_ceil(3) * 4
 }
 
-/// The caption of the exploratory positioning table (BENCHMARKS.md §8 and
-/// `paper/tables/positioning.tex`).
-pub const POSITIONING_CAPTION: &str = "Exploratory (not pre-registered). Medium profile, M9's pooled medians on this machine, in µs. DC's N corresponds to Biscuit depth N − 1. Arm E (Biscuit) is a positioning reference, not a like-for-like arm: it has no registry resolution, no proof of possession, no revocation, no approval receipts, no nonce cache and no parameter binding (paper Table 1). The AIP column, also exploratory, is AIP's own code (`bench_chained` at `ad2faa6`) measured on this machine in the exploratory session (D-79): the median of all its timings at the same Biscuit depth. It runs AIP's own benchmark workload, not the medium profile; AIP's benchmark stops at depth 5 (—).";
-
 /// One row of the positioning table: DC's N and pooled medians in ns. `aip`
 /// is AIP's code measured here, when its archive exists and has the depth.
 pub(crate) struct PositioningRow {
@@ -84,7 +80,7 @@ pub struct Doc {
     /// `docs/paper-sections.json` (D-86), when the results directory sits
     /// in the repository.
     pub(crate) sections: Option<Value>,
-    /// Which revision's section numbers `psec` and `prule` print.
+    /// Which revision's section numbers `psec`, `prule` and `iref` print.
     revision: std::cell::Cell<Revision>,
 }
 
@@ -185,11 +181,15 @@ impl Doc {
 
     /// One entry of `docs/paper-sections.json` for the selected revision.
     fn paper_ref(&self, table: &str, key: &str) -> Result<String, String> {
+        self.paper_ref_in(table, key, self.revision.get())
+    }
+
+    fn paper_ref_in(&self, table: &str, key: &str, revision: Revision) -> Result<String, String> {
         let map = self
             .sections
             .as_ref()
             .ok_or("no docs/paper-sections.json next to the results")?;
-        let which = match self.revision.get() {
+        let which = match revision {
             Revision::Checked => "checked",
             Revision::Current => "current",
         };
@@ -197,6 +197,24 @@ impl Doc {
             .as_str()
             .map(str::to_owned)
             .ok_or_else(|| format!("docs/paper-sections.json has no {table}.{key}.{which}"))
+    }
+
+    /// The caption of the exploratory positioning table. BENCHMARKS.md's
+    /// (`Checked`) keeps its internal references. The paper's (`Current`)
+    /// has none, and cites the comparison with related systems through
+    /// `docs/paper-sections.json` (D-88).
+    pub(crate) fn positioning_caption(&self, revision: Revision) -> Result<String, String> {
+        let (medians, related, session) = match revision {
+            Revision::Checked => ("M9's pooled medians", "paper Table 1".to_owned(), " (D-79)"),
+            Revision::Current => (
+                "medians pooled over the three runs",
+                self.paper_ref_in("sections", "related-systems", revision)?,
+                "",
+            ),
+        };
+        Ok(format!(
+            "Exploratory (not pre-registered). Medium profile, {medians} on this machine, in µs. DC's N corresponds to Biscuit depth N − 1. Arm E (Biscuit) is a positioning reference, not a like-for-like arm: it has no registry resolution, no proof of possession, no revocation, no approval receipts, no nonce cache and no parameter binding ({related}). The AIP column, also exploratory, is AIP's own code (`bench_chained` at `ad2faa6`) measured on this machine in the exploratory session{session}: the median of all its timings at the same Biscuit depth. It runs AIP's own benchmark workload, not the medium profile; AIP's benchmark stops at depth 5 (—)."
+        ))
     }
 
     /// Resolves every placeholder in `tpl`. Any that cannot be resolved is
@@ -725,8 +743,9 @@ impl Doc {
                 None => "_Not run yet: there is no verified archive under `results/exploratory/phases/archive/`._".into(),
             },
             ["positioning"] => {
+                let caption = self.positioning_caption(self.revision.get())?;
                 let mut w = format!(
-                    "**Table.** {POSITIONING_CAPTION}\n\n| N (Biscuit depth) | C, warm (µs) | D, warm+prefix (µs) | E (µs) | AIP's code here (µs; exploratory) | C ÷ E | D ÷ E |\n|---|---|---|---|---|---|---|\n"
+                    "**Table.** {caption}\n\n| N (Biscuit depth) | C, warm (µs) | D, warm+prefix (µs) | E (µs) | AIP's code here (µs; exploratory) | C ÷ E | D ÷ E |\n|---|---|---|---|---|---|---|\n"
                 );
                 for r in self.positioning()? {
                     w.push_str(&format!(
@@ -810,6 +829,12 @@ impl Doc {
             // Section references and rule names of the claims table (D-86).
             ["psec", key] => self.paper_ref("sections", key)?,
             ["prule", key] => self.paper_ref("rules", key)?,
+            // An internal reference, which BENCHMARKS.md prints; the paper
+            // cites the section KEY instead (D-88).
+            ["iref", internal, key] => match self.revision.get() {
+                Revision::Checked => (*internal).to_owned(),
+                Revision::Current => self.paper_ref("sections", key)?,
+            },
             ["phaseflags"] => self.phase_data()?.flags(),
             ["phaseflaglist"] => self.phase_data()?.flag_list(),
             ["phaseflagcount"] => {
