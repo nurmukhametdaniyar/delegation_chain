@@ -9,21 +9,22 @@ Nothing in them is typed by hand. Every number is computed from the archives by 
 
 ## 1. What the deposit contains
 
-| Item | Where | In git? |
-|---|---|---|
-| Source code, tests, specification and logs | this repository, at the commit the deposit names | yes |
-| M9's raw measurements: per-call latencies, thermal and probe readings, throughput, run metadata | `results/archive/*.zst` | no: in the deposit |
-| Their SHA-256 manifest | `results/archive/MANIFEST.sha256` | yes |
-| Criterion's output for the micro-benchmarks (Q7, Q8, primitives) | `results/criterion/` | no: in the deposit, as `criterion.tar.zst` |
-| The exploratory phase breakdown's raw measurements, once run | `results/exploratory/phases/archive/*.zst` | no: in the deposit |
-| Their manifest, and the machine record | `results/exploratory/phases/archive/MANIFEST.sha256`, `results/exploratory/phases/env.json` | yes |
-| AIP's own benchmark run here: its outputs and resolved `Cargo.lock`, once run | `results/exploratory/aip/archive/*.zst` | no: in the deposit |
-| Their manifest, and the machine record | `results/exploratory/aip/archive/MANIFEST.sha256`, `results/exploratory/aip/env.json` | yes |
-| The encoding checks' micro-benchmark (D-87): its batch timings and thermal readings, once run | `results/exploratory/encoding/archive/*.zst` | no: in the deposit |
-| Their manifest, and the machine record | `results/exploratory/encoding/archive/MANIFEST.sha256`, `results/exploratory/encoding/env.json` | yes |
-| Bytes on the wire (Q2), memory (Q10), the machine records | `results/bytes.json`, `results/memory.json`, `results/env.json`, `results/env-resume.json` | yes |
-| M9's console log: the safety-valve abort and the three refused resumes that BENCHMARKS.md §7 cites | `results/logs/m9.log` | yes |
-| The generated summary, document and paper artifacts | `results/summary.{md,json}`, `BENCHMARKS.md`, `paper/` | yes |
+The deposit is a snapshot of this repository at the commit its description names, with a checksum file. The repository itself holds every file below (D-89), so a clone of that commit is the same.
+
+| Item | Where |
+|---|---|
+| Source code, tests, specification and logs | the repository |
+| M9's raw measurements, as zstd archives: per-call latencies, thermal and probe readings, throughput, run metadata | `results/archive/*.zst` |
+| Their SHA-256 manifest | `results/archive/MANIFEST.sha256` |
+| Criterion's output for the micro-benchmarks (Q7, Q8, primitives) | `criterion.tar.zst`, which unpacks to `results/criterion/` |
+| The exploratory phase breakdown: its archives and their manifest, and the machine record | `results/exploratory/phases/archive/`, `results/exploratory/phases/env.json` |
+| AIP's own benchmark run here: its outputs and resolved `Cargo.lock` as archives, their manifest, and the machine record | `results/exploratory/aip/archive/`, `results/exploratory/aip/env.json` |
+| The encoding checks' micro-benchmark (D-87): its batch timings and thermal readings as archives, their manifest, and the machine record | `results/exploratory/encoding/archive/`, `results/exploratory/encoding/env.json` |
+| Bytes on the wire (Q2), memory (Q10), the machine records | `results/bytes.json`, `results/memory.json`, `results/env.json`, `results/env-resume.json` |
+| M9's console log: the safety-valve abort and the three refused resumes that BENCHMARKS.md §7 cites | `results/logs/m9.log` |
+| The generated summary, document and paper artifacts | `results/summary.{md,json}`, `BENCHMARKS.md`, `paper/` |
+
+The raw CSVs stay out of git (frozen plan §5): the archives are their zstd compression, and the generators read only the verified archives. The first version of the Zenodo record (doi:10.5281/zenodo.23192309) is the snapshot of tag `v0.1.0`, made before the archives were committed, so it holds no measurement data; use a version made from a later commit.
 
 The frozen measurement plan is `BENCH_PLAN_FROZEN.md` (tag `bench-freeze-2`). The paper in `docs/paper.pdf` is revision 2026-10-06; `docs/paper-sections.json` maps the section numbers that the claims table and the positioning caption cite (D-86, D-88), and `dc-bench paper` refuses to run when that map is not for the paper in `docs/`. Nothing under `paper/` carries an identifier internal to this repository, and `crates/dc-bench/tests/paper_text.rs` checks it (D-88). Every change after the freeze is in `BENCH_LOG.md`, and every open choice in `DECISIONS.md`.
 
@@ -37,15 +38,13 @@ The frozen measurement plan is `BENCH_PLAN_FROZEN.md` (tag `bench-freeze-2`). Th
 
 ## 3. Unpack and verify
 
-From the repository root:
-
 ```sh
-# Put the deposit's archives where the manifests expect them.
-cp /path/to/deposit/archive/*.zst results/archive/
-mkdir -p results/criterion && zstd -dc /path/to/deposit/criterion.tar.zst | tar -x -C results
-cp /path/to/deposit/phases/*.zst results/exploratory/phases/archive/   # if deposited
-cp /path/to/deposit/aip/*.zst results/exploratory/aip/archive/         # if deposited
-cp /path/to/deposit/encoding/*.zst results/exploratory/encoding/archive/   # if deposited
+# From the deposit: check the snapshot and unpack it. From a clone, skip these two lines.
+shasum -a 256 -c DEPOSIT.sha256
+tar -xzf source.tar.gz && cd delegation_chain
+
+# Criterion's output, which the report needs.
+mkdir -p results && zstd -dc criterion.tar.zst | tar -x -C results
 
 # Check every archive against its committed manifest.
 (cd results/archive && shasum -a 256 -c MANIFEST.sha256)
@@ -130,9 +129,11 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
 ## 6. Packing a deposit
 
 ```sh
-tar -C results -cf - criterion | zstd -19 -o criterion.tar.zst
-shasum -a 256 criterion.tar.zst results/archive/*.zst results/exploratory/*/archive/*.zst > DEPOSIT.sha256
-git archive --format=tar.gz -o source.tar.gz HEAD
+mkdir -p deposit
+git archive --format=tar.gz --prefix=delegation_chain/ -o deposit/source.tar.gz HEAD
+(cd deposit && shasum -a 256 source.tar.gz > DEPOSIT.sha256)
 ```
 
-Upload the source archive, the `.zst` files, `criterion.tar.zst` and `DEPOSIT.sha256`. Name the commit in the deposit's description.
+Upload `deposit/source.tar.gz` and `deposit/DEPOSIT.sha256` as a new version of the Zenodo record, and name the commit in its description. The snapshot keeps the archives in their folders. Do not upload the `.zst` files one by one: Zenodo lists a record's files without folders, and the archives of M9, the phase breakdown and the encoding checks share nine file names (`run1.csv.zst`, `run1-meta.json.zst`, …). A GitHub release of the commit also reaches Zenodo through its GitHub integration, which archives the tracked files, archives included, as a zip without `DEPOSIT.sha256`.
+
+`criterion.tar.zst` is criterion's output, packed with `COPYFILE_DISABLE=1 tar -C results -cf - criterion | zstd -19 -o criterion.tar.zst`. Repack and commit it only if the micro-benchmarks are re-run.

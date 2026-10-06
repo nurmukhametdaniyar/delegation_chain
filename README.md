@@ -46,7 +46,7 @@ scripts/ci.sh                                               # all checks: the lo
 | `crates/dc-bench` | Benchmark harness, workloads, report and paper-artifact generators |
 | `tests/` | Workspace-level suites: security, cache and prefix-cache equivalence, concurrency, the benchmark arms |
 | `fuzz/` | Fuzz target and seed corpus for the CBOR decoder |
-| `results/` | Machine records, archive manifests, bytes, memory and the generated summary. The raw measurements are in the Zenodo deposit |
+| `results/` | The raw measurements as zstd archives, with their manifests; machine records, bytes, memory and the generated summary. Criterion's output is `criterion.tar.zst` at the root |
 | `paper/` | The paper's tables and figures, as generated |
 | `docs/` | The paper, its section map, and test reports |
 | `scripts/` | Plotting, CI and checks |
@@ -94,4 +94,4 @@ Read them as dated records. A later entry can supersede an earlier one, and wher
 
 The code in this repository is licensed under the Apache License, Version 2.0 ([LICENSE](LICENSE)).
 
-The data in the Zenodo deposit is licensed under the Creative Commons Attribution 4.0 International license (CC-BY-4.0). That is everything ARTIFACT.md §1 lists as kept in the deposit: the raw measurements and criterion's output.
+The measurement data is licensed under the Creative Commons Attribution 4.0 International license (CC-BY-4.0): the zstd archives under `results/` and `criterion.tar.zst`, in this repository and in the Zenodo deposit.

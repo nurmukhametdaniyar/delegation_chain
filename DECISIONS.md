@@ -1137,3 +1137,17 @@ _Revised 2026-10-06, for paper revision 2026-10-06:_
 - _The positioning caption cites the comparison with related systems as Table 7 (map entry `related-systems`; it was §9.1)._
 - _The claims table cites the security suite as Appendix A (map entry `security-suite`) where BENCHMARKS.md cites test files. `tests/arms.rs`, which also covers the prefix-cache arms, is not in Appendix A. Both rows still stand on Appendix A alone: `steady_state_is_offline` asserts no resolver or policy-store call when warm, and `phase_ordering_count_ops` the warm rejections without a pairing, under both instantiations. A second test checks that the claims table cites nothing under `tests/`._
 - _An `iref` reference may contain colons (`tests/security.rs::name`)._
+
+## D-89 — The measurement archives are committed; the deposit is a snapshot of the repository
+Spec section: §13.8; frozen plan §5     Paper section: Data and Code Availability (revision 2026-10-06, final text)
+Decision:
+- **Committed.** The zstd archives are tracked in git, under the manifests that already pinned them: M9's 51, and the phase breakdown's 9, AIP's 15 and the encoding checks' 9. Criterion's output has been tracked since `69085a4` as `criterion.tar.zst` at the root.
+- **Not committed.** The raw CSVs stay out of git, as frozen plan §5 says. So do the aborted attempt, which was set aside and never read (D-76), and the local backups.
+- **The deposit** is one snapshot of the repository at a named commit (`git archive`), with `DEPOSIT.sha256` (ARTIFACT.md §6). After unpacking, the committed manifests check every archive (ARTIFACT.md §3).
+Why:
+- Zenodo's GitHub integration archives only tracked files. Record 23192309, the snapshot of `v0.1.0`, therefore holds no measurement data.
+- Uploaded one by one, the archives cannot keep their folders. Zenodo lists a record's files without folders, and 27 of the 84 archives share 9 names across three folders.
+- A snapshot keeps the layout that ARTIFACT.md §3 expects, and the author asked for the archives to be on GitHub.
+- The frozen plan's "the author keeps the archives" still holds; only where they are kept changed.
+- No archive changed: all 84 matched their manifests on 2026-10-06, and none contains the hostname or home path found in the committed `env.json` files.
+Affects benchmarks: no.

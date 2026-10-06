@@ -597,3 +597,15 @@ The author asked for three follow-ups.
 - **One factual change, checked.** §8.3 now says both post-measurement deviations were decided before any latency result was opened, where it said so of the first. The M9 interruption entry above records both deviations with "No latency result has been opened", so it stands.
 - **Re-pinned.** `docs/paper-sections.json`'s current revision is this file; every entry still holds, since no number changed. SPEC.md, PAPER_ISSUES.md and DECISIONS.md name its hash.
 - **Byte-identical.** `dc-bench paper` regenerated all 14 files under `paper/`, and each is byte-identical to `271d519`'s.
+
+## The measurement archives on GitHub; the deposit repacked (2026-10-06)
+
+- **Committed (D-89).** All 84 zstd archives, under their existing manifests: M9's 51 and the exploratory runs' 9, 15 and 9. All 84 match their manifests. The raw CSVs, the aborted attempt and the backups stay out of git. `criterion.tar.zst` was already committed (`69085a4`), and it matches `results/criterion/` file for file (736 files).
+- **Why the deposit changed.** Zenodo record 23192309 is the snapshot of `v0.1.0`, which predates the archives in git, so it holds no data. A one-by-one upload would lose the folders, and 27 archives share 9 names.
+- **ARTIFACT.md.**
+  - §1: the repository holds everything; 23192309 holds no data.
+  - §3: check `DEPOSIT.sha256`, unpack the snapshot and criterion's output, verify the manifests.
+  - §6: the deposit is `git archive` of a commit plus `DEPOSIT.sha256`; do not upload the archives one by one.
+- **README.md.** The `results/` row, and the CC-BY-4.0 note now names the files, in the repository and in the deposit.
+- **Pushed.** `main`, and the tags `bench-freeze` and `bench-freeze-2`, which the README and ARTIFACT.md cite but which were not on GitHub.
+- **Waiting on the author.** Uploading the deposit as a new version of the Zenodo record, and the paper's DOI, which still names 23192309 and carries a `\pending` note.
