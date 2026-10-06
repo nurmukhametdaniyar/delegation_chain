@@ -6,7 +6,7 @@ Every choice the paper leaves open, in the format of SPEC Appendix B.
 - D-28 to D-47 were agreed with the author in the pre-M0 review (2026-09-28; SPEC changelog).
 - Later entries were added during implementation. The milestone that added each one is in `MILESTONES.md`.
 
-"Paper" means `docs/paper.pdf`. It was revision 2026-09-28 until 2026-09-29, revision 2026-09-29 until 2026-10-04, revision 2026-10-04 until 2026-10-06, and is now revision 2026-10-06 (sha256 `b2b18866…57f3cbb3b2`). Entries the revision affected carry a "Paper status" line.
+"Paper" means `docs/paper.pdf`. It was revision 2026-09-28 until 2026-09-29, revision 2026-09-29 until 2026-10-04, revision 2026-10-04 until 2026-10-06, and is now revision 2026-10-06 in its final text (sha256 `14465dbe…ed93775b8`). Entries the revision affected carry a "Paper status" line.
 
 ---
 

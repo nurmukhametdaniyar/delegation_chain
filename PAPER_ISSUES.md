@@ -7,7 +7,8 @@ Problems in the paper, _DelegationChain_ (titled _Aggregatable Capability Chains
 | 2026-09-28 | 42 | `bd94cef24e50a5bfca09375ef495b54e07aeba986e8c5096a2fc0c329f62e81e` | until 2026-09-29 (commit `e223f05`) |
 | 2026-09-29 | 44 | `51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14` | until 2026-10-04 (commit `973ecab`); the benchmark's claims were judged against it |
 | 2026-10-04 | 56 | `0ed3f58978ef0c8b670034ba717fa394c2970a57dd9ebdeb329a53ecbfae8bbd` | until 2026-10-06 (commit `60819a5`): Ed25519 per hop by default, BLS aggregate as a variant |
-| 2026-10-06 | 58 | `b2b18866447f794b60bdbd2164b85dfceb4c4d4e9ffa8c2a1181c157f3cbb3b2` | current: the same protocol; §8 filled in |
+| 2026-10-06 | 58 | `b2b18866447f794b60bdbd2164b85dfceb4c4d4e9ffa8c2a1181c157f3cbb3b2` | until the final text (commit `271d519`): the same protocol; §8 filled in |
+| 2026-10-06, final text | 59 | `14465dbef58492984005fd1b8b2e0edf2be4cd37870189b201af417ed93775b8` | current: wording only; no protocol text or numbering changed |
 
 - **Sources:** P-03 to P-14 come from SPEC Appendix C; P-01, P-02, P-04, P-11 and P-13 were resolved before 2026-09-28 and are not logged. P-15 to P-25 were found in the pre-M0 review (2026-09-28). P-26 was found while reconciling revision 2026-09-29, P-27 during M4, P-28 and P-29 during M6, and P-30 while resolving P-29.
 - **Status after revision 2026-09-29:**

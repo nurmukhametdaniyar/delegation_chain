@@ -589,3 +589,11 @@ The author asked for three follow-ups.
   - The claims table cites the security suite as Appendix A, through the map, where BENCHMARKS.md cites test files.
 - **Tests.** `paper_text.rs` also matches "pre-registered", and a new test checks that the claims table cites nothing under `tests/`. Both failed on the old files and pass after regeneration.
 - **Unchanged.** BENCHMARKS.md and the figures regenerate byte-identically; only `captions.tex`, `claims.tex` and `positioning.tex` changed. `scripts/ci.sh` passes.
+
+## The final text of revision 2026-10-06 (2026-10-06)
+
+- **`docs/paper.pdf`** is the final text of revision 2026-10-06: 59 pages, sha256 `14465dbef58492984005fd1b8b2e0edf2be4cd37870189b201af417ed93775b8` (commit `cef131c`). It replaces the 58-page build of the same date (sha256 `b2b18866…cbb3b2`).
+- **The comparison.** Diffed word by word against that build. §3–§7, Algorithms 1–2 and every section, table and figure number are unchanged. The edits are wording in §1, §2.3, §8, §9.1 and §10, "Section A/B" became "Appendix A/B", and the paper now carries `271d519`'s claims table and positioning caption.
+- **One factual change, checked.** §8.3 now says both post-measurement deviations were decided before any latency result was opened, where it said so of the first. The M9 interruption entry above records both deviations with "No latency result has been opened", so it stands.
+- **Re-pinned.** `docs/paper-sections.json`'s current revision is this file; every entry still holds, since no number changed. SPEC.md, PAPER_ISSUES.md and DECISIONS.md name its hash.
+- **Byte-identical.** `dc-bench paper` regenerated all 14 files under `paper/`, and each is byte-identical to `271d519`'s.

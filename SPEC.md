@@ -1,7 +1,7 @@
 # DelegationChain — Reference Implementation and Benchmark Specification
 
 **Audience:** Claude Code, working in a fresh Rust repository.
-**Protocol source of truth:** the paper _DelegationChain: Parameter-Bound Delegation Chains for Cross-Organizational Agent Authorization_, revision dated 2026-10-06 (58 pages; sha256 `b2b18866447f794b60bdbd2164b85dfceb4c4d4e9ffa8c2a1181c157f3cbb3b2`), in `docs/paper.pdf`. It specifies the protocol over per-hop Ed25519 signatures, with BLS aggregation as a variant (its §4.2, §4.8).
+**Protocol source of truth:** the paper _DelegationChain: Parameter-Bound Delegation Chains for Cross-Organizational Agent Authorization_, revision dated 2026-10-06, final text (59 pages; sha256 `14465dbef58492984005fd1b8b2e0edf2be4cd37870189b201af417ed93775b8`), in `docs/paper.pdf`. It specifies the protocol over per-hop Ed25519 signatures, with BLS aggregation as a variant (its §4.2, §4.8).
 - **Line numbers** ("Algorithm 1 line 26") are the same in every revision since 2026-09-28.
 - **Section numbers** in §2–§7 below are the same in revisions 2026-10-04 and 2026-10-06. Revision 2026-10-04 added §4.8, the aggregate variant.
 - **The benchmark sections (§12, §13) cite revision 2026-09-29,** against which the benchmark was frozen and its claims judged (sha256 `51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14`; in git history). Their "§8.2" and "§8.3" are §9.2 and §9.3 since revision 2026-10-04. `docs/paper-sections.json` maps them (D-86).
@@ -11,7 +11,7 @@ Put this file in the repository root as `SPEC.md`.
 
 ## Changelog
 
-**2026-10-06 — reconciled with paper revision 2026-10-06.** Its protocol text changes in three places, each adopting what the implementation does, so no code changes. Section and line numbers are unchanged.
+**2026-10-06 — reconciled with paper revision 2026-10-06.** Its protocol text changes in three places, each adopting what the implementation does, so no code changes. Section and line numbers are unchanged. The final text of the same date (59 pages) changes only wording outside §3–§7 and the algorithms.
 - Algorithm 1 line 2 decodes σ, the instantiation's chain signatures (P-31). Appendix A follows.
 - §4.7 says where non-canonical Ed25519 encodings are rejected, as D-81 does (P-32).
 - §5.6 makes the revocation skew bound the nonce TTL's clock-skew tolerance, one value of 60 s, as D-82 does (P-33).

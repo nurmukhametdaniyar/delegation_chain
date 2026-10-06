@@ -5,8 +5,8 @@
     "sha256": "51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14"
   },
   "current": {
-    "revision": "2026-10-06",
-    "sha256": "b2b18866447f794b60bdbd2164b85dfceb4c4d4e9ffa8c2a1181c157f3cbb3b2"
+    "revision": "2026-10-06, final text",
+    "sha256": "14465dbef58492984005fd1b8b2e0edf2be4cd37870189b201af417ed93775b8"
   },
   "sections": {
     "aggregation-saving": { "checked": "§2.2", "current": "§2.2" },
