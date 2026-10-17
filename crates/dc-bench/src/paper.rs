@@ -5,18 +5,25 @@
 //! - **Measured tables** (the §1 verdicts, Q2's break-even, the claims, the
 //!   primitives) come from the verified M9 archives through [`Doc`], the
 //!   same data and statistics as `BENCHMARKS.md`. The claims table is
-//!   `BENCHMARKS.md`'s own §5 table, converted.
+//!   `BENCHMARKS.md`'s own §5 table, converted. `verdicts_summary.tex`
+//!   condenses the verdict table to one row per profile (D-91).
 //! - **The security suite** (SPEC §11.2) is read from `tests/security.rs`
 //!   and `tests/concurrency.rs`: each test's assertions, in order. The
 //!   suite is then run, and each row records whether its test passed. An
 //!   assertion this module cannot classify stops generation.
-//! - **The M4 oracle** comes from `docs/test-reports/policy-oracle-m4.json`.
+//! - **The M4 oracle** comes from `docs/test-reports/policy-oracle-m4.json`;
+//!   `oracle_contains.tex` is its Contains block alone (D-91).
 //! - **Figures** are drawn by `scripts/paper_figures.py` from
 //!   `results/summary.json`, which [`Doc::load`] has just regenerated.
 //!
 //! Each table is a bare `tabular` (the security suite a `longtable`), for
 //! the author to wrap in a float with a caption. They need `booktabs` and
 //! `array`, and the security table also `longtable`.
+//!
+//! Section, table and theorem references come from a section map:
+//! `docs/paper-sections.json` (D-86), or a map the paper supplies with
+//! `--map`, which names each reference as the document the table lands in
+//! must print it (D-91). Nothing here types a reference.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -142,6 +149,48 @@ fn verdicts(doc: &Doc) -> Result<String, String> {
                 r.ci.1,
                 short(v)?
             );
+        }
+        let _ = writeln!(w, "{row} \\\\");
+    }
+    w.push_str("\\bottomrule\n\\end{tabular}\n");
+    Ok(w)
+}
+
+/// The §1 verdict table, condensed to one row per profile (D-91): for each
+/// comparison, the range of the median ratios over the profile's cells and
+/// the verdicts of those cells. The values and their formatting are
+/// [`verdicts`]'s, so each range is the smallest and largest entry of the
+/// full table's column.
+fn verdicts_summary(doc: &Doc) -> Result<String, String> {
+    let mut w = String::from(HEADER);
+    w.push_str("% The frozen plan's §1 verdict table, condensed; verdicts.tex has every cell. For each profile and\n% comparison: the range of the median latency ratios over the profile's cells (N = 1, 2, 3, 5 and 10;\n% medium-approval at N = 3 only) and the verdicts of those cells.\n% Verdicts (frozen plan §6): + net benefit (CI below 0.90); $-$ not a net benefit (CI above 1.10);\n% $=$ no material difference; ? inconclusive; ?r inconclusive because the three runs disagree.\n");
+    w.push_str("\\begin{tabular}{lr@{\\,}cr@{\\,}cr@{\\,}c}\n\\toprule\n");
+    w.push_str("Profile & \\multicolumn{2}{c}{B/D, warm+prefix} & \\multicolumn{2}{c}{A/C, warm} & \\multicolumn{2}{c}{A/C-batch, warm} \\\\\n\\midrule\n");
+    for profile in ["small", "medium", "large", "medium-approval"] {
+        let ns: Vec<usize> = cells()
+            .into_iter()
+            .filter(|&(_, p)| p == profile)
+            .map(|(n, _)| n)
+            .collect();
+        let mut row = tex(profile)?;
+        for k in ["bd", "ac", "acb"] {
+            let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+            let mut seen: Vec<&'static str> = vec![];
+            for &n in &ns {
+                let (r, _, v) = doc.verdict(k, n, profile)?;
+                lo = lo.min(r.value);
+                hi = hi.max(r.value);
+                let v = short(v)?;
+                if !seen.contains(&v) {
+                    seen.push(v);
+                }
+            }
+            let range = if ns.len() == 1 {
+                format!("{lo:.2}")
+            } else {
+                format!("{lo:.2}--{hi:.2}")
+            };
+            let _ = write!(row, " & {range} & {}", seen.join("/"));
         }
         let _ = writeln!(w, "{row} \\\\");
     }
@@ -593,12 +642,15 @@ fn run_suites(root: &Path, aggregate: bool) -> Result<BTreeMap<String, bool>, St
 
 /// The security suite as threat → asserted line (SPEC §11.2), for both
 /// instantiations (D-84).
-fn security(root: &Path) -> Result<String, String> {
+fn security(root: &Path, doc: &Doc) -> Result<String, String> {
     let read = |p: &str| fs::read_to_string(root.join(p)).map_err(|e| format!("{p}: {e}"));
     let mut rows = tests_of(&read("tests/security.rs")?, "security")?;
+    // The theorem the concurrent test checks, as the section map names it
+    // (D-91).
+    let theorem = doc.paper_ref_in("sections", "replay-theorem", Revision::Current)?;
     rows.extend(tests_of(
         &read("tests/concurrency.rs")?,
-        "T3b replay, concurrent (Theorem 5)",
+        &format!("T3b replay, concurrent ({theorem})"),
     )?);
     let runs = [run_suites(root, false)?, run_suites(root, true)?];
     let mut w = String::from(HEADER);
@@ -661,7 +713,10 @@ fn security(root: &Path) -> Result<String, String> {
 
 // ---- the M4 oracle ----
 
-fn oracle(root: &Path) -> Result<String, String> {
+/// The differential test. `full` adds the Implies and Unsat rows to the
+/// Contains block (`oracle.tex`); without them it is `oracle_contains.tex`
+/// (D-91).
+fn oracle(root: &Path, full: bool) -> Result<String, String> {
     let p = root.join("docs/test-reports/policy-oracle-m4.json");
     let v: Value =
         serde_json::from_str(&fs::read_to_string(&p).map_err(|e| format!("{}: {e}", p.display()))?)
@@ -683,11 +738,19 @@ fn oracle(root: &Path) -> Result<String, String> {
     };
     let c = &v["contains"];
     let mut w = String::from(HEADER);
-    let _ = writeln!(
-        w,
-        "% The differential test of Contains, Implies and Unsat against an enumerating oracle (SPEC §9.7;\n% seed {}): test statistics, not benchmark results.\n% Soundness: the procedure never answers true where the enumerating oracle answers false.\n% Completeness: the share of the oracle's true answers that the procedure also finds.",
-        v["seed"]
-    );
+    if full {
+        let _ = writeln!(
+            w,
+            "% The differential test of Contains, Implies and Unsat against an enumerating oracle (SPEC §9.7;\n% seed {}): test statistics, not benchmark results.\n% Soundness: the procedure never answers true where the enumerating oracle answers false.\n% Completeness: the share of the oracle's true answers that the procedure also finds.",
+            v["seed"]
+        );
+    } else {
+        let _ = writeln!(
+            w,
+            "% The differential test of Contains against an enumerating oracle (SPEC §9.7; seed {}): test\n% statistics, not benchmark results. oracle.tex adds the Implies and Unsat rows.\n% Soundness: the procedure never answers true where the enumerating oracle answers false.\n% Completeness: the share of the oracle's true answers that the procedure also finds.",
+            v["seed"]
+        );
+    }
     w.push_str("\\begin{tabular}{llrrrr}\n\\toprule\n");
     w.push_str("Procedure & Inputs & Cases & Soundness violations & Oracle true & Completeness \\\\\n\\midrule\n");
     let _ = writeln!(
@@ -724,6 +787,10 @@ fn oracle(root: &Path) -> Result<String, String> {
         n(&c["reflexivity_failures"])?,
         thousands(n(&c["malformed_scopes_rejected"])?)
     );
+    if !full {
+        w.push_str("\\bottomrule\n\\end{tabular}\n");
+        return Ok(w);
+    }
     w.push_str("\\midrule\n");
     if let Some(m) = v["implies_unsat_by_type"].as_object() {
         for which in ["implies", "unsat"] {
@@ -750,15 +817,34 @@ fn oracle(root: &Path) -> Result<String, String> {
 }
 
 /// Writes every table into `out/tables/` and every figure into
-/// `out/figures/`.
+/// `out/figures/`. With `map`, the section references come from that file
+/// instead of `docs/paper-sections.json` (D-91).
 pub fn render(
     results: &Path,
     criterion: &Path,
     root: &Path,
     out: &Path,
+    map: Option<&Path>,
     threads: usize,
 ) -> Result<(), String> {
-    let doc = Doc::load(results, criterion, threads)?;
+    let mut doc = Doc::load(results, criterion, threads)?;
+    if let Some(p) = map {
+        // A map the paper supplies (D-91). It names each reference as the
+        // document the table lands in prints it, and the paper checks it
+        // against its own numbering; docs/paper.pdf's pin is for
+        // docs/paper-sections.json and does not apply.
+        let v: Value = serde_json::from_str(
+            &fs::read_to_string(p).map_err(|e| format!("{}: {e}", p.display()))?,
+        )
+        .map_err(|e| format!("{}: {e}", p.display()))?;
+        let rev = v["current"]["revision"]
+            .as_str()
+            .ok_or_else(|| format!("{}: no current.revision", p.display()))?
+            .to_owned();
+        eprintln!("paper: section map {} ({rev})", p.display());
+        doc.sections = Some(v);
+        return write_all(&doc, root, results, out);
+    }
     // The claims table cites the paper; its section map must be for the paper
     // in docs/ (D-86). The paper is not in the repository (D-90): without a
     // local copy, the map is used as committed.
@@ -781,18 +867,25 @@ pub fn render(
         ),
         Err(e) => return Err(format!("docs/paper.pdf: {e}")),
     }
+    write_all(&doc, root, results, out)
+}
+
+/// Every table, then the figures.
+fn write_all(doc: &Doc, root: &Path, results: &Path, out: &Path) -> Result<(), String> {
     let tables = out.join("tables");
     fs::create_dir_all(&tables).map_err(|e| e.to_string())?;
     let template = root.join("crates/dc-bench/BENCHMARKS.template.md");
     for (name, body) in [
-        ("verdicts.tex", verdicts(&doc)?),
-        ("breakeven.tex", breakeven(&doc)?),
-        ("claims.tex", claims(&doc, &template)?),
-        ("primitives.tex", primitives(&doc)?),
-        ("positioning.tex", positioning(&doc)?),
-        ("captions.tex", captions(&doc)?),
-        ("oracle.tex", oracle(root)?),
-        ("security.tex", security(root)?),
+        ("verdicts.tex", verdicts(doc)?),
+        ("verdicts_summary.tex", verdicts_summary(doc)?),
+        ("breakeven.tex", breakeven(doc)?),
+        ("claims.tex", claims(doc, &template)?),
+        ("primitives.tex", primitives(doc)?),
+        ("positioning.tex", positioning(doc)?),
+        ("captions.tex", captions(doc)?),
+        ("oracle.tex", oracle(root, true)?),
+        ("oracle_contains.tex", oracle(root, false)?),
+        ("security.tex", security(root, doc)?),
     ] {
         fs::write(tables.join(name), body).map_err(|e| e.to_string())?;
         eprintln!("paper: tables/{name}");

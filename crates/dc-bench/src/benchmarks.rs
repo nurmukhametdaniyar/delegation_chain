@@ -184,7 +184,12 @@ impl Doc {
         self.paper_ref_in(table, key, self.revision.get())
     }
 
-    fn paper_ref_in(&self, table: &str, key: &str, revision: Revision) -> Result<String, String> {
+    pub(crate) fn paper_ref_in(
+        &self,
+        table: &str,
+        key: &str,
+        revision: Revision,
+    ) -> Result<String, String> {
         let map = self
             .sections
             .as_ref()

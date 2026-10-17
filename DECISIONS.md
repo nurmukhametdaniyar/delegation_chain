@@ -1164,3 +1164,18 @@ Decision:
 - README.md and ARTIFACT.md say the paper is published separately.
 Why: the author is still editing the paper, and it will change shape. A snapshot of the repository, and the Zenodo deposit made from it, should not carry a draft. No generated file depends on the PDF's content, only on the map: `paper/` regenerates byte-identically with and without it.
 Affects benchmarks: no.
+
+## D-91 — A paper may supply its own section map; two condensed tables
+Spec section: §13.8; D-78, D-86, D-88     Paper section: none (the IEEE Access version of the paper, maintained separately)
+Decision:
+- **`--map FILE`.** `dc-bench paper` reads the section map from FILE instead of `docs/paper-sections.json`. Only its `current` texts are used, and it must name what it is for in `current.revision`.
+  - The paper that supplies the map resolves it against its own numbering and checks it. `docs/paper.pdf`'s pin (D-86, D-90) is for `docs/paper-sections.json` and does not apply to such a map.
+  - Its texts are printed as given (through the same LaTeX escaping), so a table that lands in another document than the cited one can say so, e.g. "Section IV-F of the main paper".
+- **`--paper-dir DIR`.** The tables and figures go to DIR instead of `paper/`.
+- **The security suite's heading for the concurrent test** names its theorem through the map (`replay-theorem`) instead of a typed "Theorem 5". `docs/paper-sections.json` gains that entry, with the same text.
+- **Two condensed tables**, generated like the rest:
+  - `verdicts_summary.tex`: the §1 verdict table with one row per profile; each comparison shows the range of its median ratios over the profile's cells and the verdicts of those cells. The values and their formatting are `verdicts.tex`'s.
+  - `oracle_contains.tex`: the differential test's Contains block and its reflexivity line, without the Implies and Unsat rows; otherwise `oracle.tex`'s rows.
+- With neither option, `paper/` regenerates byte-identically to `7b41004`'s, plus the two new files.
+Why: the author is preparing a condensed version of the paper whose tables cite another numbering and land in two documents (a main paper and its supplementary material). The author asked for the references to come from a mapping file that the paper supplies, not typed into this repository, and for the condensed tables to be generated rather than edited by hand.
+Affects benchmarks: no. This is report-only: no measurement code changed and nothing was re-measured. Every table is regenerated from the archived data.
