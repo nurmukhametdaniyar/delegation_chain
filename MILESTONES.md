@@ -628,3 +628,9 @@ The author asked for three follow-ups.
 - **D-92.** `primitives.tex` adds the containment procedure's worst-case costs, rules ∈ {1, 4, 16, 64} × atoms ∈ {1, 4, 8}, from the same criterion pass as the primitives (the frozen plan's Q8).
 - **Report-only.** No measurement code changed and nothing was re-measured.
 - **Checked.** Without the new rows, every file under `paper/` is byte-identical to `8ec1983`'s, and the new values equal BENCHMARKS.md's. `scripts/ci.sh` passes.
+
+## Report-only: figures drawn to fit a column (2026-10-18)
+
+- **D-93.** `dc-bench paper --figure-width IN` draws every figure to fit a column IN inches wide: the saved width is at most IN, legend text at least 7 pt, and the ratio figure's legend in two columns. The IEEE Access version uses 3.35.
+- **Report-only.** No measurement code changed and nothing was re-measured.
+- **Checked.** Without the option, every file under `paper/` regenerates byte-identically. With `--figure-width 3.35`, the four figures are 3.31–3.35 in wide with TrueType fonts only. `scripts/ci.sh` passes.

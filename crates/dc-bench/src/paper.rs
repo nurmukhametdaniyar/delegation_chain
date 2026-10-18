@@ -830,13 +830,15 @@ fn oracle(root: &Path, full: bool) -> Result<String, String> {
 
 /// Writes every table into `out/tables/` and every figure into
 /// `out/figures/`. With `map`, the section references come from that file
-/// instead of `docs/paper-sections.json` (D-91).
+/// instead of `docs/paper-sections.json` (D-91). With `figure_width`, every
+/// figure is drawn to fit a column that many inches wide (D-93).
 pub fn render(
     results: &Path,
     criterion: &Path,
     root: &Path,
     out: &Path,
     map: Option<&Path>,
+    figure_width: Option<f64>,
     threads: usize,
 ) -> Result<(), String> {
     let mut doc = Doc::load(results, criterion, threads)?;
@@ -855,7 +857,7 @@ pub fn render(
             .to_owned();
         eprintln!("paper: section map {} ({rev})", p.display());
         doc.sections = Some(v);
-        return write_all(&doc, root, results, out);
+        return write_all(&doc, root, results, out, figure_width);
     }
     // The claims table cites the paper; its section map must be for the paper
     // in docs/ (D-86). The paper is not in the repository (D-90): without a
@@ -879,11 +881,17 @@ pub fn render(
         ),
         Err(e) => return Err(format!("docs/paper.pdf: {e}")),
     }
-    write_all(&doc, root, results, out)
+    write_all(&doc, root, results, out, figure_width)
 }
 
 /// Every table, then the figures.
-fn write_all(doc: &Doc, root: &Path, results: &Path, out: &Path) -> Result<(), String> {
+fn write_all(
+    doc: &Doc,
+    root: &Path,
+    results: &Path,
+    out: &Path,
+    figure_width: Option<f64>,
+) -> Result<(), String> {
     let tables = out.join("tables");
     fs::create_dir_all(&tables).map_err(|e| e.to_string())?;
     let template = root.join("crates/dc-bench/BENCHMARKS.template.md");
@@ -902,12 +910,15 @@ fn write_all(doc: &Doc, root: &Path, results: &Path, out: &Path) -> Result<(), S
         fs::write(tables.join(name), body).map_err(|e| e.to_string())?;
         eprintln!("paper: tables/{name}");
     }
-    let st = Command::new("bash")
+    let mut figures = Command::new("bash");
+    figures
         .arg(root.join("scripts/paper_figures.sh"))
         .arg(results)
-        .arg(out.join("figures"))
-        .status()
-        .map_err(|e| format!("figures: {e}"))?;
+        .arg(out.join("figures"));
+    if let Some(w) = figure_width {
+        figures.arg(w.to_string());
+    }
+    let st = figures.status().map_err(|e| format!("figures: {e}"))?;
     if !st.success() {
         return Err(format!("figures failed: {st}"));
     }

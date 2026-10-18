@@ -1188,3 +1188,12 @@ Decision:
 - Nothing else changes; the existing rows are byte-identical.
 Why: the paper cites two of these values (9.0 µs at 4 rules × 4 atoms, 5146 µs at 64 × 8) but no table of the paper reported them; the author asked for them to come from the generator rather than be typed.
 Affects benchmarks: no. Report-only: no measurement code changed and nothing was re-measured.
+
+## D-93 — Figures drawn to fit a column
+Spec section: §13.8; D-78, D-91     Paper section: none (the IEEE Access version of the paper, maintained separately)
+Decision:
+- `dc-bench paper --figure-width IN` passes a column width in inches to `scripts/paper_figures.sh` and on to `scripts/paper_figures.py`, which then draws every figure so that its saved width, labels and legend included, is at most IN. The figure is narrowed until its tight bounding box fits; font sizes are unchanged.
+- With the option, legend text is at least 7 pt, and the ratio figure's legend takes two columns, with shorter handles and gaps, instead of three columns at 6.5 pt.
+- Without the option nothing changes: the files under `paper/` regenerate byte-identically.
+Why: the IEEE Access version includes the figures at its column width (242.67 pt, about 3.36 in). As drawn, `ratios.pdf` is 3.94 in wide, so at column width its 8 pt text printed at 6.8 pt and its legend at 5.6 pt, below the journal's 7 pt minimum. The author asked for the figures to be regenerated at column width by the harness's own generator rather than redrawn.
+Affects benchmarks: no. Report-only: the figures are drawn from the same `summary.json`; no measurement code changed and nothing was re-measured.

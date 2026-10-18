@@ -20,7 +20,14 @@ The break-even is recomputed from the bytes rows with the report's rule and
 checked against summary.json's own statement of it.
 
 Vector PDFs, with TrueType fonts embedded and no creation date, so that the
-same summary.json gives the same bytes. Colours and markers follow the arm,
+same summary.json gives the same bytes.
+
+With a third argument W, a column width in inches (D-93), every figure is drawn
+to fit that column: its saved width, labels and legend included, is at most W,
+so it is never scaled down when included at column width; legend text is at
+least 7 pt; and the ratio figure's legend takes two columns instead of three,
+with shorter handles and column gaps.
+Without it the output is unchanged, byte for byte. Colours and markers follow the arm,
 as in scripts/plot.py.
 """
 
@@ -71,6 +78,24 @@ plt.rcParams.update({
 SIZE = (3.4, 2.3)  # one column of a two-column paper, inches
 SAVE = {"format": "pdf", "bbox_inches": "tight", "metadata": {"CreationDate": None, "ModDate": None}}
 SAVE_PNG = {"format": "png", "dpi": 200, "bbox_inches": "tight", "metadata": {"Software": None}}
+# The column width in inches (D-93), or None for the original sizes.
+COLUMN = None
+
+
+def fit(fig):
+    """D-93: narrow the figure until its saved (tight, padded) width is at most
+    COLUMN inches. Font sizes are left alone; the axes give way."""
+    if COLUMN is None:
+        return
+    pad = 2 * plt.rcParams["savefig.pad_inches"]
+    for _ in range(10):
+        fig.canvas.draw()
+        width = fig.get_tightbbox(fig.canvas.get_renderer()).width + pad
+        if width <= COLUMN:
+            return
+        w, h = fig.get_size_inches()
+        fig.set_size_inches(w - (width - COLUMN) - 0.005, h)
+    sys.exit(f"a figure does not fit a {COLUMN} in column")
 
 
 def configurations(summary):
@@ -122,6 +147,7 @@ def latency_figure(summary, out, name, lines, ylabel, ncol=2):
     ax.set_xlabel("N (bodies after the session body)")
     ax.set_ylabel(ylabel)
     ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=ncol, fontsize=7)
+    fit(fig)
     fig.savefig(out / name, **SAVE)
     plt.close(fig)
 
@@ -160,6 +186,7 @@ def bytes_figure(summary, out):
     ax.set_xlabel("N (bodies after the session body)")
     ax.set_ylabel("bytes per chain")
     ax.legend(loc="lower right", fontsize=7)
+    fit(fig)
     fig.savefig(out / "bytes_medium.pdf", **SAVE)
     plt.close(fig)
     return n_be
@@ -207,7 +234,12 @@ def ratio_figure(summary, out):
     handles += [Line2D([], [], color=MUTED, marker=PROFILE_STYLE[p][0], ls=PROFILE_STYLE[p][1], ms=3.5, label=p)
                 for p in PROFILES]
     handles.append(Patch(color=GRID, label=f"±{MARGIN:.0%}: no material difference"))
-    ax.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=3, fontsize=6.5)
+    if COLUMN is None:
+        ax.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=3, fontsize=6.5)
+    else:
+        ax.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, fontsize=7,
+                  handlelength=1.6, handletextpad=0.5, columnspacing=1.2)
+    fit(fig)
     fig.savefig(out / "ratios.pdf", **SAVE)
     fig.savefig(out / "ratios.png", **SAVE_PNG)
     plt.close(fig)
@@ -245,8 +277,11 @@ def captions(out, n_be, smallest):
 
 
 def main():
+    global COLUMN
     results = Path(sys.argv[1] if len(sys.argv) > 1 else "results")
     out = Path(sys.argv[2] if len(sys.argv) > 2 else "paper/figures")
+    if len(sys.argv) > 3:
+        COLUMN = float(sys.argv[3])
     summary = json.loads((results / "summary.json").read_text())
     if summary.get("dry"):
         sys.exit("summary.json is a dry run's; its numbers are never reported")

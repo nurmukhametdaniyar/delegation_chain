@@ -9,7 +9,7 @@
 //! dc-bench report  [--mode M] [--out DIR] [--criterion DIR]
 //! dc-bench plan    [--mode M]                       the grid, as the frozen plan states it
 //! dc-bench benchmarks [--out DIR]                    BENCHMARKS.md from the verified results
-//! dc-bench paper   [--out DIR] [--map FILE] [--paper-dir DIR]   paper tables and figures (`paper/`)
+//! dc-bench paper   [--out DIR] [--map FILE] [--paper-dir DIR] [--figure-width IN]   paper tables and figures (`paper/`)
 //! dc-bench phases  [--mode M] [--out DIR] [--resume] the exploratory phase breakdown (D-77)
 //! dc-bench aip     [--mode M] [--out DIR] [--aip-dir DIR] AIP's own benchmark, here (D-79)
 //! dc-bench encoding [--mode M] [--out DIR] [--resume] the cost of D-81's encoding checks (D-87)
@@ -71,6 +71,9 @@ struct Args {
     /// `paper`: where to write the tables and figures, in place of `paper/`
     /// (D-91).
     paper_dir: Option<PathBuf>,
+    /// `paper`: draw every figure to fit a column this many inches wide
+    /// (D-93).
+    figure_width: Option<f64>,
 }
 
 fn parse() -> Result<Args, String> {
@@ -92,6 +95,7 @@ fn parse() -> Result<Args, String> {
         aip_dir: None,
         map: None,
         paper_dir: None,
+        figure_width: None,
     };
     while let Some(flag) = it.next() {
         let mut val = || it.next().ok_or(format!("{flag} needs a value"));
@@ -118,6 +122,17 @@ fn parse() -> Result<Args, String> {
             "--aip-dir" => a.aip_dir = Some(PathBuf::from(val()?)),
             "--map" => a.map = Some(PathBuf::from(val()?)),
             "--paper-dir" => a.paper_dir = Some(PathBuf::from(val()?)),
+            "--figure-width" => {
+                let v = val()?;
+                match v.parse::<f64>() {
+                    Ok(w) if w.is_finite() && w > 0.0 => a.figure_width = Some(w),
+                    _ => {
+                        return Err(format!(
+                            "--figure-width {v}: not a positive width in inches"
+                        ));
+                    }
+                }
+            }
             f => return Err(format!("unknown option {f}")),
         }
     }
@@ -183,6 +198,7 @@ fn main() -> ExitCode {
                 &root,
                 &a.paper_dir.clone().unwrap_or_else(|| root.join("paper")),
                 a.map.as_deref(),
+                a.figure_width,
                 threads(),
             )
         }

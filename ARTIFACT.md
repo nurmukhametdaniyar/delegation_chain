@@ -61,7 +61,7 @@ The generators check every archive themselves and refuse to run on a missing man
 |---|---|---|
 | `cargo run --release -p dc-bench -- report` | `results/summary.md`, `results/summary.json` | the verified archives, `results/criterion/`, `results/bytes.json`, `results/memory.json` |
 | `cargo run --release -p dc-bench -- benchmarks` | `BENCHMARKS.md` (regenerates the summary first) | the above, the exploratory runs' verified archives, and `crates/dc-bench/BENCHMARKS.template.md` |
-| `cargo run --release -p dc-bench -- paper` | `paper/tables/*.tex`, `paper/figures/*` (regenerates the summary first); with `--paper-dir DIR`, into DIR, and with `--map FILE`, citing the sections FILE names (D-91) | the above, the test sources, and `docs/test-reports/policy-oracle-m4.json` |
+| `cargo run --release -p dc-bench -- paper` | `paper/tables/*.tex`, `paper/figures/*` (regenerates the summary first); with `--paper-dir DIR`, into DIR, with `--map FILE`, citing the sections FILE names (D-91), and with `--figure-width IN`, with every figure drawn to fit a column IN inches wide (D-93) | the above, the test sources, and `docs/test-reports/policy-oracle-m4.json` |
 | `bash scripts/plot.sh results` | `results/plots/*.png` | `results/summary.json` |
 
 The summary, `BENCHMARKS.md`, the tables and the PDF figures regenerate byte-identically: the bootstrap is seeded, and the PDFs carry no timestamps. The one exception is the security table's "Passed" column, which records the test run that produced it.
