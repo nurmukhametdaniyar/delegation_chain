@@ -1179,3 +1179,12 @@ Decision:
 - With neither option, `paper/` regenerates byte-identically to `7b41004`'s, plus the two new files.
 Why: the author is preparing a condensed version of the paper whose tables cite another numbering and land in two documents (a main paper and its supplementary material). The author asked for the references to come from a mapping file that the paper supplies, not typed into this repository, and for the condensed tables to be generated rather than edited by hand.
 Affects benchmarks: no. This is report-only: no measurement code changed and nothing was re-measured. Every table is regenerated from the archived data.
+
+## D-92 — The containment procedure's worst-case costs in the primitives table
+Spec section: §13.8; frozen plan §4 (Q8), D-73, D-91     Paper section: none (the IEEE Access version of the paper, maintained separately)
+Decision:
+- `primitives.tex` gains a block after Ed25519: the containment procedure (`Contains`) in the worst case, for rules ∈ {1, 4, 16, 64} × atoms ∈ {1, 4, 8} (criterion ids `policy/contains/worst/r*_a*`), as medians with 95% CIs in µs.
+- They come from the same criterion pass as the primitives already in the table: the frozen plan's Q7/Q8/primitives item, run once by `dc-bench all` in M9 and archived in `criterion.tar.zst`. They are the frozen plan's Q8 measurements, not an exploratory run.
+- Nothing else changes; the existing rows are byte-identical.
+Why: the paper cites two of these values (9.0 µs at 4 rules × 4 atoms, 5146 µs at 64 × 8) but no table of the paper reported them; the author asked for them to come from the generator rather than be typed.
+Affects benchmarks: no. Report-only: no measurement code changed and nothing was re-measured.

@@ -79,7 +79,7 @@ The summary, `BENCHMARKS.md`, the tables and the PDF figures regenerate byte-ide
 | `paper/tables/verdicts_summary.tex` | The same verdicts condensed to one row per profile: the range of each comparison's ratios and the verdicts of its cells | M9 archives | `paper.rs`, `verdicts_summary` |
 | `paper/tables/breakeven.tex` | Q2: break-even N per profile | `bytes.json` | `paper.rs`, `breakeven` |
 | `paper/tables/claims.tex` | The paper claims and their verdicts (BENCHMARKS.md §5), citing the current paper's sections | everything above, through the template, and `docs/paper-sections.json` | `paper.rs`, `claims` |
-| `paper/tables/primitives.tex` | BLS and Ed25519 primitive costs | `results/criterion/` | `paper.rs`, `primitives` |
+| `paper/tables/primitives.tex` | BLS and Ed25519 primitive costs, and the containment procedure in the worst case (D-92) | `results/criterion/` | `paper.rs`, `primitives` |
 | `paper/tables/positioning.tex` | Exploratory: C (warm) and D (warm+prefix) against arm E, medium, at matching depth | M9 archives | `paper.rs`, `positioning` |
 | `paper/tables/captions.tex` | The positioning table's caption, with arm E's functional gaps | `docs/paper-sections.json` | `paper.rs`, `captions` |
 | `paper/tables/security.tex` | The security suite: each test's asserted Algorithm line, and whether it passed in each instantiation | `tests/security.rs`, `tests/concurrency.rs`, a run of them for the default instantiation and for the aggregate variant, and `docs/paper-sections.json` (the theorem the concurrent test checks) | `paper.rs`, `security` |

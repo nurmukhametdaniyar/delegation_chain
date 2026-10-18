@@ -282,7 +282,7 @@ fn primitives(doc: &Doc) -> Result<String, String> {
             .ok_or_else(|| format!("no criterion estimate {id}"))
     };
     let mut w = String::from(HEADER);
-    w.push_str("% Primitive costs on this machine: criterion medians, 95% CIs, microseconds.\n");
+    w.push_str("% Primitive costs on this machine: criterion medians, 95% CIs, microseconds.\n% The last block is the containment procedure in the worst case, from the same criterion pass.\n");
     w.push_str("\\begin{tabular}{lrr}\n\\toprule\n");
     w.push_str("Operation & Median (\\textmu{}s) & 95\\% CI (\\textmu{}s) \\\\\n\\midrule\n");
     let line = |w: &mut String, label: &str, id: &str| -> Result<(), String> {
@@ -333,6 +333,18 @@ fn primitives(doc: &Doc) -> Result<String, String> {
             &format!("`verify_batch`, {n} signatures"),
             &format!("ed25519/verify_batch/{n}"),
         )?;
+    }
+    // The containment procedure in the worst case, from the same criterion
+    // pass as the primitives above (D-92).
+    w.push_str("\\midrule\n\\multicolumn{3}{l}{\\emph{Containment procedure (Contains), worst case: rules $\\times$ atoms per rule}} \\\\\n");
+    for rules in [1, 4, 16, 64] {
+        for atoms in [1, 4, 8] {
+            line(
+                &mut w,
+                &format!("{rules} × {atoms}"),
+                &format!("policy/contains/worst/r{rules}_a{atoms}"),
+            )?;
+        }
     }
     w.push_str("\\bottomrule\n\\end{tabular}\n");
     Ok(w)

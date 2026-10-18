@@ -622,3 +622,9 @@ The author asked for three follow-ups.
 - **Two new tables**, `verdicts_summary.tex` and `oracle_contains.tex`, condense the verdict table and the differential test.
 - **Report-only.** No measurement code changed and nothing was re-measured; every table comes from the archived data.
 - **Checked.** Without the new options, the 14 files under `paper/` regenerate byte-identically to `7b41004`'s. `scripts/ci.sh` passes.
+
+## Report-only: Contains in the primitives table (2026-10-18)
+
+- **D-92.** `primitives.tex` adds the containment procedure's worst-case costs, rules ∈ {1, 4, 16, 64} × atoms ∈ {1, 4, 8}, from the same criterion pass as the primitives (the frozen plan's Q8).
+- **Report-only.** No measurement code changed and nothing was re-measured.
+- **Checked.** Without the new rows, every file under `paper/` is byte-identical to `8ec1983`'s, and the new values equal BENCHMARKS.md's. `scripts/ci.sh` passes.
