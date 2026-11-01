@@ -180,3 +180,13 @@ Reason: D-81 added decode-time canonical-encoding checks to the default instanti
 - **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only. No measured result changes. The raw batch timings are in 9 archives under `results/exploratory/encoding/archive/`, pinned by the committed `MANIFEST.sha256`.
 
 Configurations re-run: none.
+
+## 2026-11-01 — Exploratory run (not pre-registered): the cost of D-94's reorder
+Reason: D-94 moved the chain signatures ahead of policy after M9, and the author asked whether that changes the measured latencies (D-96).
+- **What ran.** `scripts/reorder-check.sh`: the frozen grid's B and D warm+prefix and A and C warm configurations at N = 3, medium, by `dc-bench run` with M9's counts, three runs, in three builds: measured `b175599`, pre-reorder `4239168` and reordered `e6c885b`, rotating which ran first.
+- **Machine state.** M9's: AC power, High Power mode and an idle machine, checked by each of the nine run processes at its start and recorded in its run metadata; all nine passed. Each build's `env.json` was written right after that build compiled, before the machine was idle, so its `m9_requirements` reads not ok; the runs' own checks are the record (D-96).
+- **Thermal readings.** The calibration probe flagged one configuration, the measured build's A warm in run 3. It was not re-run.
+- **An earlier attempt** the same day was refused by that check before any measurement: the machine did not become idle within 10 minutes. It wrote only the three `env.json` files, which were set aside.
+- **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only. The raw data are archived under `results/exploratory/reorder/<build>/archive/`, each pinned by its `MANIFEST.sha256`.
+
+Configurations re-run: none.

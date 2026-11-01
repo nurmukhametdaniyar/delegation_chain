@@ -342,7 +342,7 @@ impl Data {
             .collect();
         writeln!(
             w,
-            "**Thermal flags:** {}.",
+            "\n**Thermal flags** (the calibration probe or pmset, around each configuration; none re-run): {}.",
             if flagged.is_empty() {
                 "none".to_owned()
             } else {

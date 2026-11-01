@@ -1123,4 +1123,38 @@ D-94 moved the chain signatures ahead of policy after M9. An accepted chain runs
 - **Three builds:** the measured commit `b175599`; the commit before D-94, which has D-80's and D-81's changes but the old order, to tell the reorder's effect from theirs; and a commit with D-94. The builds' order rotated from run to run.
 - **M9 (frozen)** is M9's pooled median for the same cell, for reference; it comes from a different session.
 
-_Not run yet: there is no verified archive under `results/exploratory/reorder/`._
+| Build | Commit | Archives | Samples per cell and run |
+|---|---|---|---|
+| measured | `b175599` | 12 | 10000 |
+| pre-reorder | `4239168` | 12 | 10000 |
+| reordered | `e6c885b` | 12 | 10000 |
+
+**Medians** (µs; N = 3, medium; pooled over the three runs):
+
+| Cell | M9 (frozen) | measured | pre-reorder | reordered | reordered ÷ measured | reordered ÷ pre-reorder |
+|---|---|---|---|---|---|---|
+| B warm+prefix | 580 | 575 | 578 | 577 | +0.3% | -0.1% |
+| D warm+prefix | 26.4 | 26.5 | 26.4 | 26.4 | -0.2% | +0.0% |
+| A warm | 1144 | 1129 | 1132 | 1130 | +0.2% | -0.1% |
+| C warm | 109 | 109 | 109 | 109 | -0.2% | +0.0% |
+
+**Ratios** (pooled medians; each run's ratio in brackets):
+
+| Ratio | measured | pre-reorder | reordered |
+|---|---|---|---|
+| B / D, warm+prefix | 21.75 [22.08, 21.90, 21.70] | 21.88 [21.82, 21.92, 21.88] | 21.85 [21.91, 21.96, 21.71] |
+| A / C, warm | 10.36 [10.31, 10.36, 10.43] | 10.41 [10.40, 10.42, 10.42] | 10.40 [10.38, 10.39, 10.41] |
+
+**Each run's median** (µs):
+
+| Cell | measured | pre-reorder | reordered |
+|---|---|---|---|
+| B warm+prefix | 572, 579, 575 | 577, 579, 577 | 579, 579, 574 |
+| D warm+prefix | 25.9, 26.5, 26.5 | 26.5, 26.4, 26.4 | 26.4, 26.4, 26.5 |
+| A warm | 1121, 1131, 1135 | 1127, 1132, 1137 | 1128, 1130, 1133 |
+| C warm | 109, 109, 109 | 108, 109, 109 | 109, 109, 109 |
+
+**The largest move**, reordered against measured, is +0.3% (B warm+prefix): within the 5% at which the author asked for a stop.
+
+**Thermal flags** (the calibration probe or pmset, around each configuration; none re-run): measured run 3: A warm N=3 medium.
+

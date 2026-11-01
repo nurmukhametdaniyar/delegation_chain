@@ -10,7 +10,8 @@
 #
 # Each build is made first, in its own git worktree under
 # target/exploratory/reorder/ and with M9's flags, so that no build runs
-# during a measurement and each env.json names its build's commit. Each
+# during a measurement. Each build's env.json, written after the runs from
+# its worktree, names its commit. Each
 # `dc-bench run` checks M9's machine state itself (AC power, High Power
 # mode, an idle machine) and aborts if it does not hold. The builds' order
 # rotates from run to run. Afterwards every directory's raw data is
@@ -70,8 +71,6 @@ for b in "${builds[@]}"; do
     git worktree add -q --detach "$wt" "$c"
   fi
   (cd "$wt" && RUSTFLAGS="-C target-cpu=native" cargo build -q --release -p dc-bench --bin dc-bench)
-  mkdir -p "$out_root/$b"
-  (cd "$wt" && ./target/release/dc-bench env --out "$out_root/$b" >/dev/null)
 done
 
 for r in 1 2 3; do
@@ -84,8 +83,13 @@ for r in 1 2 3; do
   done
 done
 
+# Each build's machine record, as the measurement left the machine. The run
+# of 2026-11-01 wrote it right after each build instead, while the machine
+# was still busy. Each run's metadata records the check that matters, made
+# at its start.
 head_bin="$(wt_of reordered)/target/release/dc-bench"
 for b in "${builds[@]}"; do
+  (cd "$(wt_of "$b")" && ./target/release/dc-bench env --out "$out_root/$b" >/dev/null)
   "$head_bin" archive --mode "$mode" --out "$out_root/$b"
 done
 

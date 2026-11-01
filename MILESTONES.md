@@ -634,3 +634,15 @@ The author asked for three follow-ups.
 - **D-93.** `dc-bench paper --figure-width IN` draws every figure to fit a column IN inches wide: the saved width is at most IN, legend text at least 7 pt, and the ratio figure's legend in two columns. The IEEE Access version uses 3.35.
 - **Report-only.** No measurement code changed and nothing was re-measured.
 - **Checked.** Without the option, every file under `paper/` regenerates byte-identically. With `--figure-width 3.35`, the four figures are 3.31–3.35 in wide with TrueType fonts only. `scripts/ci.sh` passes.
+
+## Chain signatures before policy (2026-11-01)
+
+- **D-94 (`1f5f4fa`).** After a pre-submission review, the author asked for the chain signatures to be verified before policy: phase 6 is lines 30–32, policy phase 7 (33–40), approvals phase 8 (41–49). SPEC Appendix A is now the source of truth for Algorithms 1–2, ahead of paper revision 2026-10-06, which will copy it (SPEC §2's new exception; P-34).
+  - The verifier and the prefix cache's hit path follow the new order; the rejection variants are renumbered by the mapping.
+  - Every expected line in the tests follows the mapping and none changes otherwise, in either instantiation. `phase_ordering_count_ops` now expects a warm policy rejection to cost the N + 1 chain-signature checks.
+  - New tests: `unsigned_chain_does_no_policy_work` (fails under the old order) and `scope_size_bounds_d21`.
+  - `scripts/ci.sh` passes. The differential oracle reproduces its committed report; the fuzz smoke run found nothing; the paper generator classifies the new assertions.
+- **P-34.** The paper's §4.6, Figure 2 and §9.3 argue for the old order, and Theorems 4 and 6 and several sections cite phase numbers that change. Every location is listed in the entry.
+- **D-95, built, not run (`e6c885b`).** `benches/bounds.rs` times `Contains` up to the scope-size bounds, including a construction where every link a compromised agent signs passes while step 3(b) does O(R³·A²) work; `tests/scope_bounds.rs` checks a chain of them is accepted at N = 16. Run with `scripts/bounds-check.sh` on M9's machine state; it takes hours. BENCHMARKS.md §8's block says it has not run.
+- **D-96, run.** `scripts/reorder-check.sh` measured four cells (B and D warm+prefix, A and C warm; N = 3, medium) in the measured build, the commit before D-94 and a commit with it, three runs each, on M9's machine state. No median moved by more than 5% (BENCHMARKS.md §8). One earlier attempt was refused by the machine-state check before measuring.
+- **Not done.** Parts B, C and D of the request: their switches were not set. The bounds pass (D-95).

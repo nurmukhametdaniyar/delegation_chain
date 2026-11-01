@@ -1252,5 +1252,7 @@ Decision:
 - **Data.** `results/exploratory/reorder/<build>/`: `env.json` (the build's commit and the machine) and `archive/` with its manifest. Raw CSVs stay out of git.
 - **Reporting.** BENCHMARKS.md §8, exploratory, from the verified archives (`dc_bench::reorder`): medians pooled over the three runs and per run, both ratios per build, and each build's change against the others. `dc-bench reorder` prints the same tables.
 - **The author's stop rule.** If any median moves by more than 5%, reordered against measured, stop and report. The generated block states the largest move against that threshold.
+- **Run (2026-11-01),** at `e6c885b`, after one attempt the machine-state check refused before any measurement. All nine run processes passed the check at their start. The largest move, reordered against measured, is within the 5% threshold, and so is every reordered ÷ pre-reorder change (BENCHMARKS.md §8). One configuration was thermally flagged (the measured build's A warm, run 3) and, as in D-77 and D-87, not re-run.
+- **The machine records.** That run wrote each build's `env.json` right after the build, while the machine was still busy, so those files read not idle; the runs' own checks are the record. The script now writes `env.json` after the runs.
 Why: an accepted chain runs the same checks in either order, so no material change is expected; this checks it on the machine and harness of the measurement, and keeps the result apart from the frozen data.
 Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.
