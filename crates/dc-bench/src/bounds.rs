@@ -158,3 +158,236 @@ pub fn markdown(est: &[(String, f64, (f64, f64))], strict: f64, frozen: f64) -> 
     }
     w
 }
+
+/// What fills a rule's atoms besides the two on x that decide which rule
+/// subsumes which, for D-98's search for inputs costlier than
+/// [`alternating`]. Every rule carries the same padding, which every rule's
+/// clause therefore implies and which never makes a clause unsatisfiable,
+/// so the answers are [`alternating`]'s; only the work per `implies` and
+/// `unsat` call changes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Pad {
+    /// `x >= −1−k` and `x <= 7+k` in turn: [`alternating`] itself.
+    Bounds,
+    /// `y in [0, …, len − 1]`.
+    IntList(usize),
+    /// `s starts_with` nested prefixes: `bytes` × "a", then k × "b" for the
+    /// k-th atom, so every pair is compared over its full length.
+    StrPrefix(usize),
+    /// `s in [len strings of bytes bytes]`.
+    StrList(usize, usize),
+    /// `x in [0, …, len − 1]` on the deciding path itself, `len` ≥ 7 so that
+    /// every list holds [0, 6].
+    XList(usize),
+}
+
+impl Pad {
+    pub fn label(self) -> String {
+        match self {
+            Pad::Bounds => "bounds".into(),
+            Pad::IntList(n) => format!("intlist{n}"),
+            Pad::StrPrefix(b) => format!("prefix{b}"),
+            Pad::StrList(n, b) => format!("strlist{n}x{b}"),
+            Pad::XList(n) => format!("xlist{n}"),
+        }
+    }
+
+    fn head(self) -> &'static str {
+        match self {
+            Pad::Bounds | Pad::XList(_) => SHORT_HEAD,
+            Pad::IntList(_) => "allow at=o:service:s tool=t action=a params { x: int, y: int }",
+            Pad::StrPrefix(_) | Pad::StrList(..) => {
+                "allow at=o:service:s tool=t action=a params { x: int, s: string }"
+            }
+        }
+    }
+
+    fn atom(self, k: usize) -> String {
+        match self {
+            Pad::Bounds if k.is_multiple_of(2) => format!("x >= {}", -1 - k as i64),
+            Pad::Bounds => format!("x <= {}", 7 + k),
+            Pad::IntList(n) | Pad::XList(n) => {
+                let l: Vec<String> = (0..n).map(|v| v.to_string()).collect();
+                let path = if matches!(self, Pad::XList(_)) {
+                    "x"
+                } else {
+                    "y"
+                };
+                format!("{path} in [{}]", l.join(", "))
+            }
+            Pad::StrPrefix(b) => format!("s starts_with \"{}{}\"", "a".repeat(b), "b".repeat(k)),
+            Pad::StrList(n, b) => {
+                let l: Vec<String> = (0..n).map(|v| format!("\"{v:0>b$}\"")).collect();
+                format!("s in [{}]", l.join(", "))
+            }
+        }
+    }
+}
+
+/// X (`low`) or Y of [`alternating`] with `atoms − 2` atoms of `pad` in every
+/// rule before the two on x.
+pub fn padded(pad: Pad, rules: usize, atoms: usize, low: bool) -> Scope {
+    let rule = |(lo, hi): (i64, i64), lo_last: bool| {
+        let mut a: Vec<String> = (0..atoms - 2).map(|k| pad.atom(k)).collect();
+        let (lo, hi) = (format!("x >= {lo}"), format!("x <= {hi}"));
+        if lo_last {
+            a.extend([hi, lo]);
+        } else {
+            a.extend([lo, hi]);
+        }
+        format!("{} where {}", pad.head(), a.join(" and "))
+    };
+    let most = if low {
+        rule((0, 5), false)
+    } else {
+        rule((1, 6), true)
+    };
+    let mut text = vec![most; rules - 1];
+    text.push(rule((0, 6), false));
+    Scope::parse(&text.join("\n")).expect("well formed")
+}
+
+/// The rules × atoms cells of D-98's measurement (`benches/contains_cost.rs`).
+pub const COST_CELLS: [(usize, usize); 15] = [
+    (16, 8),
+    (16, 16),
+    (16, 32),
+    (32, 8),
+    (32, 16),
+    (32, 32),
+    (64, 8),
+    (64, 16),
+    (64, 32),
+    (128, 8),
+    (128, 16),
+    (128, 32),
+    (256, 8),
+    (256, 16),
+    (256, 32),
+];
+
+/// Every padding D-98's search tries.
+pub fn search_pads() -> Vec<Pad> {
+    let mut pads = vec![Pad::Bounds];
+    pads.extend([1, 2, 4, 8, 16, 32, 64].map(Pad::IntList));
+    pads.extend([7, 8, 16, 64].map(Pad::XList));
+    // The k-th prefix is `bytes` + k long, within D-21's 1,024 bytes.
+    pads.extend([1, 8, 64, 256, 992].map(Pad::StrPrefix));
+    for n in [1, 2, 8, 32, 64] {
+        pads.extend([2, 32, 256].map(|b| Pad::StrList(n, b)));
+    }
+    pads
+}
+
+/// Smaller bounds at which D-98 measures every padding that fits, for
+/// D-99's candidate configurations: (rules, atoms).
+pub const SWEEP_BOUNDS: [(usize, usize); 3] = [(16, 8), (32, 8), (64, 16)];
+
+/// The costliest padding D-98's search found (`examples/contains_search.rs`):
+/// `y in [0, 1]` in every rule.
+pub const WORST_FOUND: Pad = Pad::IntList(2);
+
+/// The search's next costliest finds, measured at their largest size.
+pub const RUNNERS_UP: [(Pad, usize); 3] = [
+    (Pad::IntList(1), 32),
+    (Pad::StrList(1, 2), 32),
+    (Pad::XList(7), 24),
+];
+
+/// The most rules, up to 256, for which both of `pad`'s scopes with `atoms`
+/// atoms fit a body, if any.
+pub fn max_rules(pad: Pad, atoms: usize) -> Option<usize> {
+    let ok = |r: usize| fits(&padded(pad, r, atoms, true)) && fits(&padded(pad, r, atoms, false));
+    if !ok(2) {
+        return None;
+    }
+    let (mut lo, mut hi) = (2usize, 256usize);
+    while lo < hi {
+        let mid = (lo + hi).div_ceil(2);
+        if ok(mid) {
+            lo = mid;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    Some(lo)
+}
+
+/// PROTOTYPE (D-99): the atom-level count of every `Contains` call that a
+/// verification of each workload profile makes (the ceiling, and each link
+/// up to N = 10), and of the inputs D-98 measures. Deterministic.
+#[cfg(feature = "work-budget")]
+pub fn work_counts() -> serde_json::Value {
+    use crate::workload::{Profile, hop_scopes};
+    use dc_policy::contains_within;
+    use serde_json::json;
+
+    let count = |s1: &Scope, s2: &Scope| {
+        let w = contains_within(s1, s2, u64::MAX);
+        assert!(w.answer, "every measured input is contained");
+        w.work
+    };
+    let profiles: serde_json::Map<String, serde_json::Value> = Profile::ALL
+        .iter()
+        .map(|&p| {
+            let s = hop_scopes(p);
+            let mut calls = vec![("ceiling".to_owned(), count(&s[0], &s[0]))];
+            calls.extend((1..s.len()).map(|k| (format!("link {k}"), count(&s[k - 1], &s[k]))));
+            let max = calls.iter().map(|c| c.1).max().unwrap_or(0);
+            let calls: serde_json::Map<String, serde_json::Value> =
+                calls.into_iter().map(|(k, v)| (k, json!(v))).collect();
+            (p.label().to_owned(), json!({ "max": max, "calls": calls }))
+        })
+        .collect();
+    let mut inputs = serde_json::Map::new();
+    for (rules, atoms) in COST_CELLS {
+        let id = format!("r{rules}_a{atoms}");
+        let (p, c) = (
+            frozen_worst(rules, atoms, 1000),
+            frozen_worst(rules, atoms, 999),
+        );
+        if fits(&p) && fits(&c) {
+            inputs.insert(format!("frozen-worst/{id}"), json!(count(&p, &c)));
+        }
+        for (name, pad) in [("alternating", Pad::Bounds), ("intlist2", WORST_FOUND)] {
+            let (x, y) = (
+                padded(pad, rules, atoms, true),
+                padded(pad, rules, atoms, false),
+            );
+            if fits(&x) && fits(&y) {
+                inputs.insert(format!("{name}/{id}"), json!(count(&y, &x)));
+            }
+        }
+    }
+    for (rules, atoms) in SWEEP_BOUNDS {
+        for pad in search_pads() {
+            let (x, y) = (
+                padded(pad, rules, atoms, true),
+                padded(pad, rules, atoms, false),
+            );
+            if fits(&x) && fits(&y) {
+                inputs.insert(
+                    format!("sweep/{}/r{rules}_a{atoms}", pad.label()),
+                    json!(count(&y, &x)),
+                );
+            }
+        }
+    }
+    for (pad, atoms) in RUNNERS_UP {
+        if let Some(rules) = max_rules(pad, atoms) {
+            let (x, y) = (
+                padded(pad, rules, atoms, true),
+                padded(pad, rules, atoms, false),
+            );
+            inputs.insert(
+                format!("{}/r{rules}_a{atoms}", pad.label()),
+                json!(count(&y, &x)),
+            );
+        }
+    }
+    json!({
+        "label": "atom-level counts of the prototype work budget (D-99); deterministic, not timings",
+        "profiles": profiles,
+        "inputs": inputs,
+    })
+}

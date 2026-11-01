@@ -646,3 +646,12 @@ The author asked for three follow-ups.
 - **D-95, run (`f75b706`).** `benches/bounds.rs` times `Contains` up to the scope-size bounds, including a construction where every link a compromised agent signs passes while step 3(b) does O(R³·A²) work; `tests/scope_bounds.rs` checks a chain of them is accepted at N = 16. The author ran `scripts/bounds-check.sh` on M9's machine state; the output was packed by hand after a path bug in the script, now fixed (BENCH_LOG.md). BENCHMARKS.md §8 has the results: the alternating construction costs far more than the frozen worst case at every size, and minutes per link at the full bounds.
 - **D-96, run.** `scripts/reorder-check.sh` measured four cells (B and D warm+prefix, A and C warm; N = 3, medium) in the measured build, the commit before D-94 and a commit with it, three runs each, on M9's machine state. No median moved by more than 5% (BENCHMARKS.md §8). One earlier attempt was refused by the machine-state check before measuring.
 - **Not done.** Parts B, C and D of the request: their switches were not set.
+
+## Contains memoized; its remaining cost; a work budget (2026-11-01)
+
+- **D-97.** Step 3(b)'s skip test is memoized: each parent rule's first shadowing child rule is found once and reused. Every answer is the procedure's:
+  - the differential oracle's 150,000 answers, written out by the build before and the build after, are identical line by line, and so is its report;
+  - 20,000 pairs of up to 24 rules a side (`crates/dc-policy/tests/memo.rs`) agree with the procedure as written, kept as `contains_unmemoized`; the test catches a broken skip test either way;
+  - the alternating family and the frozen worst case agree with it, and every cell of D-95's bench still passes (`DC_BOUNDS_FULL=1`).
+- **D-98, built, not run.** `benches/contains_cost.rs` measures the memoized procedure at 16–256 rules × 8–32 atoms, the costliest input of a small search (`examples/contains_search.rs`), its runners-up, and every searched input at three smaller bounds. Run with `scripts/contains-cost.sh` on M9's machine state.
+- **D-99, prototype, built.** A deterministic work budget on `Contains`, behind dc-policy's `work-budget` feature, which no headline build enables. The atom-level counts and the oracle's completeness under budgets are deterministic and were checked here; the time at each budget and the three candidate configurations come from the same script.

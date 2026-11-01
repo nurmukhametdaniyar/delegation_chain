@@ -19,6 +19,7 @@ use dc_cbor::{INT_MAX, INT_MIN};
 
 use crate::ast::{Atom, Declaration, Literal, Op, Operand, Type};
 use crate::eval::{Leaf, atom_holds};
+use crate::meter::{charge, weight, weights};
 use crate::validate::seg_prefix;
 
 fn ints(o: &Operand) -> Vec<i128> {
@@ -80,6 +81,7 @@ struct IntC {
 
 impl IntC {
     fn new(atoms: &[&Atom]) -> Self {
+        charge(|| weights(atoms));
         let mut c = IntC {
             lo: INT_MIN,
             hi: INT_MAX,
@@ -108,6 +110,7 @@ impl IntC {
     /// The admissible set, when it is finite.
     fn finite(&self) -> Option<Vec<i128>> {
         self.set.as_ref().map(|s| {
+            charge(|| s.len());
             s.iter()
                 .copied()
                 .filter(|v| (self.lo..=self.hi).contains(v))
@@ -127,6 +130,7 @@ impl IntC {
             return true;
         }
         if let Some(a) = self.finite() {
+            charge(|| a.len() * weight(b));
             return a.iter().all(|v| atom_holds(b, &Leaf::Int(*v)));
         }
         let (lo, hi) = (self.lo, self.hi);
@@ -138,6 +142,7 @@ impl IntC {
             (Op::Ge, [c]) => lo >= *c,
             (Op::Eq, [c]) => lo == hi && lo == *c,
             (Op::In, list) => {
+                charge(|| list.len());
                 // Every integer of [lo, hi] must be listed; |L| ≤ 64 bounds the loop.
                 let set: BTreeSet<i128> = list.iter().copied().collect();
                 hi - lo < set.len() as i128 && (lo..=hi).all(|v| set.contains(&v))
@@ -154,6 +159,7 @@ struct BoolC {
 
 impl BoolC {
     fn new(atoms: &[&Atom]) -> Self {
+        charge(|| weights(atoms));
         let mut allowed = [true, true];
         for a in atoms {
             if matches!(a.op, Op::Eq | Op::In) {
@@ -177,6 +183,7 @@ impl BoolC {
     }
 
     fn implies(&self, b: &Atom) -> bool {
+        charge(|| 2 * weight(b));
         self.values().all(|v| atom_holds(b, &Leaf::Bool(v)))
     }
 }
@@ -194,6 +201,7 @@ struct StrC<'a> {
 
 impl<'a> StrC<'a> {
     fn new(atoms: &[&'a Atom]) -> Self {
+        charge(|| weights(atoms));
         let mut c = StrC {
             atoms: atoms.to_vec(),
             e: None,
@@ -228,6 +236,7 @@ impl<'a> StrC<'a> {
     /// every atom yields precisely the satisfying values.
     fn admissible(&self) -> Option<Vec<&'a str>> {
         let e = self.e.as_ref()?;
+        charge(|| e.len() * weights(&self.atoms));
         Some(
             e.iter()
                 .copied()
@@ -248,6 +257,10 @@ impl<'a> StrC<'a> {
         if let Some(a) = self.admissible() {
             return a.is_empty();
         }
+        charge(|| {
+            let (p, s, u) = (self.p.len(), self.s.len(), self.u.len());
+            p * p + s * s + u * u + p * u
+        });
         let prefix_compatible = |x: &str, y: &str| x.starts_with(y) || y.starts_with(x);
         let incompatible_pair = |v: &[&str], ok: &dyn Fn(&str, &str) -> bool| {
             v.iter()
@@ -282,6 +295,7 @@ impl<'a> StrC<'a> {
         }
         // Finite set: exact (see `admissible`).
         if let Some(a) = self.admissible() {
+            charge(|| a.len() * weight(b));
             return a.iter().all(|v| atom_holds(b, &Leaf::Str(v)));
         }
         // Without a finite set, `in` and `==` are never implied: the answer
@@ -289,6 +303,7 @@ impl<'a> StrC<'a> {
         let Some(x) = str_of(&b.operand) else {
             return false;
         };
+        charge(|| self.p.len() + self.s.len() + self.k.len() + self.u.len());
         match b.op {
             Op::StartsWith => {
                 // Every string starts with "" (D-57).
@@ -342,6 +357,7 @@ fn path_type(decl: &Declaration, path: &str, atoms: &[&Atom]) -> Option<Type> {
 }
 
 fn on_path<'a>(atoms: &[&'a Atom], path: &str) -> Vec<&'a Atom> {
+    charge(|| atoms.len());
     atoms.iter().copied().filter(|a| a.path == path).collect()
 }
 
@@ -366,6 +382,7 @@ pub fn implies_path(ty: Type, atoms: &[&Atom], b: &Atom) -> bool {
 /// `unsat(C)` for a conjunction over the paths of `decl`: some path's
 /// constraint is inconsistent.
 pub fn unsat(decl: &Declaration, atoms: &[&Atom]) -> bool {
+    charge(|| atoms.len());
     let mut paths: Vec<&str> = atoms.iter().map(|a| a.path.as_str()).collect();
     paths.sort_unstable();
     paths.dedup();

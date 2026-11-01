@@ -13,12 +13,15 @@ mod contains;
 mod error;
 mod eval;
 pub mod logic;
+pub mod meter;
 mod text;
 pub mod validate;
 
 pub use ast::{Atom, Decision, Declaration, Literal, Op, Operand, Rule, Scope, ScopeForm, Type};
-#[cfg(feature = "test-hooks")]
-pub use contains::contains_pre_review;
+#[cfg(feature = "work-budget")]
+pub use contains::{Within, contains_within};
 pub use contains::{contains, subsumes};
+#[cfg(feature = "test-hooks")]
+pub use contains::{contains_pre_review, contains_unmemoized};
 pub use error::PolicyError;
 pub use eval::{Invocation, Leaf, atom_holds, evaluate, flatten};

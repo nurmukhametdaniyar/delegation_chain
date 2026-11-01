@@ -1258,3 +1258,44 @@ Decision:
 - **The machine records.** That run wrote each build's `env.json` right after the build, while the machine was still busy, so those files read not idle; the runs' own checks are the record. The script now writes `env.json` after the runs.
 Why: an accepted chain runs the same checks in either order, so no material change is expected; this checks it on the machine and harness of the measurement, and keeps the result apart from the frozen data.
 Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.
+
+## D-97 — Step 3(b)'s skip test, memoized
+Spec section: §9.6 (unchanged)     Paper section: §6.4 (unchanged)
+Decision:
+- **The change.** Step 3(b) skips a rule r′ of S1 when some child rule before r2 shadows it: has its head and is implied by r′'s clause. That set of earlier child rules only grows as r2 moves along S2. So for each r′ the first shadowing child rule is searched for once, from where the previous search stopped, and reused for every later r2 (`contains::Shadow`). The test applied to each child rule is the procedure's, so every answer is the procedure's; only repeated `implies` calls are saved. Step 3(b)'s `implies` calls for the skip test fall from up to R₁·R₂²/2 to at most R₁·R₂.
+- **An implementation change.** The specification and the paper's §6.4 are unchanged. The measured commits, and D-95's measurement, ran the procedure without it.
+- **The reference.** The procedure as written stays, under `test-hooks`, as `contains_unmemoized`.
+- **Checked identical** before the change was kept:
+  - the differential oracle (150,000 pairs, seed 56324), every answer written out by both builds (`DC_ORACLE_ANSWERS`: each pair's answer and each reflexivity check) and compared line by line: identical, and the report identical;
+  - `crates/dc-policy/tests/memo.rs`: 20,000 pairs of up to 24 rules a side, drawn so that the skip test runs often, against the reference. It fails if the memoized test is replaced by "never shadowed" or by "always shadowed";
+  - `tests/scope_bounds.rs`: the alternating family and the frozen generator's worst case, both directions and a widened child, against the reference up to 32 rules × 16 atoms; with `DC_BOUNDS_FULL=1`, every cell of D-95's bench passes, as before;
+  - the security suites of both instantiations, and `scripts/ci.sh`.
+Why: D-95 found that a compromised agent can make each link cost minutes at the size bounds, almost all of it this repeated skip test. Memoizing it removes a factor of R₂ without changing any decision.
+Affects benchmarks: the protocol path's `Contains` is faster on scopes with many rules. No measured result changes: the measured commits predate it. Its cost is measured, exploratory, in D-98.
+
+## D-98 — Contains after D-97, up to the bounds, and a search for costlier inputs (exploratory)
+Spec section: §9.3 (D-21), §9.6; D-95, D-97     Paper section: §6.4
+Decision:
+- **What is measured** (`benches/contains_cost.rs`, the default build): for rules ∈ {16, 32, 64, 128, 256} × atoms ∈ {8, 16, 32}, where the scopes fit a body with 1 KiB to spare, the frozen generator's worst case, the alternating family, and the costliest input of the search.
+- **The search** (`examples/contains_search.rs`; bounded effort). The alternating family's two deciding atoms on x, with every other atom of every rule a padding atom, identical in all rules, so that the answers are the alternating family's and only the work changes: integer bounds, integer `in` lists on another path or on x itself, nested string prefixes, string `in` lists, each of several sizes, at the most rules that fit with 8, 16, 24 or 32 atoms. One call each ranks them.
+  - **The costliest found at full size** is `y in [0, 1]` in every padding atom (`intlist2`, 32 atoms, 256 rules). It is measured at every cell. The next three are measured at their largest size.
+  - **At smaller bounds a different input is worst.** A 64-element string `in` list fits few rules, so it ranks low at full size, but at 16 rules × 8 atoms it is the costliest. So every padding that fits is measured at three smaller bounds (`SWEEP_BOUNDS`), and a candidate with lowered bounds is judged by its own worst input (D-99).
+  - **The worst input found is a lower bound** on the worst case, and BENCHMARKS.md says so.
+- **How.** `scripts/contains-cost.sh`, on M9's machine state and build flags: criterion, ten samples, each call's result checked. Its output, the counts and the search's ranking go to `results/exploratory/contains-cost/`. `--dry` checks the pipeline on a few small cells, under `results/dry-run/`.
+Why: D-97 removes a factor of the rule count; the author asked for the cost that remains, at sizes up to the bounds, before choosing them.
+Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.
+
+## D-99 — A deterministic work budget for Contains (prototype), and three candidate configurations
+Spec section: §9.6; D-21, D-98     Paper section: §6.4 (a budget is not in the paper)
+Decision:
+- **The prototype.** dc-policy's `work-budget` feature (`meter`, `contains_within`) counts atom-level checks: each atom examined while building or querying a path's constraint, weighted by its operand's literals, plus one per rule pair step 3 considers. `Contains` checks the count between its checks and returns false once it passes the budget. Sound: it only turns answers to false. The count depends only on the two scopes, so replicas of a verifier agree. String lengths are not counted, so the time per unit varies by input; the cost at a budget is measured on the costliest inputs.
+- **Off the protocol path.** Without the feature, `meter::charge` never calls its argument and compiles to nothing, and `contains` passes a check that is always false: the default build is the memoized procedure only. `dc-bench`'s `work-budget` feature enables it, and such a build refuses `all` and `run`, as `phase-timing` does.
+- **The smallest budget** nothing legitimate here hits: the largest count of any `Contains` call that a verification of the workload profiles makes (the ceiling and every link up to N = 10), or that the differential oracle makes on its well-formed pairs and reflexivity checks. The profiles' is the larger (the large profile's ceiling). The oracle's completeness is unchanged at any budget at or above its own largest pair count, and drops below it (`oracle-budget.json`).
+- **The candidates** (`contains_cost::CANDIDATES`), each with its worst measured `Contains` call per link, per chain (the 14 links at N = 16 whose parent a compromised agent signed) and against one strict Ed25519 verification, all generated:
+  1. D-21's bounds with a budget of 16,384, about seven times the profiles' largest count;
+  2. D-21's bounds with a budget of 1,048,576, room for policies of about 64 rules × 8 atoms in the frozen generator's shape;
+  3. at most 16 rules, 8 atoms a rule and 8-element lists, no budget. The list bound is there because of D-98's sweep: without it, a 64-element string list at 16 × 8 costs more than most inputs at the full bounds.
+  - The table also shows the configuration as it stands, D-21's bounds with D-97 only.
+- **The per-link figures cover `Contains` only.** Decoding and validating a large scope at line 2 also costs a compromised signer's victim time, bounded by the 64 KiB body; it is not measured here.
+Why: the author asked for a budget prototype and for candidate configurations to choose from, with measured costs.
+Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only. The budget is not part of the protocol unless the author adopts it.

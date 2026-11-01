@@ -11,7 +11,8 @@
 //!   run; [`aip`]: AIP's own benchmark run here (D-79); [`encoding`]: the
 //!   cost of D-81's encoding checks (D-87); [`bounds`]: scopes at D-21's
 //!   size bounds, for `benches/bounds.rs` (D-95); [`reorder`]: the
-//!   exploratory check of D-94's cost (D-96).
+//!   exploratory check of D-94's cost (D-96); [`contains_cost`]: Contains
+//!   after D-97, and the prototype work budget (D-98, D-99).
 //! - [`env`]: writes `results/env.json`.
 //! - [`qos`]: the one permitted `unsafe` call (D-42).
 
@@ -19,6 +20,7 @@ pub mod aip;
 pub mod arms;
 pub mod benchmarks;
 pub mod bounds;
+pub mod contains_cost;
 pub mod encoding;
 pub mod env;
 pub mod harness;

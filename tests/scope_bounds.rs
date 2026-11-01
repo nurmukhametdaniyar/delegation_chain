@@ -38,3 +38,56 @@ fn alternating_scopes_pass_every_link() {
     // The ceiling and the 15 links, each passing.
     assert_eq!((n.contains_calls, n.evaluate_calls), (16, 1), "{n:?}");
 }
+
+/// D-97: the memoized procedure answers as the procedure as written on the
+/// alternating family and the frozen generator's worst case, both
+/// directions, and on a variant whose last child rule is widened, which
+/// neither may accept. The reference is too slow at the bounds in a debug
+/// build, so by default the sizes stop at 32 rules × 16 atoms. With
+/// `DC_BOUNDS_FULL=1` (in release), every cell of the bounds bench is also
+/// checked to pass, as it did before D-97.
+#[test]
+fn memoized_contains_agrees_on_the_bounds_constructions() {
+    use dc_bench::bounds::{CELLS, SHORT_HEAD, fits, frozen_worst};
+    use dc_policy::{Scope, contains, contains_unmemoized};
+
+    for rules in [8, 16, 32] {
+        for atoms in [4, 8, 16] {
+            let x = alternating(SHORT_HEAD, "x", rules, atoms, true);
+            let y = alternating(SHORT_HEAD, "x", rules, atoms, false);
+            let wide = Scope::parse(&format!(
+                "{x}\n{SHORT_HEAD} where x >= -1 and x <= 9",
+                x = alternating(SHORT_HEAD, "x", rules - 1, atoms, true)
+            ))
+            .unwrap();
+            let (p, c) = (
+                frozen_worst(rules, atoms, 1000),
+                frozen_worst(rules, atoms, 999),
+            );
+            for (s1, s2, want) in [
+                (&y, &x, true),
+                (&x, &y, true),
+                (&y, &wide, false),
+                (&p, &c, true),
+            ] {
+                assert_eq!(contains(s1, s2), want, "r{rules}_a{atoms}");
+                assert_eq!(contains_unmemoized(s1, s2), want, "r{rules}_a{atoms}");
+            }
+        }
+    }
+    if std::env::var("DC_BOUNDS_FULL").is_ok_and(|v| v == "1") {
+        for (rules, atoms) in CELLS {
+            let x = alternating(SHORT_HEAD, "x", rules, atoms, true);
+            let y = alternating(SHORT_HEAD, "x", rules, atoms, false);
+            assert!(fits(&x) && fits(&y));
+            assert!(contains(&y, &x) && contains(&x, &y), "r{rules}_a{atoms}");
+            let (p, c) = (
+                frozen_worst(rules, atoms, 1000),
+                frozen_worst(rules, atoms, 999),
+            );
+            if fits(&p) && fits(&c) {
+                assert!(contains(&p, &c), "frozen r{rules}_a{atoms}");
+            }
+        }
+    }
+}

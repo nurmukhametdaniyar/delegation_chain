@@ -336,3 +336,20 @@ D-94 moved the chain signatures ahead of policy after M9. An accepted chain runs
 - **M9 (frozen)** is M9's pooled median for the same cell, for reference; it comes from a different session.
 
 {{reorder}}
+
+### Contains after the memoization
+
+D-97 memoizes step 3(b)'s skip test: each parent rule's first shadowing child rule is found once and reused. Every answer is the procedure's (the differential oracle's 150,000 answers are identical), and the work falls by a factor of the child's rule count. The scope-size bounds block above measured the procedure before it. This exploratory pass, which is not in the frozen plan, measures it again (D-98). It changes no measured result.
+- **The inputs.** For rules ∈ {16, 32, 64, 128, 256} × atoms ∈ {8, 16, 32}, where they fit a body: the frozen generator's worst case, the alternating family, and `intlist2`, the costliest padding a small search found (`examples/contains_search.rs`). Every rule of `intlist2` carries the alternating family's two deciding atoms and `y in [0, 1]` in all its other atoms, so its answers are the alternating family's.
+- **The search.** Paddings of integer bounds, integer `in` lists (on the deciding path or another), nested string prefixes and string `in` lists, of several sizes, each at the most rules that fit with 8, 16, 24 or 32 atoms, ranked by one call each (`search.txt`). Its runners-up are measured too, and at three smaller bounds every padding that fits.
+- **How.** `scripts/contains-cost.sh`: criterion, one call per sample for the large cells, ten samples, on M9's machine state and build flags; each call's result is checked.
+
+{{containscost}}
+
+### A deterministic work budget for Contains (prototype)
+
+A budget on `Contains` caps what a compromised signer can force on one link, whatever the bounds (D-99). It counts atom-level checks, not time, so every replica of a verifier gives up on the same input. When the count passes the budget, `Contains` returns false, which is sound: it only turns answers to false. It is a prototype behind dc-policy's `work-budget` feature, which no headline build enables.
+- **The unit.** One atom examined while building or querying a path's constraint, weighted by its operand's literals (a 64-element `in` list counts 64). String lengths are not counted. The count is checked between the procedure's checks, so it can pass the budget by one check's worth.
+- **The smallest budget** that nothing legitimate here hits is the largest count of any `Contains` call that the workload profiles' verifications make (the ceiling and every link up to N = 10) or that the differential oracle makes. Candidates with headroom are measured too.
+
+{{workbudget}}

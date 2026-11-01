@@ -20,6 +20,9 @@ blst-no-threads = ["dc-crypto/blst-no-threads"]
 # The exploratory phase breakdown (`dc-bench phases`; D-77). A build with it
 # refuses to make headline runs (SPEC §10.3).
 phase-timing = ["dc-crypto/phase-timing", "dc-verifier/phase-timing"]
+# PROTOTYPE: the work budget on Contains (D-99). A build with it refuses
+# `all` and `run`, since it counts inside the protocol path's Contains.
+work-budget = ["dc-policy/work-budget"]
 
 [dependencies]
 dc-baselines.workspace = true
@@ -76,3 +79,16 @@ harness = false
 name = "bounds"
 harness = false
 bench = false
+
+# Exploratory: Contains after D-97's memoization (D-98), and under the
+# prototype work budget (D-99). Out of `cargo bench -p dc-bench` like bounds.
+[[bench]]
+name = "contains_cost"
+harness = false
+bench = false
+
+[[bench]]
+name = "contains_budget"
+harness = false
+bench = false
+required-features = ["work-budget"]

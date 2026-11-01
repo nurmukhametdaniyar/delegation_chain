@@ -23,12 +23,20 @@
 //! Scale: `DC_ORACLE_CASES` sets the number of generated pairs (default
 //! 4,096; the M4 record used 150,000 in release mode, see
 //! `docs/test-reports/policy-oracle-m4.json`). `DC_ORACLE_REPORT`
-//! names a JSON file to write the statistics to. Runs are deterministic for
-//! a given `DC_ORACLE_SEED`.
+//! names a JSON file to write the statistics to. `DC_ORACLE_ANSWERS` names
+//! a file to write every `Contains` answer to, one line per generated pair
+//! in (shard, case) order, so that two builds can be compared answer by
+//! answer (D-97). Runs are deterministic for a given `DC_ORACLE_SEED`.
+//!
+//! With dc-policy's prototype `work-budget` feature (D-99), the report also
+//! gives the largest atom-level count any `Contains` call reaches, and the
+//! completeness under each budget that `DC_ORACLE_BUDGETS` lists
+//! (comma-separated).
 
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+use std::sync::{Mutex, OnceLock};
 
 use dc_cbor::{INT_MAX, INT_MIN, Key, Value};
 use dc_policy::logic::{implies as logic_implies, implies_path, unsat as logic_unsat, unsat_path};
@@ -792,6 +800,70 @@ impl Counter {
     }
 }
 
+/// D-99: the atom-level counts of the prototype work budget.
+#[cfg(feature = "work-budget")]
+struct BudgetStats {
+    max_pair: AtomicU64,
+    max_reflexivity: AtomicU64,
+    /// Each budget of `DC_ORACLE_BUDGETS`, with the completeness under it.
+    budgets: Vec<(u64, Counter)>,
+}
+
+#[cfg(feature = "work-budget")]
+impl BudgetStats {
+    fn new() -> Self {
+        let budgets = std::env::var("DC_ORACLE_BUDGETS")
+            .unwrap_or_default()
+            .split(',')
+            .filter_map(|b| b.trim().parse().ok())
+            .map(|b| (b, Counter::default()))
+            .collect();
+        BudgetStats {
+            max_pair: AtomicU64::new(0),
+            max_reflexivity: AtomicU64::new(0),
+            budgets,
+        }
+    }
+
+    fn reflexivity(&self, s: &Scope) {
+        let w = dc_policy::contains_within(s, s, u64::MAX).work;
+        self.max_reflexivity.fetch_max(w, Relaxed);
+    }
+
+    /// Records the pair's count, and its answer under each budget, which
+    /// must be the unbudgeted answer unless the budget ran out.
+    fn pair(
+        &self,
+        s1: &Scope,
+        s2: &Scope,
+        contained: bool,
+        claimed: bool,
+    ) -> Result<(), TestCaseError> {
+        let w = dc_policy::contains_within(s1, s2, u64::MAX);
+        prop_assert_eq!(w.answer, claimed);
+        self.max_pair.fetch_max(w.work, Relaxed);
+        for (b, counter) in &self.budgets {
+            let within = dc_policy::contains_within(s1, s2, *b);
+            prop_assert!(within.exhausted || within.answer == claimed);
+            counter.record(contained, within.answer);
+        }
+        Ok(())
+    }
+
+    fn json(&self) -> serde_json::Value {
+        let budgets: BTreeMap<String, serde_json::Value> = self
+            .budgets
+            .iter()
+            .map(|(b, c)| (b.to_string(), c.json()))
+            .collect();
+        serde_json::json!({
+            "max_work_wellformed_pairs": self.max_pair.load(Relaxed),
+            "max_work_reflexivity": self.max_reflexivity.load(Relaxed),
+            "completeness_overall_by_budget": budgets,
+        })
+    }
+}
+
 #[derive(Default)]
 struct Stats {
     cases: AtomicU64,
@@ -987,14 +1059,20 @@ fn differential_oracle() {
     let seed = env_u64("DC_ORACLE_SEED", 0xDC04);
     let stats = Stats::default();
     let start = std::time::Instant::now();
+    let dump = std::env::var("DC_ORACLE_ANSWERS").ok();
+    #[cfg(feature = "work-budget")]
+    let budget = BudgetStats::new();
+    let answers: Mutex<Vec<(u64, u64, String)>> = Mutex::new(vec![]);
 
     let stats = &stats;
     run_sharded(total, |shard, cases| {
         {
             {
                 let mut r = runner(seed, shard, cases);
+                let case = Cell::new(0u64);
                 r.run(&pair(), |(f1, f2)| {
                     stats.cases.fetch_add(1, Relaxed);
+                    let mut line = String::new();
                     let mut scopes = vec![];
                     for f in [&f1, &f2] {
                         let (expect_bad, undeclared, noncanon) = expected_malformed(f);
@@ -1016,16 +1094,34 @@ fn differential_oracle() {
                     }
                     for s in &scopes {
                         stats.reflexivity_checks.fetch_add(1, Relaxed);
-                        if !contains(s, s) {
+                        let reflexive = contains(s, s);
+                        #[cfg(feature = "work-budget")]
+                        budget.reflexivity(s);
+                        line.push(if reflexive { 'R' } else { 'r' });
+                        if !reflexive {
                             stats.reflexivity_failures.fetch_add(1, Relaxed);
                         }
-                        prop_assert!(contains(s, s), "reflexivity fails for {}", s);
+                        prop_assert!(reflexive, "reflexivity fails for {}", s);
+                    }
+                    let pair_answer = match scopes.as_slice() {
+                        [s1, s2] => Some(contains(s1, s2)),
+                        _ => None,
+                    };
+                    if dump.is_some() {
+                        line.push(match pair_answer {
+                            Some(true) => 'T',
+                            Some(false) => 'F',
+                            None => '-',
+                        });
+                        let k = case.get();
+                        case.set(k + 1);
+                        answers.lock().unwrap().push((shard, k, line));
                     }
                     let [s1, s2] = scopes.as_slice() else {
                         return Ok(());
                     };
                     stats.wellformed_pairs.fetch_add(1, Relaxed);
-                    let claimed = contains(s1, s2);
+                    let claimed = pair_answer.expect("two well-formed scopes");
                     let ce = counterexample(s1, s2);
                     if claimed {
                         stats.contains_true.fetch_add(1, Relaxed);
@@ -1045,6 +1141,8 @@ fn differential_oracle() {
                     prop_assert_eq!(failure.is_none(), claimed, "trace disagrees with contains");
                     let contained = ce.is_none();
                     stats.overall.record(contained, claimed);
+                    #[cfg(feature = "work-budget")]
+                    budget.pair(s1, s2, contained, claimed)?;
                     if !rules_of(s2)
                         .iter()
                         .any(|r| sem_unsat(&r.params, &atoms_of(r), false))
@@ -1120,10 +1218,25 @@ fn differential_oracle() {
         },
         "elapsed_seconds": start.elapsed().as_secs_f64(),
     });
+    #[cfg(feature = "work-budget")]
+    let report = {
+        let mut r = report;
+        r["work_budget"] = budget.json();
+        r
+    };
     let text = serde_json::to_string_pretty(&report).unwrap();
     println!("{text}");
     if let Ok(path) = std::env::var("DC_ORACLE_REPORT") {
         std::fs::write(path, text + "\n").unwrap();
+    }
+    if let Some(path) = dump {
+        let mut a = answers.into_inner().unwrap();
+        a.sort();
+        let lines: String = a
+            .iter()
+            .map(|(shard, k, l)| format!("{shard} {k} {l}\n"))
+            .collect();
+        std::fs::write(path, lines).unwrap();
     }
     assert_eq!(stats.soundness_violations.load(Relaxed), 0);
     assert_eq!(stats.reflexivity_failures.load(Relaxed), 0);

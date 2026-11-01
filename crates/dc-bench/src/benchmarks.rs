@@ -26,7 +26,7 @@ use crate::report::{
     self, AIP_CHAINED_MS, Key, Raw, Row, criterion_estimates, read_json, us, verdict,
 };
 use crate::stats::{Ratio, quantile_sorted, ratio};
-use crate::{aip, bounds, encoding, phases, reorder};
+use crate::{aip, bounds, contains_cost, encoding, phases, reorder};
 
 /// AIP's published token sizes for biscuit-auth 6.0 chained mode (SPEC
 /// §13.10; arXiv:2603.24775v1, Table 5, "Size (Rust)", checked on
@@ -82,6 +82,8 @@ pub struct Doc {
     pub(crate) bounds: Vec<(String, f64, (f64, f64))>,
     /// The three builds of the reorder check, once archived (D-96).
     pub(crate) reorder: Option<reorder::Data>,
+    /// Contains after D-97, and the work budget (D-98, D-99), once unpacked.
+    pub(crate) contains_cost: Option<contains_cost::Data>,
     /// `docs/paper-sections.json` (D-86), when the results directory sits
     /// in the repository.
     pub(crate) sections: Option<Value>,
@@ -161,6 +163,12 @@ impl Doc {
                     .into(),
             );
         }
+        let cdir = results.join("exploratory/contains-cost");
+        let contains_cost = if cdir.join("criterion.tar.zst").exists() {
+            Some(contains_cost::load(&cdir)?)
+        } else {
+            None
+        };
         let rdir = results.join("exploratory/reorder");
         let reorder = if rdir.join("reordered/archive/MANIFEST.sha256").exists() {
             Some(reorder::load(&rdir)?)
@@ -190,6 +198,7 @@ impl Doc {
             encoding,
             bounds,
             reorder,
+            contains_cost,
             sections,
             revision: std::cell::Cell::new(Revision::Checked),
         })
@@ -870,6 +879,15 @@ impl Doc {
                     self.crit("ed25519/verify_strict")?,
                     self.crit("policy/contains/worst/r64_a8")?,
                 )
+            },
+            // Contains after D-97 (D-98) and the work budget (D-99).
+            ["containscost"] => match &self.contains_cost {
+                Some(d) => d.markdown_cost(),
+                None => "_Not run yet: there is no `results/exploratory/contains-cost/criterion.tar.zst`._".into(),
+            },
+            ["workbudget"] => match &self.contains_cost {
+                Some(d) => d.markdown_budget(self.crit("ed25519/verify_strict")?),
+                None => "_Not run yet: there is no `results/exploratory/contains-cost/criterion.tar.zst`._".into(),
             },
             // The reorder check (D-96), from its three builds' archives.
             ["reorder"] => match &self.reorder {

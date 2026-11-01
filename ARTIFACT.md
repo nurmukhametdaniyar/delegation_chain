@@ -22,6 +22,7 @@ The deposit is a snapshot of this repository at the commit its description names
 | The encoding checks' micro-benchmark (D-87): its batch timings and thermal readings as archives, their manifest, and the machine record | `results/exploratory/encoding/archive/`, `results/exploratory/encoding/env.json` |
 | The reorder check (D-96): each build's raw data as archives with its manifest, and its machine record | `results/exploratory/reorder/<build>/archive/`, `results/exploratory/reorder/<build>/env.json` |
 | Criterion's output for `Contains` at the scope-size bounds (D-95), and the machine record | `results/exploratory/bounds/criterion.tar.zst` with its `.sha256`, `results/exploratory/bounds/env.json` |
+| `Contains` after D-97 and the prototype work budget (D-98, D-99): criterion's output, the atom-level counts, the oracle under budgets, the search's ranking, and the machine record | `results/exploratory/contains-cost/` (`criterion.tar.zst` with its `.sha256`, `work.json`, `oracle-budget.json`, `search.txt`, `env.json`) |
 | Bytes on the wire (Q2), memory (Q10), the machine records | `results/bytes.json`, `results/memory.json`, `results/env.json`, `results/env-resume.json` |
 | M9's console log: the safety-valve abort and the three refused resumes that BENCHMARKS.md §7 cites | `results/logs/m9.log` |
 | The generated summary, document and paper artifacts | `results/summary.{md,json}`, `BENCHMARKS.md`, `paper/` |
@@ -58,6 +59,10 @@ for b in measured pre-reorder reordered; do (cd results/exploratory/reorder/$b/a
 # The bounds pass's criterion output (D-95).
 (cd results/exploratory/bounds && shasum -a 256 -c criterion.tar.zst.sha256)
 zstd -dc results/exploratory/bounds/criterion.tar.zst | tar -x -C results/exploratory/bounds
+
+# Contains after D-97 and the work budget (D-98, D-99), once measured.
+(cd results/exploratory/contains-cost && shasum -a 256 -c criterion.tar.zst.sha256)
+zstd -dc results/exploratory/contains-cost/criterion.tar.zst | tar -x -C results/exploratory/contains-cost
 ```
 
 The generators check every archive themselves and refuse to run on a missing manifest or a mismatch. They also refuse to run without criterion's output, rather than write a summary without its micro-benchmark section.
@@ -149,6 +154,13 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
   ```
 
   It writes `results/exploratory/bounds/` and appends a `BENCH_LOG.md` entry.
+- **Contains after D-97, and the work budget (D-98, D-99).** An exploratory pass at a commit with `benches/contains_cost.rs`, on M9's machine state; about 45 minutes.
+
+  ```sh
+  scripts/contains-cost.sh
+  ```
+
+  It writes `results/exploratory/contains-cost/` and appends a `BENCH_LOG.md` entry.
 
 ## 6. Packing a deposit
 
