@@ -12,7 +12,10 @@
 //! identity. Between [`begin`] and [`end`], every nanosecond is charged to
 //! exactly one phase. Outside them, nothing is recorded.
 
-/// The phases of one verification, in Algorithm order (D-77).
+/// The phases of one verification, in the Algorithm order of D-77 (paper
+/// revision 2026-10-06). Since D-94 the verifier enters `Digests` and
+/// `Signatures` before `PolicyLoad`; this order is kept because it is the
+/// phase CSVs' column order, so that archived breakdowns read alike.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
     /// Line 2: the envelope.
@@ -33,19 +36,19 @@ pub enum Phase {
     KeyChain,
     /// Lines 23–28, cryptography excluded.
     Identity,
-    /// Lines 30–31: pinning and `LoadPolicy`.
+    /// Lines 33–34: pinning and `LoadPolicy`.
     PolicyLoad,
-    /// Lines 32–35.
+    /// Lines 35–38.
     Contains,
-    /// Lines 36–37.
+    /// Lines 39–40.
     Evaluate,
-    /// Lines 38–46, cryptography excluded.
+    /// Lines 41–49, cryptography excluded.
     Approvals,
-    /// Lines 47–48: the SHA-256 chain digests and their distinctness.
+    /// Lines 30–31: the SHA-256 chain digests and their distinctness.
     Digests,
     /// Point decompression and validation, wherever it happens (D-30).
     PointValidation,
-    /// Signature verification, wherever it happens (lines 24, 43, 49).
+    /// Signature verification, wherever it happens (lines 24, 32, 46).
     Signatures,
     /// After line 50: the accept hook and the result.
     Commit,
@@ -54,7 +57,7 @@ pub enum Phase {
 /// The number of phases.
 pub const COUNT: usize = 17;
 
-/// Every phase, in Algorithm order.
+/// Every phase, in the order of [`Phase`].
 pub const ALL: [Phase; COUNT] = [
     Phase::Envelope,
     Phase::Bodies,

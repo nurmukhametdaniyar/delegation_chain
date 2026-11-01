@@ -234,7 +234,7 @@ fn uncached_and_warm_verifiers_agree() {
             let mut scopes = vec![session];
             for _ in 1..n {
                 if chance(&mut rng, 50) {
-                    bound += 500; // a widening: line 34
+                    bound += 500; // a widening: line 37
                 } else if chance(&mut rng, 500) {
                     bound -= 1 + rng.next_u64() % 50;
                 }

@@ -2,7 +2,7 @@
 
 **Audience:** Claude Code, working in a fresh Rust repository.
 **Protocol source of truth:** the paper _DelegationChain: Parameter-Bound Delegation Chains for Cross-Organizational Agent Authorization_, revision dated 2026-10-06, final text (59 pages; sha256 `14465dbef58492984005fd1b8b2e0edf2be4cd37870189b201af417ed93775b8`), in `docs/paper.pdf`. It specifies the protocol over per-hop Ed25519 signatures, with BLS aggregation as a variant (its §4.2, §4.8).
-- **Line numbers** ("Algorithm 1 line 26") are the same in every revision since 2026-09-28.
+- **Line numbers** ("Algorithm 1 line 26") are the same in every revision since 2026-09-28, except that D-94 reorders Algorithm 2 ahead of the paper: lines 30–49 are renumbered, and lines 1–29 and 50–52 are unchanged (the mapping is in the changelog). This specification is the source of truth for the algorithm text and its line numbers until the paper copies Appendix A (§2).
 - **Section numbers** in §2–§7 below are the same in revisions 2026-10-04 and 2026-10-06. Revision 2026-10-04 added §4.8, the aggregate variant.
 - **The benchmark sections (§12, §13) cite revision 2026-09-29,** against which the benchmark was frozen and its claims judged (sha256 `51eff0ec620940c3062de303f671f5ddeee9907ddb3c06c46e19fc1b6da84e14`; in git history). Their "§8.2" and "§8.3" are §9.2 and §9.3 since revision 2026-10-04. `docs/paper-sections.json` maps them (D-86).
 **What this document adds:** every bit-level and engineering decision the paper deliberately leaves open (§4 says field numbering and byte layout "are not fixed by this paper"), a test plan, and a benchmark plan.
@@ -10,6 +10,24 @@
 Put this file in the repository root as `SPEC.md`.
 
 ## Changelog
+
+**2026-11-01 — chain signatures before policy (D-94; P-34).** Asked for by the author after a pre-submission review. This runs ahead of paper revision 2026-10-06, which will copy Algorithms 1–2 from Appendix A (§2).
+- **Why.** Phases 1–5 need no private key. An attacker can name real identities with their real keys, so that certificates resolve (from cache on a warm verifier), copy a pinned policy hash off the wire, and attach scopes of its own. In revision 2026-10-06, phase 6 then runs `Contains` on those scopes before phase 8 checks any signature. The frozen plan's criterion results put `Contains` at 64 rules × 8 atoms at about 250 times one strict Ed25519 verification, and varying the scopes defeats any containment cache.
+- **The change (Appendix A, §10.2).** The chain signatures are phase 6, ahead of policy (phase 7) and approvals (phase 8). Lines 1–29 and 50–52 are unchanged. Line mapping, old → new:
+
+  | Old | New |
+  |---|---|
+  | 1–29 | unchanged |
+  | 30–37 (policy) | 33–40 (+3) |
+  | 38–46 (approvals) | 41–49 (+3) |
+  | 47–49 (chain signatures) | 30–32 |
+  | 50–52 | unchanged |
+
+- **What it does not change.** An accepted chain runs every phase in either order, so the work done for honest traffic is the same. Caches still change cost, never outcome. A prefix-cache hit still skips the prefix's signatures and its containment links (§12.1).
+- **What it does change.** Policy work is confined to chains whose every hop is signed. A chain that fails a policy or approval check now pays its N + 1 chain-signature checks first (§11.2, phase ordering). The scope-size bounds (D-21) stay necessary: a compromised agent can still sign a large sub-scope.
+- **Renamed.** The rejection variants of lines 30–49 follow the mapping (§10.2).
+- **Tests (§11.2).** Expected lines follow the mapping. The phase-ordering row's counts change. Two rows are new: an unsigned chain at the scope-size bounds is rejected at L32 without any `Contains` or `Evaluate` call, and a scope over a size bound is malformed (L02).
+- **The benchmark (§12, §13) is unchanged.** The measured commits (ARTIFACT.md) run the old order. §12.1 describes the prefix cache's hit path in the new order and says what the measured commits did.
 
 **2026-10-06 — reconciled with paper revision 2026-10-06.** Its protocol text changes in three places, each adopting what the implementation does, so no code changes. Section and line numbers are unchanged. The final text of the same date (59 pages) changes only wording outside §3–§7 and the algorithms.
 - Algorithm 1 line 2 decodes σ, the instantiation's chain signatures (P-31). Appendix A follows.
@@ -128,13 +146,15 @@ Production hardening, network transport, MCP integration, a transparency log, pe
 2. This spec's decisions, which fill what the paper leaves open.
 3. Your own decisions, logged in `DECISIONS.md`.
 
-If this spec contradicts the paper, the paper wins. Log the contradiction as a `PAPER_ISSUES.md` or `DECISIONS.md` entry, whichever is appropriate. Appendix A reproduces Algorithms 1–2 for convenience; if it differs from the PDF, the PDF wins.
+If this spec contradicts the paper, the paper wins. Log the contradiction as a `PAPER_ISSUES.md` or `DECISIONS.md` entry, whichever is appropriate. Appendix A reproduces Algorithms 1–2. Since D-94 it is the source of truth for their text and line numbers, which the paper will copy (the exception below); in anything else, if it differs from the PDF, the PDF wins.
 
 **Exception (agreed 2026-09-28, closed 2026-09-29).** For P-15 (D-28), P-16 (D-36) and P-17 (D-35), this spec ran ahead of paper revision 2026-09-28 and took precedence on those points. Revision 2026-09-29 adopts all three.
 
 **Exception (agreed 2026-09-29, extended 2026-09-30, closed 2026-10-04).** This spec ran ahead of paper revision 2026-09-29 on two points, which revision 2026-10-04 adopts (its §5.4 and §5.6).
 - **P-29 (D-65).** Revocation names a binding (an identifier and key), not a certificate (§6.5, §10.2).
 - **P-30 (D-26, revised).** Resolution returns the newest certificate for the binding that is valid at t, if there is one (§6.6).
+
+**Exception (agreed 2026-11-01, open).** This spec runs ahead of paper revision 2026-10-06 on the order of Algorithm 2 (D-94, P-34). Appendix A is the source of truth for Algorithms 1–2 and their line numbers, and the paper will copy it verbatim. Until the paper does, where the two disagree on that order or those numbers, this spec takes precedence.
 
 ---
 
@@ -307,7 +327,7 @@ The protocol's default instantiation is Ed25519 per hop, `Ed25519List`: N+1 stri
 
 - **Curve and variant:** BLS12-381, minimal-pubkey-size. Public keys are G1 points, 48 bytes compressed; signatures are G2 points, 96 bytes compressed. Use `blst::min_pk`.
 - **Messages:** every signed message is a 32-byte SHA-256 digest (§5.4).
-- **Chain ciphersuite (paper §4.8):** the basic scheme, `BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_`. Distinct messages are the rogue-key defense (paper §2.2, §5.3), and Algorithm 2 line 48 checks them explicitly.
+- **Chain ciphersuite (paper §4.8):** the basic scheme, `BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_`. Distinct messages are the rogue-key defense (paper §2.2, §5.3), and Algorithm 2 line 31 checks them explicitly.
 - **Other domain-separation tags.** The paper requires PoP (§5.3) and receipts (§4.5) to use DSTs distinct from the chain's. The strings are **D-04**:
 
 | Use                   | DST                                            |
@@ -323,7 +343,7 @@ The protocol's default instantiation is Ed25519 per hop, `Ed25519List`: N+1 stri
 **Ed25519, the default (paper §4.7; D-81).**
 - A public key must be canonically encoded (its y below p), decompress, and not be of small order. Registries reject such keys at registration (paper §5.3), and so does certificate decoding.
 - A signature must have a canonically encoded R (y below p) and a canonical s (below ℓ). Both are byte checks at decode, and a failure is `L02`.
-- Strict verification (`verify_strict`) rejects a small-order R at line 49.
+- Strict verification (`verify_strict`) rejects a small-order R at line 32.
 
 **BLS, the aggregate variant (paper §4.8):**
 - Accept the compressed form only.
@@ -333,7 +353,7 @@ The protocol's default instantiation is Ed25519 per hop, `Ed25519List`: N+1 stri
 - A public key is validated **once**: at registration, and again when its certificate is resolved into the verifier's cache. Hot-path aggregate verification then passes `pks_validate = false` (**D-05**). The Ed25519 arms get the equivalent treatment.
 - **Signatures are validated once, at decode (D-30).**
   - Every signature the verifier receives (σ_agg, individual chain signatures, receipt signatures, certificate signatures) goes through `Signature::sig_validate(bytes, true)` when it is decoded. That call checks both the subgroup and the identity; a failure is `L02`, or a certificate rejection for certificate signatures.
-  - Line 49 then passes `sig_groupcheck = false`. `blst`'s group check would only repeat the subgroup check, and it does not reject the identity (it calls `validate(false)`).
+  - Line 32 then passes `sig_groupcheck = false`. `blst`'s group check would only repeat the subgroup check, and it does not reject the identity (it calls `validate(false)`).
   - Public-key fields inside bodies are only length-checked at decode. They are compared as bytes and resolved (line 23), and the certified key was validated when its certificate was cached.
   - The Ed25519 arms likewise decode each point once.
 
@@ -363,7 +383,7 @@ These three are from the paper. The rest are decisions or follow paper wording:
 
 The aggregate accumulates along the chain: each participant receives the running aggregate from its predecessor, adds its own signature, and forwards the sum. Use `AggregateSignature::from_signature` and `add_signature(&sig, true)`, and serialize with `to_signature().compress()`.
 
-### 5.6 Verification (Algorithm 2 line 49)
+### 5.6 Verification (Algorithm 2 line 32)
 
 Use `Signature::aggregate_verify(false, &msgs, CHAIN_DST, &pks, false)` over the N+1 pairs `(pk_k, m_k)`. σ_agg was validated at decode (D-30).
 
@@ -372,12 +392,12 @@ What `blst` 0.3.17 actually does (recorded in D-29 and D-30):
 - **Threading.** With its default `std` build, `aggregate_verify` splits the pairs across a thread pool sized to the core count. Each worker computes its own Miller-loop product, and the products are merged before one final exponentiation. With the `no-threads` feature, it runs a single multi-Miller loop in the calling thread, which is what the paper's §4.6 cost model describes.
   - Every arm is built with `no-threads` (D-29), so one verification runs on one thread.
   - The threaded build appears only as the supplementary arm A-mt (§12).
-- **Distinct messages.** It does **not** check that messages are distinct (the source has a `TODO` saying so). Line 48 is the only distinctness check.
+- **Distinct messages.** It does **not** check that messages are distinct (the source has a `TODO` saying so). Line 31 is the only distinctness check.
 - **Group check.** Its `sig_groupcheck` does not reject the identity element.
 
 ### 5.7 Pairing cache (**VARIANT**, arm B only)
 
-Line 49's check is equivalent to
+Line 32's check is equivalent to
 
 ```
 Π_{k=0}^{N} e(pk_k, H(m_k)) · e(−g1, σ_agg) == 1
@@ -506,7 +526,7 @@ trait PolicyStore{ fn load(&self, policy_hash: &[u8; 32]) -> Option<Vec<u8>>; }
   - Preferring a valid certificate means a future-dated or shortening same-key renewal neither shadows nor cuts short an older, valid certificate. Without it, caching changed outcomes (P-30).
   - Paper §5.4 (revision 2026-09-29) says "the most recently issued certificate … whether or not it is currently valid". Revision 2026-09-28 said "resolution returns the valid certificate" (P-18).
   - Line 27 checks `t ∈ [nbf, exp]` and revocation (D-35, D-65).
-- **Content addressing.** `load` returns bytes; the verifier accepts them only if `SHA256(bytes) == policy_hash` and the bytes decode as a well-formed policy (§9.3). A malformed policy is treated as _unavailable_ (line 31) (**D-12**).
+- **Content addressing.** `load` returns bytes; the verifier accepts them only if `SHA256(bytes) == policy_hash` and the bytes decode as a well-formed policy (§9.3). A malformed policy is treated as _unavailable_ (line 34) (**D-12**).
 
 ---
 
@@ -574,7 +594,7 @@ Receipt lists (**D-34**):
   - two receipts for one approver;
   - key 9 present with an empty array;
   - a receipt whose parts are not well formed.
-- A receipt from an approver that the evaluated decision (line 36) does not require is **ignored**. No line of Algorithm 2 rejects it, and line 40 only looks up the approvers that are required.
+- A receipt from an approver that the evaluated decision (line 39) does not require is **ignored**. No line of Algorithm 2 rejects it, and line 43 only looks up the approvers that are required.
 
 ### 7.4 Receipts (paper §4.5)
 
@@ -719,7 +739,7 @@ Anything that fails validation is **malformed** and rejected.
 - **Every where-path must be declared in its rule's `params` (D-28, P-15).**
   - An atom on a path its rule does not declare makes the scope **malformed**.
   - This validator runs:
-    - at policy load: a malformed policy is unavailable, `L31` (D-12);
+    - at policy load: a malformed policy is unavailable, `L34` (D-12);
     - on every scope inside a session or delegation body: a malformed scope is a decoding failure, `L02`.
   - The evaluator keeps paper §6.3 step 1(c) as a defensive check. For a well-formed scope it never fires.
   - _History:_ the pre-review text allowed undeclared where-paths, with a lint. Combined with §9.5, where an atom on a path is judged against that path's unconstrained domain, that made `Contains` unsound. A tautology on an undeclared path (`z >= -18446744073709551616`, `f in [true, false]`) counts as implied by any clause, although the rule carrying it can never match.
@@ -896,7 +916,14 @@ pub fn verify(&self, chain: &[u8]) -> Result<Accepted, Reject>;
 
 ### 10.2 Algorithms 1–2, line by line
 
-Implement Appendix A exactly, in order. The `Reject` enum has one variant per rejecting line, named for the line number, e.g. `L05NonCanonical`, `L26WrongKind { k }`, `L49AggregateInvalid`. Tests assert on these variants, so a check moved to the wrong phase shows up as a failing test.
+Implement Appendix A exactly, in order. The `Reject` enum has one variant per rejecting line, named for the line number, e.g. `L05NonCanonical`, `L26WrongKind { k }`, `L32ChainSignaturesInvalid`. Tests assert on these variants, so a check moved to the wrong phase shows up as a failing test.
+
+**Phase ordering (D-94).**
+- **Phases 1–5 are cheap checks:** decoding, byte and integer comparisons, one nonce-cache lookup, and certificates that a warm verifier holds in its cache. None of them needs a private key to pass.
+- **The chain signatures are verified before any policy work.** Phases 1–5 can be passed by an attacker with no private key: it can name real identities with their real keys, so that their certificates resolve (from cache, on a warm verifier), copy a pinned policy hash off the wire, and attach scopes it wrote itself. If policy came next, `Contains` would run on those scopes before any signature had been checked, and scopes that vary from one attempt to the next defeat any containment cache. At the frozen plan's largest criterion size (64 rules × 8 atoms), one `Contains` call costs about 250 strict Ed25519 verifications. Verifying the chain signatures first (phase 6) confines policy work (phase 7) and approvals (phase 8) to chains whose every hop is signed.
+- **The cold-verifier exception still holds.** On a cold verifier, phase 5 verifies N + 1 certificates under their registry roots before the chain signatures: under BLS roots, N + 1 pairing checks (P-28, D-61). Their results are cached per binding; failures are not.
+- An accepted chain passes every phase in either order, so honest traffic does the same work as before. A chain rejected in phase 7 or 8 now costs its N + 1 chain-signature checks (one multi-pairing under the aggregate variant).
+- The scope-size bounds (D-21, D-03, D-16) remain necessary: a compromised agent, which the threat model includes, can still sign a large sub-scope.
 
 Definitions, from paper §4.6:
 
@@ -913,21 +940,21 @@ Line-level notes:
   - An unknown `kind` value is malformed.
 - **Line 5:** reject a recorded canonical-form violation, then compare the re-encoding with the received bytes (§4.4, D-31).
 - **Line 9:** recompute `params_hash` from the canonical parameter map.
-- **Line 11:** every delegation body's `hop_index` equals its position, and its `session_id` equals `B_0`'s. These are redundant with the digest recursion (paper §4.3), which is why §11.2 tests Theorem 3 on the phase-8 check directly as well as end to end.
+- **Line 11:** every delegation body's `hop_index` equals its position, and its `session_id` equals `B_0`'s. These are redundant with the digest recursion (paper §4.3), which is why §11.2 tests Theorem 3 on the phase-6 check directly as well as end to end.
 - **Line 13:** no clock-skew tolerance, as written (P-07).
 - **Lines 18 and 20 compare identifiers as well as keys (D-36, P-16).** Reject at line 18 unless both `B0.subject_id = sid(B1)` and `B0.subject_pk = spk(B1)`. Reject at line 20 unless both `Bk.delegatee_id = sid(Bk+1)` and `Bk.delegatee_pk = spk(Bk+1)`.
   - Comparing keys alone lets a chain name one party and be signed by another. PoP does not stop one key from being registered under two identifiers (§6.4). That breaks provenance, asset (ii) of paper §3.1.
   - Paper revision 2026-09-29 states lines 18 and 20 this way.
 - **Line 23:** `Resolve(sid(B_k), spk(B_k))`, per D-26.
 - **Line 24:** verify the certificate signature under `Root[org(sid)]`. Once verified, it is cached with its certificate. If no root is configured for `org(sid)`, reject at line 24.
-- **Line 27:** reject unless `t ∈ [cert.nbf, cert.exp]`, closed at both ends (**D-35**), and reject if the certificate's binding (registry, identifier, key) is revoked (**D-65**, ahead of the paper, which revokes by serial; P-29). The paper's line 27 says "not yet valid, expired, or revoked at t", without stating the boundary (P-26). Line 42's "phase-5 checks" include the same window.
-- **Line 41:** `Resolve(s, R.approver_pk)`; reject if unresolvable (`L41`, **D-27**).
-- **Line 42:** the phase-5 checks (lines 24–27) with kind `approver`: root, namespace, kind, validity window, revocation.
-- **Line 40:** receipts from approvers outside `svcs` are ignored (D-34).
-- **Line 48:** compare all N+1 digests pairwise; use a hash set. This is the only distinctness check; `blst` does not do one (§5.6).
-- **Line 49:** §5.6.
+- **Line 27:** reject unless `t ∈ [cert.nbf, cert.exp]`, closed at both ends (**D-35**), and reject if the certificate's binding (registry, identifier, key) is revoked (**D-65**, ahead of the paper, which revokes by serial; P-29). The paper's line 27 says "not yet valid, expired, or revoked at t", without stating the boundary (P-26). Line 45's "phase-5 checks" include the same window.
+- **Line 31:** compare all N+1 digests pairwise; use a hash set. This is the only distinctness check; `blst` does not do one (§5.6).
+- **Line 32:** §5.6.
+- **Line 43:** receipts from approvers outside `svcs` are ignored (D-34).
+- **Line 44:** `Resolve(s, R.approver_pk)`; reject if unresolvable (`L44`, **D-27**).
+- **Line 45:** the phase-5 checks (lines 24–27) with kind `approver`: root, namespace, kind, validity window, revocation.
 - **Line 50:** atomic `InsertIfAbsent` (§10.4). This is the only mutation that can change a later **decision** (**D-37**, P-20).
-  - The certificate and policy caches are filled during phases 5 and 6 (paper §5.4): a certificate after line 24 passes, a policy after its hash and well-formedness check.
+  - The certificate and policy caches are filled during phases 5, 7 and 8 (paper §5.4): a certificate after line 24 (or 45) passes, a policy after its hash and well-formedness check (line 34).
   - They are semantically transparent, and §11.3 enforces that.
   - A chain rejected later may still leave cache entries behind.
 
@@ -986,8 +1013,8 @@ Unless a row says otherwise, give every body the same `exp`, set every `hop_inde
 
 | Threat / property                      | Test construction                                                                                                                                                                                                                                                                                                                                                 | Expected                                               |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| T1a token forgery                      | Replace the chain signatures with valid signatures by an unrelated key: N+1 of them per hop; under the aggregate variant, their sum, an unrelated valid G2 signature, as σ_agg                                                                                                                                                                                                                                                                                                                | L49                                                    |
-| T1a                                    | Delegation claims victim's `delegator_id` and `delegator_pk`, signed with the attacker's key                                                                                                                                                                                                                                                                      | L49                                                    |
+| T1a token forgery                      | Replace the chain signatures with valid signatures by an unrelated key: N+1 of them per hop; under the aggregate variant, their sum, an unrelated valid G2 signature, as σ_agg                                                                                                                                                                                                                                                                                                                | L32                                                    |
+| T1a                                    | Delegation claims victim's `delegator_id` and `delegator_pk`, signed with the attacker's key                                                                                                                                                                                                                                                                      | L32                                                    |
 | T1a                                    | Delegation claims victim's `delegator_id` with the attacker's own `delegator_pk` (the preceding body names `(victim_id, attacker_pk)` as delegatee, so line 20 passes)                                                                                                                                                                                              | L23 (no certificate binds that identifier to that key) |
 | T1b reorder                            | Swap two delegation bodies                                                                                                                                                                                                                                                                                                                                        | L11                                                    |
 | T1b truncation                         | Drop an interior delegation hop                                                                                                                                                                                                                                                                                                                                   | L11                                                    |
@@ -995,51 +1022,53 @@ Unless a row says otherwise, give every body the same `exp`, set every `hop_inde
 | T1b extension                          | Append a delegation after the invocation                                                                                                                                                                                                                                                                                                                          | L07                                                    |
 | T1b insertion                          | Insert an extra correctly signed hop mid-chain                                                                                                                                                                                                                                                                                                                    | L11                                                    |
 | T1b splice                             | A delegation body from another session, keys made consistent                                                                                                                                                                                                                                                                                                      | L11                                                    |
-| Theorem 3, digest recursion            | Line 11 now catches the reorder, truncation and insertion rows before phase 8, but the paper says those checks are redundant with the digest recursion. Prove it: call the phase-8 check (lines 47–49) directly on the mutated body lists, with the running aggregate adjusted as an attacker could (subtracting σ_k, recoverable from partial sums, paper §4.3). | aggregate check fails for each mutation                |
+| Theorem 3, digest recursion            | Line 11 now catches the reorder, truncation and insertion rows before phase 6, but the paper says those checks are redundant with the digest recursion. Prove it: call the phase-6 check (lines 30–32) directly on the mutated body lists, with the running aggregate adjusted as an attacker could (subtracting σ_k, recoverable from partial sums, paper §4.3). | aggregate check fails for each mutation                |
 | T2a parameter substitution             | Change a param, keep `params_hash`                                                                                                                                                                                                                                                                                                                                | L09                                                    |
-| T2a                                    | Change a param and recompute `params_hash`                                                                                                                                                                                                                                                                                                                        | L49                                                    |
-| T2b scope escalation                   | Delegation sub-scope wider than its parent                                                                                                                                                                                                                                                                                                                        | L34                                                    |
-| T2b                                    | Session scope exceeds the pinned policy                                                                                                                                                                                                                                                                                                                           | L32                                                    |
-| T2b                                    | `policy_hash` not pinned for the issuing org                                                                                                                                                                                                                                                                                                                      | L30                                                    |
-| T2b                                    | Pinned but absent from the store; or malformed policy bytes                                                                                                                                                                                                                                                                                                       | L31                                                    |
-| T2b (step 2 regression)                | Delegate `allow all` under a rule-list parent                                                                                                                                                                                                                                                                                                                     | L34                                                    |
+| T2a                                    | Change a param and recompute `params_hash`                                                                                                                                                                                                                                                                                                                        | L32                                                    |
+| T2b scope escalation                   | Delegation sub-scope wider than its parent                                                                                                                                                                                                                                                                                                                        | L37                                                    |
+| T2b                                    | Session scope exceeds the pinned policy                                                                                                                                                                                                                                                                                                                           | L35                                                    |
+| T2b                                    | `policy_hash` not pinned for the issuing org                                                                                                                                                                                                                                                                                                                      | L33                                                    |
+| T2b                                    | Pinned but absent from the store; or malformed policy bytes                                                                                                                                                                                                                                                                                                       | L34                                                    |
+| T2b (step 2 regression)                | Delegate `allow all` under a rule-list parent                                                                                                                                                                                                                                                                                                                     | L37                                                    |
 | T3a replay across sessions             | `t > B_N.exp`; `t < B_N.nbf`; delegation exp > parent exp                                                                                                                                                                                                                                                                                                         | L13, L13, L15                                          |
 | T3b replay                             | Verify the same chain twice sequentially                                                                                                                                                                                                                                                                                                                          | 2nd: L17                                               |
 | T3b (Theorem 5, concurrent)            | 64 threads present the same chain simultaneously; 1,000 rounds, a fresh chain each round                                                                                                                                                                                                                                                                          | exactly 1 accept per round; others L17 or L50          |
 | T3c cross-context                      | Invocation body at a delegation position and vice versa; `kind` field ≠ position                                                                                                                                                                                                                                                                                  | L07                                                    |
 | T3d cross-verifier                     | `aud` names a different verifier                                                                                                                                                                                                                                                                                                                                  | L08                                                    |
-| T3d / audience clause                  | `aud` = self, but the matching rule's `at` names another service                                                                                                                                                                                                                                                                                                  | L37                                                    |
+| T3d / audience clause                  | `aud` = self, but the matching rule's `at` names another service                                                                                                                                                                                                                                                                                                  | L40                                                    |
 | T4a compromised approver (bounded)     | Approver key signs a receipt for a within-policy invocation                                                                                                                                                                                                                                                                                                       | **accept** (document the bound)                        |
 | T4a                                    | Approver key used as a delegator                                                                                                                                                                                                                                                                                                                                  | L26                                                    |
-| T4b routing                            | Receipt only from a non-required approver                                                                                                                                                                                                                                                                                                                         | L40                                                    |
-| T4c receipt reuse                      | Receipt for I attached to I′ ≠ I                                                                                                                                                                                                                                                                                                                                  | L43                                                    |
-| T4d stale approval                     | Invoker changes params after approval, recomputes `params_hash`, re-signs                                                                                                                                                                                                                                                                                         | L43                                                    |
-| Receipt window                         | Expired receipt; revoked approver; receipt's `approver_pk` not certified for its `approver_id` (unresolvable, D-27); approver certificate not yet valid (`t < nbf`, D-35)                                                                                                                                                                                            | L44; L42; L41; L42                                     |
+| T4b routing                            | Receipt only from a non-required approver                                                                                                                                                                                                                                                                                                                         | L43                                                    |
+| T4c receipt reuse                      | Receipt for I attached to I′ ≠ I                                                                                                                                                                                                                                                                                                                                  | L46                                                    |
+| T4d stale approval                     | Invoker changes params after approval, recomputes `params_hash`, re-signs                                                                                                                                                                                                                                                                                         | L46                                                    |
+| Receipt window                         | Expired receipt; revoked approver; receipt's `approver_pk` not certified for its `approver_id` (unresolvable, D-27); approver certificate not yet valid (`t < nbf`, D-35)                                                                                                                                                                                            | L47; L45; L44; L45                                     |
 | Receipt list (D-34)                    | Two receipts for one approver; receipts out of order; key 9 present but empty; the required receipt plus one from a non-required approver                                                                                                                                                                                                                          | L02; L02; L02; **accept**                              |
 | T5a misattribution                     | Register another principal's pk without their secret key                                                                                                                                                                                                                                                                                                          | registry rejects                                       |
 | T5a                                    | Replay a used PoP nonce. PoP separation (paper §5.3): aggregate variant, a PoP signed under the CHAIN DST; default, the registrant's chain signature over a hop's digest presented as the PoP (Ed25519 has no DSTs; the challenge digest's tag separates them) | registry rejects                                       |
-| T5b compromised root (bounded)         | With `orga`'s stolen root key: issue an issuer certificate and a session within `orga`'s pinned policy; the same with a session scope exceeding that policy; a certificate for an `orgb:` identifier signed with `orga`'s root. Paper §7.1 assumes an honest root; §7.3 bounds the damage by pinning and the namespace binding (P-19)                                 | **accept** (document the bound); L32; L24              |
+| T5b compromised root (bounded)         | With `orga`'s stolen root key: issue an issuer certificate and a session within `orga`'s pinned policy; the same with a session scope exceeding that policy; a certificate for an `orgb:` identifier signed with `orga`'s root. Paper §7.1 assumes an honest root; §7.3 bounds the damage by pinning and the namespace binding (P-19)                                 | **accept** (document the bound); L35; L24              |
 | T5c revocation                         | Revoke a delegator. Verify one chain through it before ingesting the assertion, and a second chain (new nonce) after                                                                                                                                                                                                                                              | **accept** (the propagation window), then L27          |
 | T5c expiry                             | Signer's certificate expired at `t`; signer's certificate not yet valid at `t` (`t < nbf`, D-35, P-17); boundaries `t = nbf` and `t = exp` (P-26)                                                                                                                                                                                                                  | L27; L27; **accept**, **accept**                       |
 | T5d substitution                       | Cert for an `orga:` identifier signed by `orgb`'s root                                                                                                                                                                                                                                                                                                            | L24                                                    |
 | T5d                                    | `registry_id` ≠ org of the identifier                                                                                                                                                                                                                                                                                                                             | L25                                                    |
 | T5e role confusion                     | Agent-kind cert at position 0                                                                                                                                                                                                                                                                                                                                     | L26                                                    |
 | T5e                                    | Issuer-kind cert as a delegator; approver-kind cert as the invoker                                                                                                                                                                                                                                                                                                | L26, L26                                               |
-| T5e                                    | Agent key signs a receipt, naming the required approver (no certificate binds that approver to the agent's key, D-27)                                                                                                                                                                                                                                             | L41                                                    |
+| T5e                                    | Agent key signs a receipt, naming the required approver (no certificate binds that approver to the agent's key, D-27)                                                                                                                                                                                                                                             | L44                                                    |
 | Scheduled rotation (P-04, resolved)    | Issuer, a delegator and an approver each hold two overlapping certificates; chains signed under either key verify; a chain naming the old key after its certificate expires fails; a chain naming the new key before its certificate's `nbf` fails (D-35)                                                                                                          | **accept**, **accept**; L27; L27                       |
-| T6a prompt injection (bounded)         | Within-policy invocation by a "compromised" agent; out-of-policy invocation                                                                                                                                                                                                                                                                                       | **accept**; L37                                        |
-| T6b confused deputy (bounded)          | Delegation to an adversary within scope; wider than scope                                                                                                                                                                                                                                                                                                         | **accept**; L34                                        |
-| Closed world                           | Undeclared parameter; array-valued parameter; `/../` path under `under`                                                                                                                                                                                                                                                                                           | L37 each                                               |
+| T6a prompt injection (bounded)         | Within-policy invocation by a "compromised" agent; out-of-policy invocation                                                                                                                                                                                                                                                                                       | **accept**; L40                                        |
+| T6b confused deputy (bounded)          | Delegation to an adversary within scope; wider than scope                                                                                                                                                                                                                                                                                                         | **accept**; L37                                        |
+| Closed world                           | Undeclared parameter; array-valued parameter; `/../` path under `under`                                                                                                                                                                                                                                                                                           | L40 each                                               |
 | Structure                              | Garbage bytes; single body (N = 0); non-canonical body encoding                                                                                                                                                                                                                                                                                                   | L02, L03, L05                                          |
 | Structure (D-16, D-31, D-32)           | N = 17; non-canonical envelope encoding; float or tag inside a body; unknown `kind` value; the same body with a non-shortest integer (canonical-form violation only)                                                                                                                                                                                                 | L02; L02; L02; L02; L05                                |
-| Point validation, default (D-30, D-81) | σ_1 with a non-canonical R (y = p + 1); σ_1 with s = ℓ; σ_1 with a small-order R (the identity); a receipt signature with s = ℓ; registering the identity key, or a valid key's non-canonical encoding (y + p) | L02; L02; L49; L02; registry rejects (InvalidKey) |
+| Point validation, default (D-30, D-81) | σ_1 with a non-canonical R (y = p + 1); σ_1 with s = ℓ; σ_1 with a small-order R (the identity); a receipt signature with s = ℓ; registering the identity key, or a valid key's non-canonical encoding (y + p) | L02; L02; L32; L02; registry rejects (InvalidKey) |
 | Point validation, aggregate variant (D-30) | σ_agg is the identity; σ_agg is not in the G2 subgroup; σ_agg in uncompressed form; a receipt signature that is the identity                                                                                                                                                                                                                                      | L02 each                                               |
-| Malformed scope (P-15, D-28)           | The P-15 child scope (an atom on an undeclared path) as a delegation scope; the same defect in a session scope; the same defect in the pinned policy document                                                                                                                                                                                                       | L02; L02; L31                                          |
+| Malformed scope (P-15, D-28)           | The P-15 child scope (an atom on an undeclared path) as a delegation scope; the same defect in a session scope; the same defect in the pinned policy document                                                                                                                                                                                                       | L02; L02; L34                                          |
 | Key chain                              | `subject_pk` ≠ `spk(B_1)`; `delegatee_pk` ≠ next `spk`                                                                                                                                                                                                                                                                                                            | L18, L20                                               |
 | Key chain, identifiers (P-16, D-36)    | One key registered under two identifiers (PoP passes for both). `subject_id` ≠ `sid(B_1)` with `subject_pk` = `spk(B_1)`; `delegatee_id` ≠ next `sid` with `delegatee_pk` = next `spk`                                                                                                                                                                            | L18, L20                                               |
 | Resolution                             | Unknown signer identifier                                                                                                                                                                                                                                                                                                                                         | L23                                                    |
-| Distinct messages                      | Unit test through a test-only hook that injects duplicate digests (a real duplicate needs a SHA-256 collision; say so in the test)                                                                                                                                                                                                                                | L48                                                    |
-| Phase ordering (Figure 2, `count-ops`) | Expired chain; wrong `aud`; L34 rejection, warm and cold | 0 signature checks, 0 pairings and 0 resolver calls warm. Cold L34: N + 1 certificate checks and N + 1 resolver calls (paper §4.6), and under the aggregate variant their pairings (D-61) |
+| Distinct messages                      | Unit test through a test-only hook that injects duplicate digests (a real duplicate needs a SHA-256 collision; say so in the test)                                                                                                                                                                                                                                | L31                                                    |
+| Phase ordering (Figure 2, `count-ops`; D-94) | Expired chain; wrong `aud`; L37 rejection, warm and cold | Expired and wrong `aud`: 0 signature checks, 0 pairings and 0 resolver calls. L37 warm: the N + 1 chain-signature checks (under the aggregate variant, one multi-pairing) and 0 resolver calls, since phase 6 precedes policy (D-94). Cold L37: also N + 1 certificate checks and N + 1 resolver calls (paper §4.6), and under the aggregate variant their pairings (D-61) |
+| Unsigned policy work (D-94, P-34)      | N = 16. Every body well formed, with real identities and keys whose certificates a warm verifier has cached, the pinned policy hash, and well-formed scopes at the size bounds (256 rules; a rule with 32 parameters, 32 atoms, a 64-element list, a 1,024-byte string and a depth-8 path), not contained in the policy; every chain signature made by an unrelated key over the right digest | L32, with 0 `Contains`, 0 `Evaluate`, 0 resolver and 0 policy-store calls |
+| Scope size bounds (D-21)               | A delegation scope one past a bound, correctly signed: 257 rules; a rule with 33 atoms; 33 parameters; a 65-element list; a 1,025-byte string; a depth-9 path | L02 each |
 | Steady-state offline (paper §8.2)      | Warm verifier accepts a chain from known partners                                                                                                                                                                                                                                                                                                                 | 0 resolver and 0 policy-store calls                    |
 | Theorem 5, part 2                      | A chain accepted at V1 is presented to V2                                                                                                                                                                                                                                                                                                                         | L08                                                    |
 
@@ -1069,13 +1098,13 @@ Unless a row says otherwise, give every body the same `exp`, set every `hop_inde
 
 **Since revision 2026-10-04,** arm C is the protocol's default instantiation and arm A its aggregate variant. The arm definitions below describe the benchmark as frozen and measured against revision 2026-09-29, where A was "the protocol as specified" and C a VARIANT. Arm C's scheme now lives in `dc-crypto` (D-80).
 
-Arms A, A-ind, C and C-batch run the **same** generic verifier (§5.1). Phases 1–7 are identical code, except where they verify a signature with the arm's scheme; phase 8 differs by construction. This is the fairness guarantee: any difference between those arms is caused by the signature scheme.
+Arms A, A-ind, C and C-batch run the **same** generic verifier (§5.1). Every phase but the chain-signature check is identical code, except where it verifies a signature with the arm's scheme; the chain-signature check (lines 30–32, phase 6; lines 47–49, phase 8, in the measured commits, D-94) differs by construction. This is the fairness guarantee: any difference between those arms is caused by the signature scheme.
 
-Phases 1–7 use the arm's scheme in two places, and reports must say so wherever it matters:
+The other phases use the arm's scheme in two places, and reports must say so wherever it matters:
 - certificate signatures in phase 5, which are paid only on a cache miss, so in the cold state;
-- receipt signatures in phase 7, which are paid on every call in the medium-approval profile.
+- receipt signatures in the approvals phase (phase 8; phase 7 in the measured commits), which are paid on every call in the medium-approval profile.
 
-| Arm                   | Chain signatures          | Phase 8                             | Purpose                                                 |
+| Arm                   | Chain signatures          | Chain-signature check (line 32)     | Purpose                                                 |
 | --------------------- | ------------------------- | ----------------------------------- | ------------------------------------------------------- |
 | **A** (paper)         | 1 BLS aggregate, 96 B     | `aggregate_verify` multi-pairing    | The protocol as specified                               |
 | **A-ind** (VARIANT)   | N+1 BLS signatures        | N+1 individual `verify`             | Isolates the multi-pairing saving (tests §2.2's claim)  |
@@ -1097,7 +1126,7 @@ A-mt needs a separate build, because Cargo unifies features and `no-threads` can
   - `m_0 … m_{N−1}`
   - resolved `pk_0 … pk_{N−1}` and their bindings (identifier and key, D-65)
   - the identifier and key the last prefix body hands on (`B_0.subject_id`/`subject_pk` if N = 1, else `B_{N−1}.delegatee_id`/`delegatee_pk`; D-36), plus `B_{N−1}`'s `scope` and `exp`
-  - the containment results for the ceiling and every prefix link (lines 30–35)
+  - the containment results for the ceiling and every prefix link (lines 33–38)
   - the prefix's hop and session checks (line 11) and expiry checks (line 15 for k < N)
   - arm B: the Miller-loop product P (§5.7)
   - arm D: the verified prefix signature bytes `σ_0 … σ_{N−1}`. A hit additionally requires the received prefix signatures to be byte-identical to them; otherwise treat it as a miss. Without this, a chain with valid prefix bodies but garbage prefix signatures would be accepted on a hit and rejected on a miss, and §11.3's equivalence test would rightly fail. Arm B needs no such rule, because its full pairing equation covers every signature.
@@ -1111,12 +1140,14 @@ A-mt needs a separate build, because Cargo unifies features and `no-threads` can
 3. Line 13; line 15 for k = N; line 17.
 4. The last key link only, identifier and key (D-36): line 18 if N = 1, else line 20 for k = N − 1.
 5. Lines 23–28 for k = N only.
-6. Lines 36–46.
-7. Line 48, `m_N` against the cached digests.
-8. Phase 8:
+6. Line 31, `m_N` against the cached digests.
+7. Line 32, the chain signatures:
    - arm B: `FE(P · ML(H(m_N), pk_N) · ML(σ_agg, −g1)) == 1`;
    - arm D: `verify_strict(pk_N, m_N, σ_N)`.
+8. Lines 39–49.
 9. Line 50.
+
+A hit skips the prefix's signatures and its containment links (lines 35–38), as before D-94. **In the measured commits** the hit path ran the old order: lines 36–46 (today's 39–49) at step 6, then line 48 and phase 8 (today's 31 and 32) at steps 7 and 8.
 
 **Miss path:** run the full algorithm, then populate the cache.
 
@@ -1172,7 +1203,7 @@ Generate everything from a seeded `ChaCha20Rng`, and record the seed.
   - Policy: 16 rules × 4 params × 3 atoms, spread over 2 services and 4 tools.
   - 2 rules require approval, and they are ordered before overlapping permissive rules (the recommended order, paper §6.3).
   - Delegations: each hop drops 2 rules and tightens 1 bound, but never drops below 4 rules. From then on, hops only tighten. With 9 hops at N = 10, hops 1–6 drop rules and hops 7–9 only tighten; smaller N are unaffected (**D-38**).
-  - A hop never drops an approval rule while keeping a permissive rule that the approval rule overlaps. That would be a real escalation, and line 34 correctly rejects it.
+  - A hop never drops an approval rule while keeping a permissive rule that the approval rule overlaps. That would be a real escalation, and line 37 correctly rejects it (line 34 in the measured commits; D-94).
   - Invocation: matches the last surviving rule, which is Evaluate's worst case.
 
 **Identities (D-40).** Within a chain, every hop uses a distinct agent identity, except in the correctness tests of §11.2. Identities are drawn from a fixed per-organization pool. The warm-up chains of the warm states cover every identity and certificate the measured chains use, so "warm" really means the certificate cache holds every certificate a measured chain needs.
@@ -1396,7 +1427,7 @@ Work through the milestones in order. Each ends with all tests green, a commit, 
 
 ---
 
-## Appendix A — Algorithms 1 and 2 (from the paper; the PDF is authoritative)
+## Appendix A — Algorithms 1 and 2 (the source of truth for their text and line numbers; D-94)
 
 ```
  1: procedure Verify(received chain C, current time t)
@@ -1404,10 +1435,10 @@ Work through the milestones in order. Each ends with all tests green, a commit, 
  2:   (B0, ..., BN, σ) ← Decode(C); reject if decoding fails
  3:   reject if N < 1
  4:   for all Bk do
- 5:     reject if Canon(Bk) ≠ received bytes of Bk
+ 5:     reject if Canon(Bk) ≠ received bytes of Bk           ▷ non-canonical encoding
  6:   end for
  7:   reject if any Bk.kind disagrees with the tag its position implies
- 8:   reject if BN.aud ≠ self
+ 8:   reject if BN.aud ≠ self                                ▷ addressed to this verifier
  9:   reject if H(Canon(BN.params)) ≠ BN.params_hash
 10:   for k ← 1 to N − 1 do
 11:     reject unless Bk.hop_index = k and Bk.session_id = B0.session_id
@@ -1415,7 +1446,7 @@ Work through the milestones in order. Each ends with all tests green, a commit, 
     ▷ Phase 2 — temporal
 13:   reject if t ∉ [BN.nbf, BN.exp]
 14:   for k ← 1 to N do
-15:     reject if Bk.exp > Bk−1.exp
+15:     reject if Bk.exp > Bk−1.exp                          ▷ expiry must not grow along the chain
 16:   end for
     ▷ Phase 3 — replay
 17:   reject if (spk(BN), BN.nonce) ∈ NonceCache
@@ -1428,49 +1459,51 @@ Work through the milestones in order. Each ends with all tests green, a commit, 
 22:   for k ← 0 to N do
 23:     certk ← Resolve(sid(Bk), spk(Bk)); reject if unresolvable
 24:     reject unless certk verifies under Root[org(sid(Bk))]
-25:     reject unless certk.registry_id = org(sid(Bk))
-26:     reject unless certk.kind = role(k)
+25:     reject unless certk.registry_id = org(sid(Bk))       ▷ registry owns the namespace
+26:     reject unless certk.kind = role(k)                   ▷ role fixed by position
 27:     reject unless t ∈ [certk.nbf, certk.exp] and (sid(Bk), spk(Bk)) is not revoked at t
 28:     pkk ← certk.pk                        ▷ equals spk(Bk) by resolution
 29:   end for
-    ▷ Phase 6 — policy
-30:   reject if B0.policy_hash ∉ Pinned[org(sid(B0))]
-31:   S ← LoadPolicy(B0.policy_hash); reject if unavailable
-32:   reject if Contains(S, scope(B0)) is false
-33:   for k ← 1 to N − 1 do
-34:     reject if Contains(scope(Bk−1), scope(Bk)) is false
-35:   end for
-36:   d ← Evaluate(scope(BN−1), BN.invocation)
-37:   reject if d = deny
-    ▷ Phase 7 — approvals
-38:   if d = allow-with-approval(svcs) then
-39:     for all s ∈ svcs do
-40:       R ← the receipt in BN with R.approver_id = s; reject if none
-41:       certR ← Resolve(s, R.approver_pk); reject if unresolvable
-42:       reject unless certR passes the phase-5 checks with kind approver
-43:       reject unless R verifies under certR.pk over InvocationDigest(BN)
-44:       reject if t ∉ [R.iat, R.exp]
-45:     end for
-46:   end if
-    ▷ Phase 8 — chain signatures
-47:   recompute m0, ..., mN from B0, ..., BN using position-determined tags
-48:   reject if mi = mj for some i ≠ j        ▷ aggregate variant's precondition
-49:   reject unless VerifyChain(pk0..pkN, m0..mN, σ)
+    ▷ Phase 6 — chain signatures
+30:   recompute m0, …, mN from B0, …, BN using position-determined tags
+31:   reject if mi = mj for some i ≠ j                    ▷ aggregate variant's precondition
+32:   reject unless VerifyChain(pk0..pkN, m0..mN, σ)
+    ▷ Phase 7 — policy
+33:   reject if B0.policy_hash ∉ Pinned[org(sid(B0))]     ▷ verifier's own choice
+34:   S ← LoadPolicy(B0.policy_hash); reject if unavailable
+35:   reject if Contains(S, scope(B0)) is false            ▷ the ceiling
+36:   for k ← 1 to N − 1 do
+37:     reject if Contains(scope(Bk−1), scope(Bk)) is false
+38:   end for
+39:   d ← Evaluate(scope(BN−1), BN.invocation)
+40:   reject if d = deny
+    ▷ Phase 8 — approvals
+41:   if d = allow-with-approval(svcs) then
+42:     for all s ∈ svcs do
+43:       R ← the receipt in BN with R.approver_id = s; reject if none
+44:       certR ← Resolve(s, R.approver_pk); reject if unresolvable
+45:       reject unless certR passes the phase-5 checks with kind approver
+46:       reject unless R verifies under certR.pk over InvocationDigest(BN)
+47:       reject if t ∉ [R.iat, R.exp]
+48:     end for
+49:   end if
     ▷ Commit
-50:   reject unless InsertIfAbsent(NonceCache, (pkN, BN.nonce))
+50:   reject unless InsertIfAbsent(NonceCache, (pkN, BN.nonce))  ▷ atomic
 51:   accept
 52: end procedure
 ```
 
 `sid(B_k)` is `issuer_id`, `delegator_id` or `invoker_id`, and `spk(B_k)` is `issuer_pk`, `delegator_pk` or `invoker_pk`, by position. `role(k)` is `issuer` for k = 0 and `agent` for k ≥ 1. `self` is the verifier's own service identifier.
 
-The listing above is paper revision 2026-10-06, checked against revision 2026-10-04 word by word on 2026-10-06: only line 2 changed.
-- **Line 49** is `VerifyChain`. In the default instantiation it checks each σk against (pkk, mk) with strict Ed25519 verification. Under the aggregate variant it is the multi-pairing e(g1, σagg) = ∏ e(pkk, HashToG2(mk)) (paper §4.8, Eq. 5).
+The listing above is the source of truth for Algorithms 1–2 and their line numbers (§2). The paper will copy it verbatim.
+- **Lines 1–29 and 50–52** are paper revision 2026-10-06, checked against revision 2026-10-04 word by word on 2026-10-06: only line 2 changed. Their end-of-line comments are the paper's, carried here so that a verbatim copy keeps them.
+- **Lines 30–49 are D-94's order, ahead of the paper (P-34).** Revision 2026-10-06 has policy as phase 6 (lines 30–37), approvals as phase 7 (lines 38–46) and the chain signatures as phase 8 (lines 47–49). The statement on every line is unchanged; only its position and number. Mapping: old 30–37 → 33–40; old 38–46 → 41–49; old 47–49 → 30–32.
+- **Line 32** is `VerifyChain`. In the default instantiation it checks each σk against (pkk, mk) with strict Ed25519 verification. Under the aggregate variant it is the multi-pairing e(g1, σagg) = ∏ e(pkk, HashToG2(mk)) (paper §4.8, Eq. 5).
 - **Line 27** states the closed interval and revocation by binding (P-26, P-29).
 - **Line 2** decodes σ, the instantiation's chain signatures: N+1 signatures, or one aggregate. Revision 2026-10-04 named σagg (P-31).
-- **Earlier revisions.** Revision 2026-09-29 differed from 2026-09-28 only at lines 18 and 20 (D-36, P-16), line 27 (D-35, P-17) and line 41 (D-27, P-14). The numbering has never changed.
+- **Earlier revisions.** Revision 2026-09-29 differed from 2026-09-28 only at lines 18 and 20 (D-36, P-16), line 27 (D-35, P-17) and line 41 (today's line 44; D-27, P-14). Before D-94 the numbering had never changed.
 - The implementation reads line 27 as `t ∈ [certk.nbf, certk.exp]`, closed at both ends (P-26).
-- A malformed scope (D-28; paper §6.1) fails decoding at line 2, or makes the policy unavailable at line 31.
+- A malformed scope (D-28; paper §6.1) fails decoding at line 2, or makes the policy unavailable at line 34.
 
 ---
 
@@ -1510,7 +1543,7 @@ Configurations re-run: <list>
 
 ## Appendix C — Paper issues (status against revision 2026-09-29)
 
-`PAPER_ISSUES.md` holds the full entries, each with a `Status` line saying where revision 2026-09-29 addresses it.
+`PAPER_ISSUES.md` holds the full entries, each with a `Status` line saying where revision 2026-09-29 addresses it. Line and phase numbers in this appendix are those of the paper revision it describes; D-94 renumbers lines 30–49 (changelog).
 
 **Still open in revision 2026-09-29:**
 

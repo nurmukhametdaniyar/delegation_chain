@@ -4,7 +4,7 @@
 //!
 //! A [`Scope`] can only be built by validating it (paper §6.1 "Well-
 //! formedness"; D-17, D-19, D-20, D-21, D-28). A malformed policy is
-//! unavailable at Algorithm 2 line 31 (D-12). A malformed scope inside a body
+//! unavailable at Algorithm 2 line 34 (D-12). A malformed scope inside a body
 //! fails decoding at Algorithm 1 line 2.
 
 mod ast;

@@ -28,6 +28,7 @@ Problems in the paper, _DelegationChain_ (titled _Aggregatable Capability Chains
   - resolved in it: P-31, P-32 and P-33;
   - still open: P-05.
   - Its §8 is filled in except the repository URL and archive DOI, and its Table 5 caption now says the "Paper" column gives this paper's sections.
+- **After revision 2026-10-06 (2026-11-01).** New and open: P-34 (policy work runs on unsigned input). SPEC.md runs ahead of the paper on Algorithm 2's order and line numbers (D-94); the paper will copy SPEC Appendix A.
 - "Location" and "Evidence" below refer to revision 2026-09-28, where the issue was found. Each `Status` line says where revision 2026-09-29, and since step 3 revision 2026-10-04, addresses it.
 
 ---
@@ -389,3 +390,21 @@ What the implementation does: One bound, `VerifierConfig::clock_skew` (60 second
 Suggested fix to the paper: Say that the two are the same deployment parameter, or give each its own.
 Severity: clarity
 Status: resolved in revision 2026-10-06. §5.6: the skew bound "bounds the same quantity as the clock-skew tolerance in the nonce cache's TTL (Section 4.6), and the reference implementation uses one value, 60 seconds, for both". That is D-82.
+
+## P-34 — Policy work runs on unsigned input
+Paper location: §4.6 (Algorithm 2; the "Cost" paragraph: "only a chain that has survived every structural, temporal, and policy check reaches the chain-signature verification of phase 8"); Figure 2 and its caption; §9.3 ("Policy checks before identity resolution") (revision 2026-10-06)
+Problem:
+- Phases 1–5 need no private key. An attacker can name real identities with their real keys, so that their certificates resolve (from cache, on a warm verifier), copy a pinned policy hash off the wire, and attach scopes it wrote itself.
+- Phase 6 then runs `Contains` on those scopes before phase 8 checks any signature. Varying the scopes defeats a containment cache (§6.5), so the cost recurs on every attempt.
+- §4.6 argues that an adversary must construct a chain that is "scope-monotone, and policy-compliant" before the verifier does expensive work. But containment is itself the expensive work at large scopes: the frozen plan's criterion results put `Contains` at 64 rules × 8 atoms at 5,146 µs, against 20.6 µs for one strict Ed25519 verification (BENCHMARKS.md §3).
+- §9.3's future-work item, policy checks before identity resolution, would widen this: it would run `Contains` on unsigned input without even the certificate checks.
+Evidence: `tests/security.rs::unsigned_chain_does_no_policy_work`. Under revision 2026-10-06's order its chain, signed by an unrelated key throughout, reaches `Contains` and is rejected by the ceiling check; under D-94 it is rejected at line 32 with no `Contains` or `Evaluate` call.
+What the implementation does: D-94. The chain signatures are phase 6, ahead of policy (phase 7) and approvals (phase 8). SPEC Appendix A is the algorithm text and numbering the paper will copy.
+Suggested fix to the paper:
+- Algorithm 2 as SPEC Appendix A. Its caption: phases 6–8, the chain signatures, policy and approvals. Algorithm 1's "Phases run cheapest-first" no longer holds of phase 6 against phase 7.
+- §4.6: the "Cost" paragraph and Figure 2 (order and caption): phases 1–5 are cheap; the chain signatures come before any policy work, for the reason above; the cold-verifier exception stands (phase 5 verifies N + 1 certificates first). The phase paragraphs ("Scope monotonicity …", "Approval verification", "Chain signature verification … Finally") follow the new order, with lines 31 and 32 for 48 and 49.
+- Phase and line numbers elsewhere: §4.5 ("the kind check of phase 7" → 8); §4.7 ("line 49" → 32); §4.8 ("phases 1–7 … only line 49"; "Line 49's VerifyChain"; "Line 48 establishes"); §6.4 ("Phase 6 would then reject" → 7); §7.1, aggregate security ("phase 8 of Algorithm 2" → 6); Theorem 4's proof ("Phase 6" twice → 7); Theorem 6's proof ("Phase 7", "phase 7" → 8); §7.3 ("phases 5 and 7" → 5 and 8); §7.4 ("phase 8 of Algorithm 2" → 6); §8.1 and §8.2 ("only line 49" → 32); §8.7's line ranges; the security-suite table (Appendix A), which `dc-bench paper` regenerates with the new lines.
+- §9.3: drop "Policy checks before identity resolution", or replace it with this ordering's rationale.
+- The claims table's phase-ordering rows and §8.7 describe the measured commits, which ran the old order; say so.
+Severity: clarity (a denial-of-service cost; soundness is unaffected, since every accepted chain passes every check in either order)
+Status: open in revision 2026-10-06. SPEC.md runs ahead of the paper (SPEC §2, D-94).

@@ -127,7 +127,7 @@ impl ChainScheme for BlsAggregate {
             let msgs: Vec<&[u8]> = msgs.iter().map(|m| &m[..]).collect();
             // σ_agg was validated at decode and the keys when their
             // certificates were cached, so neither is re-checked here (D-05,
-            // D-30). blst does not check message distinctness; line 48 does
+            // D-30). blst does not check message distinctness; line 31 does
             // (SPEC §5.6).
             sigs.aggregate_verify(false, &msgs, Dst::Chain.bls(), pks, false)
                 == BLST_ERROR::BLST_SUCCESS

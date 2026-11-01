@@ -43,7 +43,7 @@ struct Entry<C: PrefixScheme> {
     bindings: Vec<(String, Principal, Vec<u8>)>,
     /// The identifier and key the last prefix body hands on (D-36).
     handoff: (Principal, Vec<u8>),
-    /// The session's issuer organization and policy hash (line 30).
+    /// The session's issuer organization and policy hash (line 33).
     pinned: (String, Digest32),
     /// B_{N−1}'s scope and expiry.
     scope: Scope,
@@ -227,18 +227,19 @@ impl<C: PrefixScheme, R: Resolver, P: PolicyStore, K: Clock> PrefixVerifier<C, R
         }
         // Step 5. Lines 23–28 for k = N.
         let c = v.signer_certificate(n, &d.body, t)?;
-        // Step 6. Lines 36–46.
-        let decision = v.lines_36_37(&e.scope, inv)?;
-        v.phase7(inv, &decision, t)?;
-        // Step 7. Line 47 for m_N; line 48 against the cached digests.
+        // Step 6. Line 30 for m_N; line 31 against the cached digests.
         let m_n = m_invocation(e.digests.last().expect("N ≥ 1"), &env.bodies[n]);
         if e.digests.contains(&m_n) {
-            return Err(Reject::L48DuplicateDigest);
+            return Err(Reject::L31DuplicateDigest);
         }
-        // Step 8. Line 49.
+        // Step 7. Line 32, before any policy work (D-94).
         if !C::verify_last(&e.state, &c.pk, &m_n, &sigs) {
-            return Err(Reject::L49ChainSignaturesInvalid);
+            return Err(Reject::L32ChainSignaturesInvalid);
         }
+        // Step 8. Lines 39–49; the prefix's links (lines 35–38) passed when
+        // the entry was filled.
+        let decision = v.lines_39_40(&e.scope, inv)?;
+        v.phase8(inv, &decision, t)?;
         // Step 9. Line 50.
         v.line50(nonce_key, inv, t)?;
         Ok(Accepted { n, decision })

@@ -22,7 +22,7 @@ use dc_policy::{Decision, Scope};
 use dc_registry::{RegistryError, Resolver};
 use dc_types::digest::m_delegation;
 use dc_types::{Body, CertBody, Identifier, Kind, ParsedCert, RawScope};
-use dc_verifier::{Reject, VerifierConfig, check_phase8};
+use dc_verifier::{Reject, VerifierConfig, check_phase6};
 
 /// Removes body `k` from an envelope, and its signature with it when the
 /// chain carries one per hop, as an attacker who drops a hop would: per-hop
@@ -48,7 +48,7 @@ fn t1a_foreign_signatures() {
     env.sigs = A::to_wire(&combine::<A>(&[stranger; 3]).unwrap());
     assert_eq!(
         v.verify(&env.to_bytes()),
-        Err(Reject::L49ChainSignaturesInvalid)
+        Err(Reject::L32ChainSignaturesInvalid)
     );
 }
 
@@ -64,7 +64,7 @@ fn t1a_victim_identity_signed_by_attacker() {
     let forged = s.resign(c.bodies.clone(), &keys);
     assert_eq!(
         v.verify(&forged.to_bytes()),
-        Err(Reject::L49ChainSignaturesInvalid)
+        Err(Reject::L32ChainSignaturesInvalid)
     );
 }
 
@@ -200,9 +200,9 @@ fn t1b_splice() {
 
 #[test]
 fn theorem_3_digest_recursion_catches_what_line_11_catches() {
-    // Line 11 rejects reordering, truncation and insertion before phase 8,
+    // Line 11 rejects reordering, truncation and insertion before phase 6,
     // but the paper says those checks are redundant with the digest
-    // recursion (Theorem 3). This calls phase 8 (lines 47–49) directly on the
+    // recursion (Theorem 3). This calls phase 6 (lines 30–32) directly on the
     // mutated bodies, with the signatures moved, dropped or added along with
     // them, as an attacker could: per hop they are on the wire; under the
     // aggregate variant they are recoverable from partial sums (paper §4.8).
@@ -217,7 +217,7 @@ fn theorem_3_digest_recursion_catches_what_line_11_catches() {
         let refs: Vec<&[u8]> = bytes.iter().map(Vec::as_slice).collect();
         let pks: Vec<_> = bodies.iter().map(pk_of).collect();
         let pk_refs: Vec<_> = pks.iter().collect();
-        check_phase8::<A>(&pk_refs, &refs, sigs)
+        check_phase6::<A>(&pk_refs, &refs, sigs)
     };
     // The unmutated chain passes, so the check is not vacuous.
     assert_eq!(run(&c.bodies, &c.sigs), Ok(()));
@@ -229,7 +229,7 @@ fn theorem_3_digest_recursion_catches_what_line_11_catches() {
     let sigs = combine::<A>(&[c.parts[0], c.parts[2], c.parts[1], c.parts[3]]).unwrap();
     assert_eq!(
         run(&reordered, &sigs),
-        Err(Reject::L49ChainSignaturesInvalid)
+        Err(Reject::L32ChainSignaturesInvalid)
     );
 
     // Truncation: drop d2 and σ_2.
@@ -241,7 +241,7 @@ fn theorem_3_digest_recursion_catches_what_line_11_catches() {
     let sigs = combine::<A>(&[c.parts[0], c.parts[1], c.parts[3]]).unwrap();
     assert_eq!(
         run(&truncated, &sigs),
-        Err(Reject::L49ChainSignaturesInvalid)
+        Err(Reject::L32ChainSignaturesInvalid)
     );
 
     // Insertion: a hop by a2 signed over the digest of its position; the
@@ -264,7 +264,7 @@ fn theorem_3_digest_recursion_catches_what_line_11_catches() {
     let sigs = combine::<A>(&[c.parts[0], c.parts[1], sig_x, c.parts[2], c.parts[3]]).unwrap();
     assert_eq!(
         run(&inserted, &sigs),
-        Err(Reject::L49ChainSignaturesInvalid)
+        Err(Reject::L32ChainSignaturesInvalid)
     );
 }
 
@@ -294,7 +294,7 @@ fn t2a_parameter_substitution_recomputing_the_hash() {
     env.bodies[2] = Body::Invocation(inv).canonical_bytes().unwrap();
     assert_eq!(
         v.verify(&env.to_bytes()),
-        Err(Reject::L49ChainSignaturesInvalid)
+        Err(Reject::L32ChainSignaturesInvalid)
     );
 }
 
@@ -311,7 +311,7 @@ fn t2b_delegation_wider_than_parent() {
     );
     assert_eq!(
         v.verify(&c.to_bytes()),
-        Err(Reject::L34ScopeEscalation { k: 1 })
+        Err(Reject::L37ScopeEscalation { k: 1 })
     );
 }
 
@@ -328,7 +328,7 @@ fn t2b_session_scope_exceeds_policy() {
     );
     assert_eq!(
         v.verify(&c.to_bytes()),
-        Err(Reject::L32SessionScopeExceedsPolicy)
+        Err(Reject::L35SessionScopeExceedsPolicy)
     );
 }
 
@@ -338,7 +338,7 @@ fn t2b_policy_not_pinned() {
     let v = s.verifier();
     v.unpin("orga", &s.hash);
     let c = s.chain(1);
-    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L30NotPinned));
+    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L33NotPinned));
 }
 
 #[test]
@@ -349,21 +349,21 @@ fn t2b_policy_unavailable_or_malformed() {
     s.hash = absent.policy_hash();
     let v = s.verifier();
     let c = s.chain(1);
-    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L31PolicyUnavailable));
+    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L34PolicyUnavailable));
     // Pinned, but the store serves bytes that are not a policy (D-12).
     let garbage = b"not a policy".to_vec();
     s.hash = dc_types::digest::policy_hash(&garbage);
     s.w.policies().put_unchecked(s.hash, garbage);
     let v = s.verifier();
     let c = s.chain(1);
-    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L31PolicyUnavailable));
+    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L34PolicyUnavailable));
     // Pinned, but the store serves a different document under the hash.
     s.hash = [0x77; 32];
     s.w.policies()
         .put_unchecked(s.hash, s.policy.canonical_bytes());
     let v = s.verifier();
     let c = s.chain(1);
-    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L31PolicyUnavailable));
+    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L34PolicyUnavailable));
 }
 
 #[test]
@@ -380,7 +380,7 @@ fn t2b_allow_all_under_a_rule_list() {
     );
     assert_eq!(
         v.verify(&c.to_bytes()),
-        Err(Reject::L34ScopeEscalation { k: 1 })
+        Err(Reject::L37ScopeEscalation { k: 1 })
     );
 }
 
@@ -492,7 +492,7 @@ fn t3d_audience_clause() {
         "transfer",
         transfer(500, "acct_vendor_a"),
     );
-    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L37Denied));
+    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L40Denied));
 }
 
 // ============================================================ T4 approvals
@@ -525,7 +525,7 @@ fn t4a_compromised_approver_is_bounded() {
         .unwrap();
     inv.set_receipts(vec![r]).unwrap();
     let c = s.resign_default(bodies);
-    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L37Denied));
+    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L40Denied));
 }
 
 #[test]
@@ -574,7 +574,7 @@ fn t4b_routing_to_a_permissive_approver() {
         let r = audit.approve(inv, now).unwrap();
         inv.set_receipts(vec![r]).unwrap();
     });
-    assert_eq!(v.verify(&x), Err(Reject::L40MissingReceipt));
+    assert_eq!(v.verify(&x), Err(Reject::L43MissingReceipt));
 }
 
 #[test]
@@ -588,7 +588,7 @@ fn t4c_receipt_reuse() {
     let mut bodies = c.bodies.clone();
     *bodies.last_mut().unwrap() = Body::Invocation(other);
     let x = s.resign_default(bodies);
-    assert_eq!(v.verify(&x.to_bytes()), Err(Reject::L43ReceiptSignature));
+    assert_eq!(v.verify(&x.to_bytes()), Err(Reject::L46ReceiptSignature));
 }
 
 #[test]
@@ -602,7 +602,7 @@ fn t4d_stale_approval() {
         inv.params = transfer(6000, "acct_vendor_a");
         inv.params_hash = inv.params.hash().unwrap();
     });
-    assert_eq!(v.verify(&x), Err(Reject::L43ReceiptSignature));
+    assert_eq!(v.verify(&x), Err(Reject::L46ReceiptSignature));
 }
 
 #[test]
@@ -618,18 +618,18 @@ fn receipt_window() {
         inv.set_receipts(vec![r]).unwrap();
     });
     s.w.clock().set(now + 20);
-    assert_eq!(v.verify(&x), Err(Reject::L44ReceiptWindow));
+    assert_eq!(v.verify(&x), Err(Reject::L47ReceiptWindow));
     s.w.clock().set(now);
 
     // A receipt naming the finance approver, signed with a key no
-    // certificate binds to it: unresolvable (line 41, D-27).
+    // certificate binds to it: unresolvable (line 44, D-27).
     let c = s.approval_chain(2);
     let impostor = ApprovalService::<S>::new(p(FINANCE), s.sk(AUDIT));
     let x = with_receipts(&s, &c, |inv| {
         let r = impostor.approve(inv, now).unwrap();
         inv.set_receipts(vec![r]).unwrap();
     });
-    assert_eq!(v.verify(&x), Err(Reject::L41ApproverUnresolvable));
+    assert_eq!(v.verify(&x), Err(Reject::L44ApproverUnresolvable));
 
     // An approver certificate not valid yet (D-35).
     s.w.enroll_window(FINANCE, "finance-next", now + 100, now + 1000)
@@ -640,7 +640,7 @@ fn receipt_window() {
         let r = next.approve(inv, now).unwrap();
         inv.set_receipts(vec![r]).unwrap();
     });
-    assert_eq!(v.verify(&x), Err(Reject::L42ApproverCertificate));
+    assert_eq!(v.verify(&x), Err(Reject::L45ApproverCertificate));
 
     // A revoked approver.
     let reg = s.w.org("orga");
@@ -648,7 +648,7 @@ fn receipt_window() {
     let serial = ParsedCert::<S>::decode(&cert).unwrap().body.serial;
     v.ingest_revocation(&reg.revoke(serial).unwrap()).unwrap();
     let c = s.approval_chain(2);
-    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L42ApproverCertificate));
+    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L45ApproverCertificate));
 }
 
 #[test]
@@ -798,7 +798,7 @@ fn t5b_compromised_root_is_bounded() {
         &[],
     );
     assert!(v.verify(&c.to_bytes()).is_ok());
-    // Beyond the pinned policy: refused at line 32.
+    // Beyond the pinned policy: refused at line 35.
     let c = s.build(
         ("orga:issuer:rogue", "rogue"),
         &[(&a1.0, &a1.1)],
@@ -811,7 +811,7 @@ fn t5b_compromised_root_is_bounded() {
     );
     assert_eq!(
         v.verify(&c.to_bytes()),
-        Err(Reject::L32SessionScopeExceedsPolicy)
+        Err(Reject::L35SessionScopeExceedsPolicy)
     );
     // Another organization's namespace: a certificate for an orgb issuer
     // signed with orga's root, even if served for orgb, fails line 24.
@@ -1006,7 +1006,7 @@ fn t5e_role_confusion() {
     );
     assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L26WrongKind { k: 2 }));
     // An agent key signing a receipt, naming the required approver: no
-    // certificate binds finance to the agent's key (line 41, D-27).
+    // certificate binds finance to the agent's key (line 44, D-27).
     let c = s.approval_chain(2);
     let now = s.now();
     let rogue = ApprovalService::<S>::new(p(FINANCE), s.sk(&agent(5)));
@@ -1014,7 +1014,7 @@ fn t5e_role_confusion() {
         let r = rogue.approve(inv, now).unwrap();
         inv.set_receipts(vec![r]).unwrap();
     });
-    assert_eq!(v.verify(&x), Err(Reject::L41ApproverUnresolvable));
+    assert_eq!(v.verify(&x), Err(Reject::L44ApproverUnresolvable));
 }
 
 #[test]
@@ -1062,7 +1062,7 @@ fn scheduled_rotation_with_overlapping_certificates() {
         Err(Reject::L27CertificateNotValid { k: 1 })
     );
     let c = chain(&mut s, "iss-new", "a1-new", "fin-old");
-    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L42ApproverCertificate));
+    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L45ApproverCertificate));
     // Before the new certificates' nbf, a chain naming a new key fails.
     s.w.clock().set(now - 20);
     let c = chain(&mut s, "iss-new", "a1-old", "fin-old");
@@ -1088,7 +1088,7 @@ fn t6a_prompt_injection_is_bounded() {
         "transfer",
         transfer(200_000, "acct_other"),
     );
-    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L37Denied));
+    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L40Denied));
 }
 
 #[test]
@@ -1124,7 +1124,7 @@ fn t6b_confused_deputy_is_bounded() {
     );
     assert_eq!(
         v.verify(&c.to_bytes()),
-        Err(Reject::L34ScopeEscalation { k: 1 })
+        Err(Reject::L37ScopeEscalation { k: 1 })
     );
 }
 
@@ -1144,14 +1144,14 @@ fn closed_world() {
         (Key::from("override_limits"), Value::Bool(true)),
     ]);
     let c = s.chain_with(&[pol(), pol()], PAYMENTS, "payments", "transfer", prm);
-    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L37Denied));
+    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L40Denied));
     // An array-valued parameter.
     let prm = with_params(vec![
         (Key::from("amount"), Value::Array(vec![Value::uint(500)])),
         (Key::from("to_account"), Value::text("acct_vendor_a")),
     ]);
     let c = s.chain_with(&[pol(), pol()], PAYMENTS, "payments", "transfer", prm);
-    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L37Denied));
+    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L40Denied));
     // A path escaping the workspace through /../, at the files service.
     let files = s.verifier_as(FILES, VerifierConfig::default());
     let prm = with_params(vec![(
@@ -1159,7 +1159,7 @@ fn closed_world() {
         Value::text("/home/agent/workspace/../../etc/passwd"),
     )]);
     let c = s.chain_with(&[pol(), pol()], FILES, "files", "read", prm);
-    assert_eq!(files.verify(&c.to_bytes()), Err(Reject::L37Denied));
+    assert_eq!(files.verify(&c.to_bytes()), Err(Reject::L40Denied));
     let prm = with_params(vec![(
         Key::from("file"),
         Value::text("/home/agent/workspace/notes"),
@@ -1401,7 +1401,7 @@ fn point_validation_ed25519() {
     identity[0] = 1;
     assert_eq!(
         v.verify(&with_sig1(Some(identity), None)),
-        Err(Reject::L49ChainSignaturesInvalid)
+        Err(Reject::L32ChainSignaturesInvalid)
     );
     // A receipt signature with s = ℓ.
     let c = s.approval_chain(2);
@@ -1485,7 +1485,65 @@ fn malformed_scopes_p15() {
     s.w.policies().put_unchecked(s.hash, doc);
     let v = s.verifier();
     let c = s.chain(1);
-    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L31PolicyUnavailable));
+    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L34PolicyUnavailable));
+}
+
+#[test]
+fn scope_size_bounds_d21() {
+    // A delegation scope one past each of D-21's bounds, correctly signed, is
+    // malformed: line 2 rejects it, whatever its signatures (D-28).
+    let mut s = Suite::new();
+    let v = s.verifier();
+    let head = "allow at=orgb:service:payments tool=payments action=transfer";
+    let ints = |n: usize| (0..n).map(|i| format!("p{i}: int")).collect::<Vec<_>>();
+    let rule = format!("{head} params {{ amount: int }} where amount <= 1\n");
+    let atoms: Vec<String> = (0..33).map(|i| format!("amount <= {i}")).collect();
+    let list: Vec<String> = (0..65).map(|i| format!("\"a{i}\"")).collect();
+    let cases = [
+        (rule.repeat(257), "more than 256 rules"),
+        (
+            format!(
+                "{head} params {{ amount: int }} where {}",
+                atoms.join(" and ")
+            ),
+            "more than 32 atoms",
+        ),
+        (
+            format!("{head} params {{ {} }}", ints(33).join(", ")),
+            "more than 32 parameters",
+        ),
+        (
+            format!(
+                "{head} params {{ s: string }} where s in [{}]",
+                list.join(", ")
+            ),
+            "1 to 64 elements",
+        ),
+        (
+            format!(
+                "{head} params {{ s: string }} where s == \"{}\"",
+                "a".repeat(1025)
+            ),
+            "longer than 1024 bytes",
+        ),
+        (
+            format!("{head} params {{ a.b.c.d.e.f.g.h.i: int }}"),
+            "path grammar",
+        ),
+    ];
+    for (src, why) in cases {
+        let c = s.chain(2);
+        let mut bodies = c.bodies.clone();
+        let Body::Delegation(d) = &mut bodies[1] else {
+            panic!()
+        };
+        d.scope = RawScope(Scope::parse_unchecked(&src).unwrap().to_value());
+        let x = s.resign_default(bodies);
+        assert!(
+            matches!(v.verify(&x.to_bytes()), Err(Reject::L02Decode(m)) if m.contains(why)),
+            "{why}"
+        );
+    }
 }
 
 // ============================================================ key chain, resolution
@@ -1594,14 +1652,14 @@ fn resolution_unknown_signer() {
 #[test]
 fn distinct_messages() {
     // A real duplicate digest needs a SHA-256 collision, so a test hook
-    // copies m_0 over m_1 before line 48.
+    // copies m_0 over m_1 before line 31.
     let mut s = Suite::new();
     let mut config = VerifierConfig::default();
     config.hooks.duplicate_digest = Some((0, 1));
     let v = s.verifier_as(PAYMENTS, config);
     assert_eq!(
         v.verify(&s.chain(2).to_bytes()),
-        Err(Reject::L48DuplicateDigest)
+        Err(Reject::L31DuplicateDigest)
     );
 }
 
@@ -1609,10 +1667,13 @@ fn distinct_messages() {
 
 #[test]
 fn phase_ordering_count_ops() {
-    // Paper §4.6, Figure 2: once certificates are cached, a chain that cannot
-    // succeed is discarded before any signature is verified; a cold verifier
-    // verifies the N + 1 certificates first (phase 5). A fresh (cold)
-    // verifier for each case, so that resolver counts mean something.
+    // Phases 1–5 are cheap: an expired or misaddressed chain is discarded
+    // before any signature is verified. Since D-94 the chain signatures
+    // (phase 6) come before policy, so a chain that fails in phase 7 has had
+    // its N + 1 chain signatures checked first, unlike paper revision
+    // 2026-10-06's Figure 2 (P-34). A cold verifier verifies the N + 1
+    // certificates before both (phase 5). A fresh (cold) verifier for each
+    // case, so that resolver counts mean something.
     let mut s = Suite::new();
     // An expired chain.
     let c = s.chain(2);
@@ -1640,9 +1701,12 @@ fn phase_ordering_count_ops() {
         (0, 0, 0),
         "{n:?}"
     );
-    // A line-34 rejection. Warm, nothing is verified. Cold, phase 5 has
-    // already checked the N + 1 = 3 certificates (issuer, a1, a2) at line 24,
-    // and under BLS registry roots each is a pairing check (D-61, P-28).
+    // A line-37 rejection, after the ceiling and one link have been checked.
+    // Warm, the N + 1 = 3 chain signatures are verified first: three strict
+    // Ed25519 verifications, or one aggregate over 3 messages (3 hash-to-G2,
+    // 4 Miller loops, 1 final exponentiation). Cold, phase 5 has also
+    // checked the 3 certificates (issuer, a1, a2) at line 24, and under BLS
+    // registry roots each is a pairing check (D-61, P-28).
     let c = s.chain_with(
         &[policy_with_bound(500), s.policy.clone()],
         PAYMENTS,
@@ -1653,25 +1717,42 @@ fn phase_ordering_count_ops() {
     let warm = s.verifier();
     assert!(warm.verify(&s.chain(2).to_bytes()).is_ok()); // caches a1, a2, the issuer, the policy
     let (r, n) = warm.verify_counted(&c.to_bytes());
-    assert_eq!(r, Err(Reject::L34ScopeEscalation { k: 1 }));
+    assert_eq!(r, Err(Reject::L37ScopeEscalation { k: 1 }));
+    assert_eq!((n.contains_calls, n.resolver_calls), (2, 0), "warm: {n:?}");
+    #[cfg(not(feature = "aggregate-variant"))]
+    assert_eq!((n.sig_verifications, n.pairings()), (3, 0), "warm: {n:?}");
+    #[cfg(feature = "aggregate-variant")]
     assert_eq!(
-        (n.sig_verifications, n.pairings(), n.resolver_calls),
-        (0, 0, 0),
+        (
+            n.hash_to_curve,
+            n.miller_loops,
+            n.final_exps,
+            n.sig_verifications
+        ),
+        (3, 4, 1, 1),
         "warm: {n:?}"
     );
     let (r, n) = s.verifier().verify_counted(&c.to_bytes());
-    assert_eq!(r, Err(Reject::L34ScopeEscalation { k: 1 }));
+    assert_eq!(r, Err(Reject::L37ScopeEscalation { k: 1 }));
+    #[cfg(not(feature = "aggregate-variant"))]
     assert_eq!(
         (n.sig_verifications, n.resolver_calls),
-        (3, 3),
+        (6, 3),
         "cold: {n:?}"
     );
     // Each certificate check is one hash-to-G2, two Miller loops and one
-    // final exponentiation; there is no aggregate or receipt check.
+    // final exponentiation, and the aggregate adds its own; there is no
+    // receipt check.
     #[cfg(feature = "aggregate-variant")]
     assert_eq!(
-        (n.hash_to_curve, n.miller_loops, n.final_exps),
-        (3, 6, 3),
+        (
+            n.hash_to_curve,
+            n.miller_loops,
+            n.final_exps,
+            n.sig_verifications,
+            n.resolver_calls
+        ),
+        (6, 10, 4, 4, 3),
         "cold: {n:?}"
     );
     // Sanity check of the counters on an accepted chain, warm: N + 1 = 3
@@ -1693,6 +1774,86 @@ fn phase_ordering_count_ops() {
             n.sig_verifications
         ),
         (3, 4, 1, 1),
+        "{n:?}"
+    );
+}
+
+/// A scope at D-21's size bounds: 256 rules, the first with 32 declared
+/// parameters (one a path of depth 8), 32 atoms, a 64-element `in` list and
+/// a 1,024-byte string; the rest are 255 one-atom transfer rules. Well
+/// formed, and its body stays under D-03's 64 KiB.
+fn scope_at_bounds() -> Scope {
+    let mut params = vec![
+        "amount: int".to_owned(),
+        "to_account: string".to_owned(),
+        "a.b.c.d.e.f.g.h: int".to_owned(),
+    ];
+    let mut atoms = vec![
+        "amount <= 1000".to_owned(),
+        "a.b.c.d.e.f.g.h >= 0".to_owned(),
+    ];
+    for i in 0..29 {
+        params.push(format!("p{i}: int"));
+        atoms.push(format!("p{i} >= 0"));
+    }
+    let mut list: Vec<String> = (0..63).map(|i| format!("\"acct_{i}\"")).collect();
+    list.push(format!("\"{}\"", "a".repeat(1024)));
+    atoms.push(format!("to_account in [{}]", list.join(", ")));
+    let mut rules = vec![format!(
+        "allow at=orgb:service:payments tool=payments action=transfer params {{ {} }} where {}",
+        params.join(", "),
+        atoms.join(" and ")
+    )];
+    for i in 1..256 {
+        rules.push(format!(
+            "allow at=orgb:service:payments tool=payments action=transfer \
+             params {{ amount: int, to_account: string }} where amount <= {i}"
+        ));
+    }
+    Scope::parse(&rules.join("\n")).expect("well formed at the bounds")
+}
+
+#[test]
+fn unsigned_chain_does_no_policy_work() {
+    // D-94 (P-34). Phases 1–5 need no private key: this chain names real
+    // identities with their real keys, whose certificates the warm verifier
+    // has cached, and carries the pinned policy hash; its scopes are well
+    // formed at the size bounds but are not the signers'. Every chain
+    // signature is by an unrelated key, over the right digest. N = 16. The
+    // chain is rejected at line 32, before Contains or Evaluate runs and
+    // before the policy is looked up.
+    let mut s = Suite::new();
+    for i in 7..=16 {
+        s.w.enroll(&agent(i), &agent(i)).unwrap();
+    }
+    let v = s.verifier();
+    assert!(v.verify(&s.chain(16).to_bytes()).is_ok()); // caches the issuer, a1–a16, the policy
+    let big = scope_at_bounds();
+    // Outside the policy, so that reaching phase 7 would reject at line 35:
+    // only the order of the phases separates the two outcomes.
+    if dc_policy::contains(&s.policy, &big) {
+        panic!("the scope must exceed the policy");
+    }
+    let mut bodies = s.chain(16).bodies;
+    for b in &mut bodies {
+        match b {
+            Body::Session(sb) => sb.scope = big.to_raw(),
+            Body::Delegation(d) => d.scope = big.to_raw(),
+            Body::Invocation(_) => {}
+        }
+    }
+    let strangers: Vec<_> = (0..bodies.len()).map(|_| S::keygen(&[9; 32])).collect();
+    let forged = s.resign(bodies, &strangers);
+    let (r, n) = v.verify_counted(&forged.to_bytes());
+    assert_eq!(r, Err(Reject::L32ChainSignaturesInvalid));
+    assert_eq!(
+        (
+            n.contains_calls,
+            n.evaluate_calls,
+            n.resolver_calls,
+            n.policy_store_calls
+        ),
+        (0, 0, 0, 0),
         "{n:?}"
     );
 }

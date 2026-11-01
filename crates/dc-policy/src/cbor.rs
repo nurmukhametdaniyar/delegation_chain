@@ -79,7 +79,7 @@ impl Scope {
         Scope::from_value(&raw.0)
     }
 
-    /// Decodes a policy document for `LoadPolicy` (Algorithm 2 line 31). It
+    /// Decodes a policy document for `LoadPolicy` (Algorithm 2 line 34). It
     /// must be canonical CBOR, all text must be NFC, the scope must be
     /// well-formed, and re-encoding must give back the same bytes. Any
     /// failure makes the policy unavailable (D-12, D-55).

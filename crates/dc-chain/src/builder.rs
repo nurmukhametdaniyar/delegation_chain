@@ -249,7 +249,7 @@ impl<C: ChainScheme> ChainBuilder<C> {
 }
 
 /// Signs `bodies` in position order with `keys`, computing each digest with
-/// the tag its position implies, as the verifier will (Algorithm 2 line 47),
+/// the tag its position implies, as the verifier will (Algorithm 2 line 30),
 /// and accumulating the signatures. It bypasses the signing services, as an
 /// attacker holding the keys could. The security suite uses it to build
 /// altered chains that are nevertheless correctly signed.

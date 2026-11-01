@@ -466,6 +466,8 @@ fn counter(field: &str) -> Option<&'static str> {
         "resolver_calls" => "resolver calls",
         "policy_store_calls" => "policy-store calls",
         "sig_verifications" => "signature checks",
+        "contains_calls" => "Contains calls",
+        "evaluate_calls" => "Evaluate calls",
         "hash_to_curve" => "hash-to-G2",
         "miller_loops" => "Miller loops",
         "final_exps" => "final exps",
@@ -493,7 +495,7 @@ fn classify(a: &str) -> Result<String, String> {
         return Ok("accept (with approval)".into());
     }
     if a.starts_with("run(") && a.ends_with("Ok(())") {
-        return Ok("phase 8 accepts the unmutated chain".into());
+        return Ok("phase 6 accepts the unmutated chain".into());
     }
     if a.ends_with(".is_ok()") {
         return Ok("accept".into());

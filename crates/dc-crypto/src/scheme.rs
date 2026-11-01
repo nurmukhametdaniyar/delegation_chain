@@ -55,8 +55,8 @@ pub trait ChainScheme:
     fn start(sig0: <Self::Base as SigScheme>::Signature) -> Self::WireSigs;
     /// Adds σ_k to the running aggregate, or appends it to the list.
     fn accumulate(acc: &mut Self::WireSigs, sig: <Self::Base as SigScheme>::Signature);
-    /// Algorithm 2 line 49, over the pairs `(pks[k], msgs[k])`. Does **not**
-    /// check that the messages are distinct; that is line 48 (SPEC §5.6).
+    /// Algorithm 2 line 32, over the pairs `(pks[k], msgs[k])`. Does **not**
+    /// check that the messages are distinct; that is line 31 (SPEC §5.6).
     fn verify_chain(
         pks: &[&<Self::Base as SigScheme>::PublicKey],
         msgs: &[[u8; 32]],

@@ -12,7 +12,7 @@
 //! | D       | `Ed25519List`                   | `PrefixVerifier`                  |
 //! | E       | Biscuit (biscuit-auth 6.0)      | [`biscuit::BiscuitArm`]           |
 //!
-//! A, A-ind, C and C-batch run the same generic verifier; only line 49 and
+//! A, A-ind, C and C-batch run the same generic verifier; only line 32 and
 //! the base scheme's signatures differ (SPEC §12). B and D wrap that verifier
 //! in a prefix cache (SPEC §12.1), with arm B's pairing cache (SPEC §5.7) in
 //! `dc_crypto::pairing_cache`.

@@ -90,7 +90,7 @@ pub struct TestHooks {
     /// Skip line 5's check of recorded violations, so that the re-encoding
     /// comparison alone must catch non-canonical input (D-31).
     pub ignore_recorded_violations: bool,
-    /// Before line 48, copy m_i over m_j. A real duplicate would need a
+    /// Before line 31, copy m_i over m_j. A real duplicate would need a
     /// SHA-256 collision.
     pub duplicate_digest: Option<(usize, usize)>,
 }
@@ -100,7 +100,7 @@ pub struct TestHooks {
 pub struct Accepted {
     /// N: the number of bodies after the session body.
     pub n: usize,
-    /// The decision of line 36 (`Allow` or `AllowWithApproval`).
+    /// The decision of line 39 (`Allow` or `AllowWithApproval`).
     pub decision: Decision,
 }
 
@@ -114,8 +114,8 @@ pub struct VerifiedCert<P> {
     valid_until: u64,
 }
 
-/// Why resolving a certificate failed: line 23 (41 for approvers) or line
-/// 24 (42).
+/// Why resolving a certificate failed: line 23 (44 for approvers) or line
+/// 24 (45).
 enum CertFailure {
     Unresolvable,
     Invalid,
@@ -138,26 +138,26 @@ pub struct Verifier<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> {
     config: VerifierConfig,
 }
 
-/// Algorithm 2, lines 47–49, on received body bytes: recompute the digests
+/// Algorithm 2, lines 30–32, on received body bytes: recompute the digests
 /// with position tags, require them to be distinct, and check the chain
-/// signature. Public so that the Theorem 3 tests can call phase 8 directly
+/// signature. Public so that the Theorem 3 tests can call phase 6 directly
 /// on mutated body lists.
-pub fn check_phase8<C: ChainScheme>(
+pub fn check_phase6<C: ChainScheme>(
     pks: &[&Pk<C>],
     bodies: &[&[u8]],
     sigs: &C::WireSigs,
 ) -> Result<(), Reject> {
-    phase8::<C>(pks, bodies, sigs, None).map(|_| ())
+    phase6::<C>(pks, bodies, sigs, None).map(|_| ())
 }
 
-/// Phase 8, with the test hook that copies m_i over m_j before line 48.
-fn phase8<C: ChainScheme>(
+/// Phase 6, with the test hook that copies m_i over m_j before line 31.
+fn phase6<C: ChainScheme>(
     pks: &[&Pk<C>],
     bodies: &[&[u8]],
     sigs: &C::WireSigs,
     duplicate: Option<(usize, usize)>,
 ) -> Result<Vec<Digest32>, Reject> {
-    // Line 47.
+    // Line 30.
     let mut m = chain_digests(bodies);
     if let Some((i, j)) = duplicate
         && i < m.len()
@@ -165,15 +165,15 @@ fn phase8<C: ChainScheme>(
     {
         m[j] = m[i];
     }
-    // Line 48.
+    // Line 31.
     let mut seen = HashSet::with_capacity(m.len());
     if !m.iter().all(|d| seen.insert(*d)) {
-        return Err(Reject::L48DuplicateDigest);
+        return Err(Reject::L31DuplicateDigest);
     }
-    // Line 49.
+    // Line 32.
     phases::enter(Phase::Signatures);
     if !C::verify_chain(pks, &m, sigs) {
-        return Err(Reject::L49ChainSignaturesInvalid);
+        return Err(Reject::L32ChainSignaturesInvalid);
     }
     Ok(m)
 }
@@ -359,7 +359,7 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
         Ok(())
     }
 
-    /// Line 31: `LoadPolicy`, content-addressed (D-12).
+    /// Line 34: `LoadPolicy`, content-addressed (D-12).
     fn load_policy(&self, hash: &Digest32) -> Option<Arc<Scope>> {
         if self.config.cache_policies
             && let Some(s) = self.policy_cache.read().unwrap().get(hash)
@@ -386,8 +386,9 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
         contains(parent, child)
     }
 
-    /// Algorithms 1 and 2, in order. With the `phase-timing` feature, each
-    /// call's phases are timed (D-77).
+    /// Algorithms 1 and 2, in order: since D-94 the chain signatures (phase
+    /// 6) come before policy (phase 7) and approvals (phase 8). With the
+    /// `phase-timing` feature, each call's phases are timed (D-77).
     pub fn verify_at(&self, chain: &[u8], t: u64) -> Result<Accepted, Reject> {
         phases::begin(Phase::Envelope);
         let r = decode_envelope(chain).and_then(|env| self.verify_envelope(env, t, &mut ()));
@@ -515,41 +516,9 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
             certs.push(self.signer_certificate(k, b, t)?);
         }
 
-        // ---- Phase 6: policy ----
-        // Line 30.
-        phases::enter(Phase::PolicyLoad);
-        if !self.is_pinned(session.issuer_id.org(), &session.policy_hash) {
-            return Err(Reject::L30NotPinned);
-        }
-        // Line 31.
-        let policy = self
-            .load_policy(&session.policy_hash)
-            .ok_or(Reject::L31PolicyUnavailable)?;
-        let scope = |k: usize| {
-            scopes[k]
-                .as_ref()
-                .expect("session and delegation bodies carry scopes")
-        };
-        // Line 32.
-        phases::enter(Phase::Contains);
-        if !self.contains(&policy, scope(0)) {
-            return Err(Reject::L32SessionScopeExceedsPolicy);
-        }
-        // Lines 33–35.
-        for k in 1..n {
-            if !self.contains(scope(k - 1), scope(k)) {
-                return Err(Reject::L34ScopeEscalation { k });
-            }
-        }
-        // Lines 36–37.
-        phases::enter(Phase::Evaluate);
-        let d = self.lines_36_37(scope(n - 1), inv)?;
-
-        // ---- Phase 7: approvals ----
-        phases::enter(Phase::Approvals);
-        self.phase7(inv, &d, t)?;
-
-        // ---- Phase 8: aggregate signature ----
+        // ---- Phase 6: chain signatures ----
+        // Lines 30–32, before any policy work, so that Contains and Evaluate
+        // only ever see scopes every hop has signed (D-94).
         phases::enter(Phase::Digests);
         let pks: Vec<&Pk<C>> = certs.iter().map(|c| &c.pk).collect();
         let refs: Vec<&[u8]> = env.bodies.iter().map(Vec::as_slice).collect();
@@ -557,7 +526,41 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
         let duplicate = self.config.hooks.duplicate_digest;
         #[cfg(not(feature = "test-hooks"))]
         let duplicate = None;
-        let digests = phase8::<C>(&pks, &refs, &sigs, duplicate)?;
+        let digests = phase6::<C>(&pks, &refs, &sigs, duplicate)?;
+
+        // ---- Phase 7: policy ----
+        // Line 33.
+        phases::enter(Phase::PolicyLoad);
+        if !self.is_pinned(session.issuer_id.org(), &session.policy_hash) {
+            return Err(Reject::L33NotPinned);
+        }
+        // Line 34.
+        let policy = self
+            .load_policy(&session.policy_hash)
+            .ok_or(Reject::L34PolicyUnavailable)?;
+        let scope = |k: usize| {
+            scopes[k]
+                .as_ref()
+                .expect("session and delegation bodies carry scopes")
+        };
+        // Line 35.
+        phases::enter(Phase::Contains);
+        if !self.contains(&policy, scope(0)) {
+            return Err(Reject::L35SessionScopeExceedsPolicy);
+        }
+        // Lines 36–38.
+        for k in 1..n {
+            if !self.contains(scope(k - 1), scope(k)) {
+                return Err(Reject::L37ScopeEscalation { k });
+            }
+        }
+        // Lines 39–40.
+        phases::enter(Phase::Evaluate);
+        let d = self.lines_39_40(scope(n - 1), inv)?;
+
+        // ---- Phase 8: approvals ----
+        phases::enter(Phase::Approvals);
+        self.phase8(inv, &d, t)?;
 
         // ---- Commit ----
         phases::enter(Phase::Replay);
@@ -644,7 +647,7 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
         Ok(c)
     }
 
-    /// Line 30's test: is `hash` in `Pinned[org]`?
+    /// Line 33's test: is `hash` in `Pinned[org]`?
     pub(crate) fn is_pinned(&self, org: &str, hash: &Digest32) -> bool {
         self.pinned
             .read()
@@ -659,13 +662,13 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
         self.revoked.read().unwrap().is_revoked(registry, id, pk)
     }
 
-    /// Lines 36 and 37: evaluate the invocation under the holder's scope.
-    pub(crate) fn lines_36_37(
+    /// Lines 39 and 40: evaluate the invocation under the holder's scope.
+    pub(crate) fn lines_39_40(
         &self,
         scope: &Scope,
         inv: &InvocationBody<C::Base>,
     ) -> Result<Decision, Reject> {
-        // Line 36.
+        // Line 39.
         ops::add(|c| c.evaluate_calls += 1);
         let d = evaluate(
             scope,
@@ -676,15 +679,15 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
                 params: inv.params.value(),
             },
         );
-        // Line 37.
+        // Line 40.
         if d == Decision::Deny {
-            return Err(Reject::L37Denied);
+            return Err(Reject::L40Denied);
         }
         Ok(d)
     }
 
-    /// Phase 7, lines 38–46.
-    pub(crate) fn phase7(
+    /// Phase 8, lines 41–49.
+    pub(crate) fn phase8(
         &self,
         inv: &InvocationBody<C::Base>,
         d: &Decision,
@@ -695,34 +698,34 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
         };
         let digest = inv
             .invocation_digest()
-            .map_err(|_| Reject::L43ReceiptSignature)?;
+            .map_err(|_| Reject::L46ReceiptSignature)?;
         for s in svcs {
-            // Line 40. Receipts are sorted by approver (D-15); others are
+            // Line 43. Receipts are sorted by approver (D-15); others are
             // ignored (D-34).
             let r = inv
                 .receipts
                 .binary_search_by(|r| r.approval.approver_id.cmp(s))
                 .map(|i| &inv.receipts[i])
-                .map_err(|_| Reject::L40MissingReceipt)?;
-            // Line 41, with its reject clause (D-27).
+                .map_err(|_| Reject::L43MissingReceipt)?;
+            // Line 44, with its reject clause (D-27).
             let c = self
                 .certificate(s, &r.approval.approver_pk, t)
                 .map_err(|f| match f {
-                    CertFailure::Unresolvable => Reject::L41ApproverUnresolvable,
-                    CertFailure::Invalid => Reject::L42ApproverCertificate,
+                    CertFailure::Unresolvable => Reject::L44ApproverUnresolvable,
+                    CertFailure::Invalid => Reject::L45ApproverCertificate,
                 })?;
-            // Line 42.
+            // Line 45.
             self.phase5_checks(&c, s, Kind::Approver, t)
-                .map_err(|_| Reject::L42ApproverCertificate)?;
-            // Line 43.
+                .map_err(|_| Reject::L45ApproverCertificate)?;
+            // Line 46.
             if r.approval.invocation_digest != digest
                 || !C::Base::verify(&c.pk, &r.message(), Dst::Receipt, &r.sig)
             {
-                return Err(Reject::L43ReceiptSignature);
+                return Err(Reject::L46ReceiptSignature);
             }
-            // Line 44.
+            // Line 47.
             if t < r.approval.iat || t > r.approval.exp {
-                return Err(Reject::L44ReceiptWindow);
+                return Err(Reject::L47ReceiptWindow);
             }
         }
         Ok(())

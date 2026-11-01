@@ -89,7 +89,7 @@ impl MemoryPolicyStore {
     }
 
     /// Stores arbitrary bytes under an arbitrary hash: a store that serves
-    /// the wrong document or a malformed one (SPEC §11.2, T2b line 31).
+    /// the wrong document or a malformed one (SPEC §11.2, T2b line 34).
     pub fn put_unchecked(&self, hash: Digest32, bytes: Vec<u8>) {
         self.docs.write().unwrap().insert(hash, bytes);
     }

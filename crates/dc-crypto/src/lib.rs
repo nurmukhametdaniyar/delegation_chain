@@ -2,7 +2,7 @@
 //!
 //! [`SigScheme`] is a single-signature scheme: sign, verify, and validated
 //! encodings of keys and signatures. [`ChainScheme`] says how a chain's N+1
-//! signatures travel and are checked at Algorithm 2 line 49. SPEC §5.1
+//! signatures travel and are checked at Algorithm 2 line 32. SPEC §5.1
 //! sketches one trait; splitting it lets certificates, receipts, PoP and
 //! revocations use the instantiation's base scheme directly (D-52).
 //!

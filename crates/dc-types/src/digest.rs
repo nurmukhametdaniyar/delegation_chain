@@ -39,7 +39,7 @@ pub fn m_invocation(prev: &Digest32, body: &[u8]) -> Digest32 {
     sha256(&[TAG_INV, prev, body])
 }
 
-/// Algorithm 2 line 47: m_0 … m_N from the received canonical body bytes,
+/// Algorithm 2 line 30: m_0 … m_N from the received canonical body bytes,
 /// with the tag each position implies. Position 0 is the session, the last
 /// position (if N ≥ 1) the invocation, and everything between a delegation.
 pub fn chain_digests(bodies: &[&[u8]]) -> Vec<Digest32> {

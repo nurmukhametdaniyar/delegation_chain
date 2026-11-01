@@ -292,7 +292,7 @@ fn run<C: ChainScheme>(family: &str, seed: u64, make: impl FnOnce(&ArmSuite<C>) 
                 let mut scopes = vec![session];
                 for _ in 1..n {
                     if chance(&mut rng, 50) {
-                        bound += 500; // a widening: line 34
+                        bound += 500; // a widening: line 37
                     } else if chance(&mut rng, 500) {
                         bound -= 1 + rng.next_u64() % 50;
                     }
@@ -336,7 +336,7 @@ fn run<C: ChainScheme>(family: &str, seed: u64, make: impl FnOnce(&ArmSuite<C>) 
                 PAYMENTS
             };
             let approvers: &[(&str, &str)] = if chance(&mut rng, 50) {
-                &[(AUDIT, AUDIT)] // finance's receipt is missing: line 40
+                &[(AUDIT, AUDIT)] // finance's receipt is missing: line 43
             } else {
                 &[(FINANCE, FINANCE), (AUDIT, AUDIT)]
             };

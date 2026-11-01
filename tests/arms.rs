@@ -133,7 +133,7 @@ fn arm_d_needs_byte_identical_prefix_signatures() {
     let v = prefix_verifier(&s, VerifierConfig::default());
     let uncached = s.verifier_as(PAYMENTS, VerifierConfig::uncached());
     assert!(v.verify(&invoke(&mut s, &pre).to_bytes()).is_ok());
-    // Valid prefix bodies with a garbage σ_1: a miss, and line 49 on the
+    // Valid prefix bodies with a garbage σ_1: a miss, and line 32 on the
     // full path, as for the uncached verifier (SPEC §12.1).
     let c = invoke(&mut s, &pre);
     let mut env = c.envelope();
@@ -145,11 +145,11 @@ fn arm_d_needs_byte_identical_prefix_signatures() {
     let t = s.now();
     assert_eq!(
         uncached.verify_at(&bytes, t),
-        Err(Reject::L49ChainSignaturesInvalid)
+        Err(Reject::L32ChainSignaturesInvalid)
     );
     assert_eq!(
         v.verify_traced(&bytes, t),
-        (Err(Reject::L49ChainSignaturesInvalid), Path::Miss)
+        (Err(Reject::L32ChainSignaturesInvalid), Path::Miss)
     );
 }
 
@@ -187,7 +187,7 @@ fn a_pin_change_clears_the_cache() {
     assert_eq!(v.cached_prefixes(), 0);
     assert_eq!(
         v.verify_traced(&invoke(&mut s, &pre).to_bytes(), t),
-        (Err(Reject::L30NotPinned), Path::Miss)
+        (Err(Reject::L33NotPinned), Path::Miss)
     );
     v.pin("orga", s.hash);
     assert_eq!(
@@ -235,7 +235,7 @@ fn a_rejected_first_invocation_caches_nothing() {
     let v = prefix_verifier(&s, VerifierConfig::default());
     let now = s.now();
     let a3 = agent(3);
-    // Denied at line 37: the prefix is fine, but nothing is cached (D-67).
+    // Denied at line 40: the prefix is fine, but nothing is cached (D-67).
     let c = s.invoke_on(
         pre.clone(),
         (&a3, &a3),
@@ -246,6 +246,6 @@ fn a_rejected_first_invocation_caches_nothing() {
         (now, now + 600),
         &[],
     );
-    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L37Denied));
+    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L40Denied));
     assert_eq!(v.cached_prefixes(), 0);
 }

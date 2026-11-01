@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 /// Why a chain was rejected: one variant per rejecting line of Algorithms
-/// 1–2 (SPEC §10.2). `k` is the body position.
+/// 1–2 (SPEC §10.2, Appendix A; D-94's numbering). `k` is the body position.
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum Reject {
     #[error("line 2: decoding failed: {0}")]
@@ -38,30 +38,30 @@ pub enum Reject {
     L26WrongKind { k: usize },
     #[error("line 27: body {k}'s certificate is not yet valid, expired, or revoked")]
     L27CertificateNotValid { k: usize },
-    #[error("line 30: the session's policy is not pinned for its organization")]
-    L30NotPinned,
-    #[error("line 31: the policy is unavailable")]
-    L31PolicyUnavailable,
-    #[error("line 32: the session scope is not contained in the policy")]
-    L32SessionScopeExceedsPolicy,
-    #[error("line 34: delegation {k}'s scope is not contained in its parent's")]
-    L34ScopeEscalation { k: usize },
-    #[error("line 37: the innermost scope denies the invocation")]
-    L37Denied,
-    #[error("line 40: no receipt from a required approval service")]
-    L40MissingReceipt,
-    #[error("line 41: the approver's certificate cannot be resolved")]
-    L41ApproverUnresolvable,
-    #[error("line 42: the approver's certificate fails the phase-5 checks")]
-    L42ApproverCertificate,
-    #[error("line 43: the receipt does not verify over InvocationDigest(B_N)")]
-    L43ReceiptSignature,
-    #[error("line 44: t is outside the receipt's validity window")]
-    L44ReceiptWindow,
-    #[error("line 48: two chain digests are equal")]
-    L48DuplicateDigest,
-    #[error("line 49: the chain signatures do not verify")]
-    L49ChainSignaturesInvalid,
+    #[error("line 31: two chain digests are equal")]
+    L31DuplicateDigest,
+    #[error("line 32: the chain signatures do not verify")]
+    L32ChainSignaturesInvalid,
+    #[error("line 33: the session's policy is not pinned for its organization")]
+    L33NotPinned,
+    #[error("line 34: the policy is unavailable")]
+    L34PolicyUnavailable,
+    #[error("line 35: the session scope is not contained in the policy")]
+    L35SessionScopeExceedsPolicy,
+    #[error("line 37: delegation {k}'s scope is not contained in its parent's")]
+    L37ScopeEscalation { k: usize },
+    #[error("line 40: the innermost scope denies the invocation")]
+    L40Denied,
+    #[error("line 43: no receipt from a required approval service")]
+    L43MissingReceipt,
+    #[error("line 44: the approver's certificate cannot be resolved")]
+    L44ApproverUnresolvable,
+    #[error("line 45: the approver's certificate fails the phase-5 checks")]
+    L45ApproverCertificate,
+    #[error("line 46: the receipt does not verify over InvocationDigest(B_N)")]
+    L46ReceiptSignature,
+    #[error("line 47: t is outside the receipt's validity window")]
+    L47ReceiptWindow,
     #[error("line 50: invoker key and nonce already recorded")]
     L50Replay,
 }
@@ -88,18 +88,18 @@ impl Reject {
             L25RegistryNamespace { .. } => 25,
             L26WrongKind { .. } => 26,
             L27CertificateNotValid { .. } => 27,
-            L30NotPinned => 30,
-            L31PolicyUnavailable => 31,
-            L32SessionScopeExceedsPolicy => 32,
-            L34ScopeEscalation { .. } => 34,
-            L37Denied => 37,
-            L40MissingReceipt => 40,
-            L41ApproverUnresolvable => 41,
-            L42ApproverCertificate => 42,
-            L43ReceiptSignature => 43,
-            L44ReceiptWindow => 44,
-            L48DuplicateDigest => 48,
-            L49ChainSignaturesInvalid => 49,
+            L31DuplicateDigest => 31,
+            L32ChainSignaturesInvalid => 32,
+            L33NotPinned => 33,
+            L34PolicyUnavailable => 34,
+            L35SessionScopeExceedsPolicy => 35,
+            L37ScopeEscalation { .. } => 37,
+            L40Denied => 40,
+            L43MissingReceipt => 43,
+            L44ApproverUnresolvable => 44,
+            L45ApproverCertificate => 45,
+            L46ReceiptSignature => 46,
+            L47ReceiptWindow => 47,
             L50Replay => 50,
         }
     }

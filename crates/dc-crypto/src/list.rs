@@ -27,7 +27,7 @@ pub fn to_wire<S: SigScheme>(sigs: &[S::Signature]) -> WireForm {
 }
 
 /// Checks each (key, digest, signature) triple with the scheme's single
-/// verification, stopping at the first failure: line 49 for a list.
+/// verification, stopping at the first failure: line 32 for a list.
 pub fn verify_each<S: SigScheme>(
     pks: &[&S::PublicKey],
     msgs: &[[u8; 32]],

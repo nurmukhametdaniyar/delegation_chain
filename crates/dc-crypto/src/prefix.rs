@@ -1,4 +1,4 @@
-//! Prefix caching at line 49 (SPEC §12.1; VARIANT, arms B and D).
+//! Prefix caching at line 32 (SPEC §12.1; VARIANT, arms B and D).
 //!
 //! A prefix-cache entry stands for the first N bodies of an accepted chain.
 //! On a hit, only the last body's signature work remains; what the entry
@@ -11,7 +11,7 @@ use crate::{ChainScheme, Dst, Ed25519, Ed25519List, SigScheme, WireForm};
 type Pk<C> = <<C as ChainScheme>::Base as SigScheme>::PublicKey;
 
 pub trait PrefixScheme: ChainScheme {
-    /// What an entry keeps to decide line 49 on a hit.
+    /// What an entry keeps to decide line 32 on a hit.
     type PrefixState: Send + Sync;
 
     /// Computed once, when a chain is accepted on the full path. `pks` and
@@ -23,7 +23,7 @@ pub trait PrefixScheme: ChainScheme {
     /// A mismatch is a cache miss, never a rejection.
     fn prefix_matches(state: &Self::PrefixState, wire: &WireForm) -> bool;
 
-    /// Algorithm 2 line 49 on a hit, given the last body's key and digest.
+    /// Algorithm 2 line 32 on a hit, given the last body's key and digest.
     fn verify_last(
         state: &Self::PrefixState,
         pk_n: &Pk<Self>,

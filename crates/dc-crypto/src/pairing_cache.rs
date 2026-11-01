@@ -1,6 +1,6 @@
 //! Arm B's pairing cache (SPEC §5.7; VARIANT).
 //!
-//! Line 49 checks `Π_{k=0}^{N} e(pk_k, H(m_k)) = e(g1, σ_agg)`. For a known
+//! Line 32 checks `Π_{k=0}^{N} e(pk_k, H(m_k)) = e(g1, σ_agg)`. For a known
 //! prefix this module keeps `P = Π_{k<N} ML(H(m_k), pk_k)`, the Miller-loop
 //! product before the final exponentiation, and per invocation checks
 //! `FE(conj(ML(σ_agg, g1)) · P · ML(H(m_N), pk_N)) = 1`.
@@ -48,7 +48,7 @@ pub fn prefix_product(pks: &[&PublicKey], msgs: &[[u8; 32]]) -> Option<MillerPro
     Some(MillerProduct(ctx.as_fp12()))
 }
 
-/// Line 49 given the prefix product: one hash to G2, two Miller loops and
+/// Line 32 given the prefix product: one hash to G2, two Miller loops and
 /// one final exponentiation, whatever N is.
 pub fn verify_with_prefix(
     p: &MillerProduct,

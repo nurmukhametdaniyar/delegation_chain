@@ -40,7 +40,7 @@ impl ChainScheme for BlsIndividual {
     }
 }
 
-/// Arm C-batch: arm C's wire format, with one `verify_batch` at line 49.
+/// Arm C-batch: arm C's wire format, with one `verify_batch` at line 32.
 /// Batch and strict verification differ at the edges (D-66).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Ed25519Batch;
