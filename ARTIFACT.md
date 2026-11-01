@@ -142,7 +142,7 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
   ```
 
   It writes `results/exploratory/reorder/` and appends a `BENCH_LOG.md` entry; `dc-bench reorder` prints the comparison.
-- **Contains at the scope-size bounds (D-95).** An exploratory criterion pass at a commit with `benches/bounds.rs`, on M9's machine state. Its largest cells take minutes per call, so it takes hours.
+- **Contains at the scope-size bounds (D-95).** An exploratory criterion pass at a commit with `benches/bounds.rs`, on M9's machine state. Its largest cell takes minutes per call, so it takes about an hour and a quarter.
 
   ```sh
   scripts/bounds-check.sh

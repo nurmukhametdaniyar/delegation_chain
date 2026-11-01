@@ -8,8 +8,8 @@
 # M9's machine state is AC power, High Power mode and an idle machine. The
 # script checks them with `dc-bench env`'s record of M9's requirements,
 # waiting up to 10 minutes for the machine to become idle after the build,
-# as the harness does. The largest cells take minutes per call, so the pass
-# takes hours.
+# as the harness does. The largest cell takes minutes per call, so the pass
+# takes about an hour and a quarter.
 #
 # Usage: scripts/bounds-check.sh
 set -euo pipefail
