@@ -1114,7 +1114,22 @@ After D-94 put the chain signatures ahead of policy, the author asked what the s
   - **alternating:** two scopes, X and Y, that a compromised agent can sign in turn so that every link it controls passes while step 3(b) runs its shadow scan in full: R − 1 rules over x ∈ [0, 5] and a last rule over [0, 6], against R − 1 rules over [1, 6] and the same last rule. It is an input found by reading the procedure, not a proof of the worst case. `tests/scope_bounds.rs` checks that a chain alternating them at N = 16 is accepted.
 - **How.** `cargo bench -p dc-bench --bench bounds`: one call per sample, ten samples, criterion's median and 95% CI, on M9's machine state and build flags.
 
-_Not run yet: there are no criterion estimates under `results/exploratory/bounds/criterion/`._
+| Rules × atoms | frozen-worst (ms) | alternating (ms) |
+|---|---|---|
+| 64 × 8 | 4.79 [4.72, 4.86] | 204 [203, 212] |
+| 64 × 16 | 9.35 [9.29, 9.37] | 692 [691, 696] |
+| 64 × 32 | 31.3 [30.8, 31.5] | 2447 [2438, 2455] |
+| 128 × 8 | 19.9 [19.7, 20.1] | 1662 [1642, 1712] |
+| 128 × 16 | 38.1 [37.9, 38.7] | 5625 [5611, 5642] |
+| 128 × 32 | 128 [127, 128] | 19684 [19657, 19709] |
+| 256 × 8 | 80.2 [79.9, 81.7] | 13522 [13410, 13558] |
+| 256 × 16 | 158 [157, 159] | 45312 [45277, 45356] |
+| 256 × 32 | larger than a body | 157090 [156557, 157396] |
+
+**Per link.** The costliest cell is alternating at 256 × 32: 157090 ms for one `Contains` call, 7612338× one strict Ed25519 verification (20.6 µs) and 30524× the frozen matrix's worst case at 64 × 8 (5.15 ms).
+
+**Per chain at N = 16.** 14 alternating links of that size cost 2199.3 s of `Contains`, and the chain still passes every link.
+
 
 ### The cost of D-94's reorder
 

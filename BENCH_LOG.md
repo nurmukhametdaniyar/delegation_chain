@@ -190,3 +190,12 @@ Reason: D-94 moved the chain signatures ahead of policy after M9, and the author
 - **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only. The raw data are archived under `results/exploratory/reorder/<build>/archive/`, each pinned by its `MANIFEST.sha256`.
 
 Configurations re-run: none.
+
+## 2026-11-01 — Exploratory run (not pre-registered): Contains at the scope-size bounds
+Reason: after D-94 the author asked what the scope-size bounds still let a compromised signer force (D-95).
+- **What ran.** `scripts/bounds-check.sh`, run by the author: `cargo bench -p dc-bench --bench bounds` at `f75b706`, with `target-cpu=native` as M9, ten samples of one call each per cell (criterion's flat sampling; small cells take several calls per sample). All 17 cells that fit a body were measured.
+- **Machine state.** AC power, High Power mode and an idle machine, checked by the script before the bench and recorded in `results/exploratory/bounds/env.json`. Its `git.dirty` is true only because of untracked files; the script had checked that no tracked file was modified. Nothing monitored the machine during the pass.
+- **Completed by hand.** The script gave criterion a relative `CRITERION_HOME`, and cargo runs a bench from its package directory, so the output landed under `crates/dc-bench/results/exploratory/bounds/criterion/`. Packing then failed and the script stopped. The output was moved, unchanged, to `results/exploratory/bounds/criterion/`, packed as the script packs it, and this entry written. Nothing was re-measured. The script now passes an absolute path.
+- **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only. Criterion's output is `results/exploratory/bounds/criterion.tar.zst`, pinned by its `.sha256`.
+
+Configurations re-run: none.

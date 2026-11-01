@@ -1236,6 +1236,8 @@ Decision:
 - **How.** `scripts/bounds-check.sh`: `target-cpu=native` as M9, M9's machine state (AC power, High Power mode and an idle machine, from `dc-bench env`), criterion's flat sampling with one call per sample and ten samples. Each call's result is checked outside the timer. The bench target has `bench = false`, so `cargo bench -p dc-bench`, which `dc-bench all` runs for the frozen pass, leaves it out.
 - **Data.** `results/exploratory/bounds/`: `env.json`, and criterion's output as `criterion.tar.zst` with its `.sha256`, which unpacks to `criterion/` (not committed).
 - **Reporting.** BENCHMARKS.md §8, exploratory, generated from criterion's estimates. Until the pass has run, the block says so.
+- **Run (2026-11-01),** by the author at `f75b706`, on the machine state above; all 17 cells that fit were measured (BENCHMARKS.md §8). The script's relative `CRITERION_HOME` sent criterion's output under `crates/dc-bench/`, so packing failed; the output was moved unchanged and packed by hand, nothing re-measured (BENCH_LOG.md). The script now passes an absolute path.
+- **What it shows.** The alternating construction costs far more than the frozen generator's worst case at every size, including the frozen matrix's own 64 × 8, and its costliest cell, a single link at the full bounds, is in the minutes. That is a cost a compromised agent can impose with a chain the verifier accepts. Whether to lower the bounds is the author's decision.
 Why: the bounds are what remains between a compromised signer and the verifier's CPU once policy work needs signatures. The paper will state them, so their cost should be measured, not extrapolated from the frozen matrix.
 Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.
 

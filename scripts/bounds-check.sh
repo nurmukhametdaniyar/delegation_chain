@@ -50,7 +50,9 @@ for i in $(seq 40); do
   sleep 15
 done
 echo "== bench (D-95)"
-CRITERION_HOME="$out/criterion" cargo bench -q -p dc-bench --bench bounds -- --noplot
+# Absolute: cargo runs a bench from its package directory, so a relative
+# CRITERION_HOME lands under crates/dc-bench/.
+CRITERION_HOME="$PWD/$out/criterion" cargo bench -q -p dc-bench --bench bounds -- --noplot
 COPYFILE_DISABLE=1 tar -C "$out" -cf - criterion | zstd -q -19 -o "$out/criterion.tar.zst"
 (cd "$out" && shasum -a 256 criterion.tar.zst > criterion.tar.zst.sha256)
 {
