@@ -31,3 +31,10 @@ deposit/
 # The paper is published separately (D-90). A local copy stays here as the
 # protocol source of truth; docs/paper-sections.json pins its sha256.
 docs/paper.pdf
+# The bounds criterion pass (D-95): criterion.tar.zst and env.json are
+# committed; criterion/ is where it unpacks.
+results/exploratory/bounds/criterion/
+# The reorder check (D-96): each build's raw CSVs stay out of git; its
+# archive/ and env.json are committed.
+results/exploratory/reorder/*/raw/
+results/exploratory/reorder/*/aborted/

@@ -68,3 +68,11 @@ harness = false
 [[bench]]
 name = "signing"
 harness = false
+
+# Exploratory, not in the frozen plan: Contains at D-21's bounds (D-95).
+# `bench = false` keeps it out of `cargo bench -p dc-bench`, which `dc-bench
+# all` runs for the frozen criterion pass; run it with `--bench bounds`.
+[[bench]]
+name = "bounds"
+harness = false
+bench = false

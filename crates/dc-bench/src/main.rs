@@ -13,7 +13,11 @@
 //! dc-bench phases  [--mode M] [--out DIR] [--resume] the exploratory phase breakdown (D-77)
 //! dc-bench aip     [--mode M] [--out DIR] [--aip-dir DIR] AIP's own benchmark, here (D-79)
 //! dc-bench encoding [--mode M] [--out DIR] [--resume] the cost of D-81's encoding checks (D-87)
+//! dc-bench reorder [--mode M] [--out DIR]           prints the reorder check's comparison (D-96)
 //! ```
+//!
+//! `scripts/reorder-check.sh` runs the reorder check's three builds (D-96);
+//! `reorder` reads their archives under `exploratory/reorder/`.
 //!
 //! `scripts/exploratory-session.sh` builds both exploratory runs and then
 //! runs `phases` and `aip`, one after the other, each on M9's machine state.
@@ -79,7 +83,7 @@ struct Args {
 fn parse() -> Result<Args, String> {
     let mut it = std::env::args().skip(1);
     let cmd = it.next().ok_or(
-        "usage: dc-bench <all|run|bytes|env|archive|report|plan|benchmarks|paper|phases|aip|encoding> [options]",
+        "usage: dc-bench <all|run|bytes|env|archive|report|plan|benchmarks|paper|phases|aip|encoding|reorder> [options]",
     )?;
     let mut a = Args {
         cmd,
@@ -177,6 +181,8 @@ fn main() -> ExitCode {
         "run" => cmd_run(&a),
         "bytes" => cmd_bytes(&a),
         "archive" => archive(&out_dir(&a)),
+        "reorder" => dc_bench::reorder::load(&out_dir(&a).join("exploratory/reorder"))
+            .map(|d| print!("{}", d.markdown(&|_, _| None))),
         "report" => cmd_report(&a),
         "benchmarks" => {
             let out = out_dir(&a);

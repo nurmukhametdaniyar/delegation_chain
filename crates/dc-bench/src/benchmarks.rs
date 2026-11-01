@@ -26,7 +26,7 @@ use crate::report::{
     self, AIP_CHAINED_MS, Key, Raw, Row, criterion_estimates, read_json, us, verdict,
 };
 use crate::stats::{Ratio, quantile_sorted, ratio};
-use crate::{aip, encoding, phases};
+use crate::{aip, bounds, encoding, phases, reorder};
 
 /// AIP's published token sizes for biscuit-auth 6.0 chained mode (SPEC
 /// §13.10; arXiv:2603.24775v1, Table 5, "Size (Rust)", checked on
@@ -77,6 +77,11 @@ pub struct Doc {
     pub(crate) aip: Option<aip::Data>,
     /// The encoding-check benchmark, once its archives exist (D-87).
     pub(crate) encoding: Option<encoding::Data>,
+    /// Criterion's estimates for `Contains` at the size bounds, once
+    /// unpacked under `results/exploratory/bounds/criterion/` (D-95).
+    pub(crate) bounds: Vec<(String, f64, (f64, f64))>,
+    /// The three builds of the reorder check, once archived (D-96).
+    pub(crate) reorder: Option<reorder::Data>,
     /// `docs/paper-sections.json` (D-86), when the results directory sits
     /// in the repository.
     pub(crate) sections: Option<Value>,
@@ -145,6 +150,23 @@ impl Doc {
         } else {
             None
         };
+        let bounds = criterion_estimates(&results.join("exploratory/bounds/criterion"));
+        if bounds.is_empty()
+            && results
+                .join("exploratory/bounds/criterion.tar.zst")
+                .exists()
+        {
+            return Err(
+                "results/exploratory/bounds/criterion.tar.zst is not unpacked (ARTIFACT.md §3)"
+                    .into(),
+            );
+        }
+        let rdir = results.join("exploratory/reorder");
+        let reorder = if rdir.join("reordered/archive/MANIFEST.sha256").exists() {
+            Some(reorder::load(&rdir)?)
+        } else {
+            None
+        };
         let sections = results
             .parent()
             .and_then(|root| read_json(&root.join("docs/paper-sections.json")));
@@ -166,6 +188,8 @@ impl Doc {
             phases,
             aip,
             encoding,
+            bounds,
+            reorder,
             sections,
             revision: std::cell::Cell::new(Revision::Checked),
         })
@@ -836,6 +860,23 @@ impl Doc {
                     self.row(arm, state, n, "medium").map(|r| r.pooled.median)
                 })?,
                 None => "_Not run yet: there is no verified archive under `results/exploratory/encoding/archive/`._".into(),
+            },
+            // Contains at the size bounds (D-95), from its own criterion pass.
+            ["bounds"] => if self.bounds.is_empty() {
+                "_Not run yet: there are no criterion estimates under `results/exploratory/bounds/criterion/`._".into()
+            } else {
+                bounds::markdown(
+                    &self.bounds,
+                    self.crit("ed25519/verify_strict")?,
+                    self.crit("policy/contains/worst/r64_a8")?,
+                )
+            },
+            // The reorder check (D-96), from its three builds' archives.
+            ["reorder"] => match &self.reorder {
+                Some(d) => d.markdown(&|arm, state| {
+                    self.row(arm, state, 3, "medium").ok().map(|r| r.pooled.median)
+                }),
+                None => "_Not run yet: there is no verified archive under `results/exploratory/reorder/`._".into(),
             },
             // Section references and rule names of the claims table (D-86).
             ["psec", key] => self.paper_ref("sections", key)?,

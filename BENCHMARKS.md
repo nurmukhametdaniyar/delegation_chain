@@ -1101,3 +1101,26 @@ Thermal readings around each operation: none was flagged.
 | 3 (2) | 109 | 26.4 | 147 | 183 | 0.74 | 0.18 |
 | 5 (4) | 166 | 28.6 | 232 | 282 | 0.71 | 0.12 |
 | 10 (9) | 304 | 33.8 | 444 | — | 0.68 | 0.08 |
+
+### Contains at the scope-size bounds
+
+After D-94 put the chain signatures ahead of policy, the author asked what the scope-size bounds still allow a compromised signer to force (D-95). The frozen Q8 matrix stops at 64 rules × 8 atoms, so this exploratory criterion pass, which is not in the frozen plan, goes to the bounds. It changes no measured result.
+- **The bounds** the implementation enforces, and where:
+  - **at line 2**, as the envelope and each body are decoded: at most 17 bodies, so N ≤ 16 (D-16); at most 64 KiB per body (D-03), which caps every scope; container nesting at most 16 (D-02); and the envelope's own size, room for 17 maximum bodies;
+  - **at line 2 for each body's scope, and at line 34 for the pinned policy**, by the scope validator (D-21): at most 256 rules, 32 declared parameters and 32 atoms per rule, `in` lists of 1 to 64 elements, text of at most 1,024 bytes, paths of at most 8 segments;
+  - **elsewhere:** a receipt's attestation is at most 256 bytes.
+- **Two constructions,** for rules ∈ {64, 128, 256} × atoms ∈ {8, 16, 32}, each cell only where both scopes fit in a body with 1 KiB to spare (`crates/dc-bench/src/bounds.rs`):
+  - **frozen-worst:** the frozen matrix's worst case (every child bound tightened), with as many declared parameters as atoms;
+  - **alternating:** two scopes, X and Y, that a compromised agent can sign in turn so that every link it controls passes while step 3(b) runs its shadow scan in full: R − 1 rules over x ∈ [0, 5] and a last rule over [0, 6], against R − 1 rules over [1, 6] and the same last rule. It is an input found by reading the procedure, not a proof of the worst case. `tests/scope_bounds.rs` checks that a chain alternating them at N = 16 is accepted.
+- **How.** `cargo bench -p dc-bench --bench bounds`: one call per sample, ten samples, criterion's median and 95% CI, on M9's machine state and build flags.
+
+_Not run yet: there are no criterion estimates under `results/exploratory/bounds/criterion/`._
+
+### The cost of D-94's reorder
+
+D-94 moved the chain signatures ahead of policy after M9. An accepted chain runs the same checks in either order, so the expectation is no material change. This exploratory check, which is not in the frozen plan, measures it (D-96). It changes no measured result.
+- **What ran.** The frozen grid's B and D warm+prefix and A and C warm configurations at N = 3, medium, by `dc-bench run` with M9's counts and seeded random order, three runs, on M9's machine state (`scripts/reorder-check.sh`). C warm and D warm+prefix are the default instantiation without and with the prefix cache.
+- **Three builds:** the measured commit `b175599`; the commit before D-94, which has D-80's and D-81's changes but the old order, to tell the reorder's effect from theirs; and a commit with D-94. The builds' order rotated from run to run.
+- **M9 (frozen)** is M9's pooled median for the same cell, for reference; it comes from a different session.
+
+_Not run yet: there is no verified archive under `results/exploratory/reorder/`._

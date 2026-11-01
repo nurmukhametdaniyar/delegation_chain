@@ -20,6 +20,8 @@ The deposit is a snapshot of this repository at the commit its description names
 | The exploratory phase breakdown: its archives and their manifest, and the machine record | `results/exploratory/phases/archive/`, `results/exploratory/phases/env.json` |
 | AIP's own benchmark run here: its outputs and resolved `Cargo.lock` as archives, their manifest, and the machine record | `results/exploratory/aip/archive/`, `results/exploratory/aip/env.json` |
 | The encoding checks' micro-benchmark (D-87): its batch timings and thermal readings as archives, their manifest, and the machine record | `results/exploratory/encoding/archive/`, `results/exploratory/encoding/env.json` |
+| The reorder check (D-96): each build's raw data as archives with its manifest, and its machine record | `results/exploratory/reorder/<build>/archive/`, `results/exploratory/reorder/<build>/env.json` |
+| Criterion's output for `Contains` at the scope-size bounds (D-95), and the machine record | `results/exploratory/bounds/criterion.tar.zst` with its `.sha256`, `results/exploratory/bounds/env.json` |
 | Bytes on the wire (Q2), memory (Q10), the machine records | `results/bytes.json`, `results/memory.json`, `results/env.json`, `results/env-resume.json` |
 | M9's console log: the safety-valve abort and the three refused resumes that BENCHMARKS.md §7 cites | `results/logs/m9.log` |
 | The generated summary, document and paper artifacts | `results/summary.{md,json}`, `BENCHMARKS.md`, `paper/` |
@@ -51,6 +53,11 @@ mkdir -p results && zstd -dc criterion.tar.zst | tar -x -C results
 (cd results/exploratory/phases/archive && shasum -a 256 -c MANIFEST.sha256)
 (cd results/exploratory/aip/archive && shasum -a 256 -c MANIFEST.sha256)
 (cd results/exploratory/encoding/archive && shasum -a 256 -c MANIFEST.sha256)
+for b in measured pre-reorder reordered; do (cd results/exploratory/reorder/$b/archive && shasum -a 256 -c MANIFEST.sha256); done
+
+# The bounds pass's criterion output (D-95).
+(cd results/exploratory/bounds && shasum -a 256 -c criterion.tar.zst.sha256)
+zstd -dc results/exploratory/bounds/criterion.tar.zst | tar -x -C results/exploratory/bounds
 ```
 
 The generators check every archive themselves and refuse to run on a missing manifest or a mismatch. They also refuse to run without criterion's output, rather than write a summary without its micro-benchmark section.
@@ -104,6 +111,7 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
 - **M9** was measured at `4e134dc` (tag `bench-freeze-2`; runs 1 and 2) and `b175599` (the resume: run 2's A-mt redo, run 3 and the re-runs). The measured code path is the same at both (BENCH_LOG.md, 2026-10-01).
 - **The exploratory session** was measured at `b1cc711`.
 - **Why later commits don't qualify.** From step 3 (2026-10-04) on, the protocol's default instantiation is Ed25519 per hop, BLS aggregation a variant, and the Ed25519 decoder checks canonical encodings (D-80, D-81). Builds of later commits are therefore not the measured binaries, although the arms verify the same chains.
+- **The measured commits predate D-94.** They verify the chain signatures after policy and approvals (paper revision 2026-10-06's order); from `1f5f4fa` on, the chain signatures come first (SPEC Appendix A). An accepted chain runs the same checks in either order, so the measured chains, all of which are accepted, do the same work. The exploratory re-run of four cells in both orders is in `results/exploratory/reorder/` (D-96; BENCHMARKS.md §8).
 - **How.** Check the measured commit out in its own worktree (`git worktree add ../dc-m9 b175599`) and run the commands below there. The generators of this and later commits read the archives either way.
 
 - **The full benchmark (M9).** Run it with the machine on AC power, in High Power mode (`pmset powermode 2`) and idle. The harness checks all three and aborts otherwise.
@@ -127,6 +135,20 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
   ```
 
   It writes `results/exploratory/encoding/` and appends its own `BENCH_LOG.md` entry. `--resume` continues an interrupted run.
+- **The reorder check (D-96).** Four cells (B and D warm+prefix, A and C warm; N = 3, medium), three runs each, in three builds: the measured commit `b175599`, the commit before D-94 and a commit with it. The script builds each in its own worktree under `target/exploratory/reorder/` (remove them afterwards with `git worktree remove`), and each run requires M9's machine state.
+
+  ```sh
+  scripts/reorder-check.sh
+  ```
+
+  It writes `results/exploratory/reorder/` and appends a `BENCH_LOG.md` entry; `dc-bench reorder` prints the comparison.
+- **Contains at the scope-size bounds (D-95).** An exploratory criterion pass at a commit with `benches/bounds.rs`, on M9's machine state. Its largest cells take minutes per call, so it takes hours.
+
+  ```sh
+  scripts/bounds-check.sh
+  ```
+
+  It writes `results/exploratory/bounds/` and appends a `BENCH_LOG.md` entry.
 
 ## 6. Packing a deposit
 

@@ -9,13 +9,16 @@
 //!   and figures, from the verified results.
 //! - [`phases`]: the exploratory phase breakdown (D-77), never a headline
 //!   run; [`aip`]: AIP's own benchmark run here (D-79); [`encoding`]: the
-//!   cost of D-81's encoding checks (D-87).
+//!   cost of D-81's encoding checks (D-87); [`bounds`]: scopes at D-21's
+//!   size bounds, for `benches/bounds.rs` (D-95); [`reorder`]: the
+//!   exploratory check of D-94's cost (D-96).
 //! - [`env`]: writes `results/env.json`.
 //! - [`qos`]: the one permitted `unsafe` call (D-42).
 
 pub mod aip;
 pub mod arms;
 pub mod benchmarks;
+pub mod bounds;
 pub mod encoding;
 pub mod env;
 pub mod harness;
@@ -24,6 +27,7 @@ pub mod phases;
 pub mod plan;
 pub mod probe;
 pub mod qos;
+pub mod reorder;
 pub mod report;
 pub mod stats;
 pub mod thermal;

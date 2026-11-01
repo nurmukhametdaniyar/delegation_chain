@@ -1218,3 +1218,39 @@ Decision:
 - **The benchmark.** The measured commits (`4e134dc`, `b175599`, `b1cc711`) run the old order, and every frozen result and verdict stands for them. The frozen phase-ordering verdict ("cheap checks reject hostile chains before any pairing", supported warm) describes that order; under D-94 a warm verifier pays the chain-signature check before rejecting a policy violation. The exploratory check of the reorder's cost is D-96.
 Why: phases 1–5 need no private key, so under revision 2026-10-06's order an attacker can make the verifier run `Contains` on scopes it wrote, before any signature is checked, on every attempt (P-34). Verifying the signatures first confines policy work to chains every hop has signed. The scope-size bounds remain necessary, because a compromised agent can still sign a large sub-scope (D-95).
 Affects benchmarks: no measured result changes. The exploratory comparison is D-96.
+
+## D-95 — Contains at the scope-size bounds, measured (exploratory)
+Spec section: §4.4 (D-02, D-03), §7.5 (D-16), §9.3 (D-21), §9.6; D-73, D-94     Paper section: §6.1 ("implementations bound scope size"), §6.4
+Decision:
+- **Why.** After D-94 the author asked what the size bounds still let a compromised signer force, which the threat model includes. The frozen Q8 matrix stops at 64 rules × 8 atoms, and its worst case never reaches step 3(b)'s shadow scan.
+- **The bounds, and where they are enforced.** None changes; the author decides whether to lower them.
+  - At line 2, as the envelope and each body are decoded: at most 17 bodies, so N ≤ 16 (D-16); a body of at most 64 KiB (D-03), which caps every scope; container nesting of at most 16 (D-02); and an envelope with room for 17 maximum bodies and their signatures.
+  - At line 2 for every scope in a body, and at line 34 for the pinned policy, by the scope validator (D-21): at most 256 rules, 32 declared parameters and 32 atoms per rule, `in` lists of 1 to 64 elements, text of at most 1,024 bytes and paths of at most 8 segments. The policy document is held to 64 KiB too (`Limits::BODY`).
+  - A receipt's attestation is at most 256 bytes.
+- **What is timed** (`crates/dc-bench/benches/bounds.rs`, with the scopes in `dc_bench::bounds`), for rules ∈ {64, 128, 256} × atoms ∈ {8, 16, 32}:
+  - **frozen-worst:** the frozen generator's worst case, with as many declared parameters as atoms;
+  - **alternating:** X, R − 1 rules over x ∈ [0, 5] and a last rule over [0, 6], and Y, R − 1 rules over [1, 6] and the same last rule, under the shortest well-formed head. Contains(Y, X) is timed; Contains(X, Y) is its mirror. For child rule j, step 3(a) finds the last parent rule, and step 3(b) checks every earlier parent rule against the j earlier child rules without finding a shadow: (R − 1)·R(R − 1)/2 `implies` calls per link, each checking every atom of a child rule, so O(R³·A²). Padding atoms hold on [0, 6], and each rule's failing atom is last.
+  - **Only cells that fit.** Both scopes must fit in a 64 KiB body with 1 KiB to spare for the body's other fields. frozen-worst at 256 × 32 does not; alternating at 256 × 32 does.
+- **It is a construction, not a proof.** It was found by reading the procedure. Some other input may cost more.
+- **A whole chain.** `tests/scope_bounds.rs` checks end to end, at N = 16 with 8 rules × 4 atoms under the §6.2 policy, that a chain whose delegations alternate X and Y is accepted, with all 16 `Contains` calls passing. At N = 16 a compromised agent that receives the session signs delegations 1–15; every link but the first has a parent it signed, so 14 links can alternate. The generator multiplies the costliest cell's median by 14.
+- **How.** `scripts/bounds-check.sh`: `target-cpu=native` as M9, M9's machine state (AC power, High Power mode and an idle machine, from `dc-bench env`), criterion's flat sampling with one call per sample and ten samples. Each call's result is checked outside the timer. The bench target has `bench = false`, so `cargo bench -p dc-bench`, which `dc-bench all` runs for the frozen pass, leaves it out.
+- **Data.** `results/exploratory/bounds/`: `env.json`, and criterion's output as `criterion.tar.zst` with its `.sha256`, which unpacks to `criterion/` (not committed).
+- **Reporting.** BENCHMARKS.md §8, exploratory, generated from criterion's estimates. Until the pass has run, the block says so.
+Why: the bounds are what remains between a compromised signer and the verifier's CPU once policy work needs signatures. The paper will state them, so their cost should be measured, not extrapolated from the frozen matrix.
+Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.
+
+## D-96 — The cost of D-94's reorder, checked on M9's machine (exploratory)
+Spec section: §13.5; D-94     Paper section: §8 (the measured latencies)
+Decision:
+- **The cells,** all N = 3, medium: B and D warm+prefix, and A and C warm. The author asked for B against D (warm+prefix), A against C (warm), and D alone, warm and warm+prefix. The frozen grid has no warm state for arm D. The paper's 109 µs and 26.4 µs are C warm and D warm+prefix, the default instantiation without and with the prefix cache, so "D, warm" is read as C warm.
+- **Three builds**, each run by its own `dc-bench run`:
+  - **measured:** `b175599`, M9's resume commit (ARTIFACT.md);
+  - **pre-reorder:** `4239168`, the commit before D-94. It has D-80's and D-81's changes but the old order, so reordered ÷ pre-reorder isolates the reorder, and pre-reorder ÷ measured shows what came between. This build was not asked for; it costs a few minutes.
+  - **reordered:** the commit with D-94 and the runner.
+  - The harness code is identical in the three apart from two import lines, so differences come from the verifier and crypto code.
+- **How.** `scripts/reorder-check.sh`. Each build in its own git worktree under `target/exploratory/reorder/`, with `target-cpu=native` as M9, all built first. Three runs; in each, the builds run one after another, rotating which goes first; each `run` has M9's counts (1,000 warm-up and 10,000 measured verifications; warm+prefix as D-39), its seeded random order, `--no-throughput`, and checks M9's machine state itself.
+- **Data.** `results/exploratory/reorder/<build>/`: `env.json` (the build's commit and the machine) and `archive/` with its manifest. Raw CSVs stay out of git.
+- **Reporting.** BENCHMARKS.md §8, exploratory, from the verified archives (`dc_bench::reorder`): medians pooled over the three runs and per run, both ratios per build, and each build's change against the others. `dc-bench reorder` prints the same tables.
+- **The author's stop rule.** If any median moves by more than 5%, reordered against measured, stop and report. The generated block states the largest move against that threshold.
+Why: an accepted chain runs the same checks in either order, so no material change is expected; this checks it on the machine and harness of the measurement, and keeps the result apart from the frozen data.
+Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.
