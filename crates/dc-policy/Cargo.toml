@@ -19,9 +19,6 @@ unicode-normalization.workspace = true
 # Unvalidated scopes, and the pre-review containment procedure, for the P-15
 # regression tests (SPEC §9.7). Never enabled outside tests.
 test-hooks = []
-# PROTOTYPE (D-99): count atom-level checks for a work budget on Contains
-# (`meter`, `contains_within`). Never enabled in a headline build.
-work-budget = []
 
 [dev-dependencies]
 dc-policy = { path = ".", features = ["test-hooks"] }

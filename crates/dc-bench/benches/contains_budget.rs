@@ -1,6 +1,6 @@
-//! Exploratory and PROTOTYPE (D-99): how long `Contains` runs under a work
-//! budget before it gives up, on the costliest inputs of D-98. Needs
-//! `--features work-budget`, whose counting build is never a headline one.
+//! Exploratory (D-99): how long `Contains` runs under a work budget before
+//! it gives up, on the costliest inputs of D-98. D-99 ran it on a prototype
+//! budget; since D-100 the budget is the protocol path's.
 //!
 //! The budgets: the largest count of any `Contains` call the workload
 //! profiles make (computed here, `BUDGETS[0]`), and two with headroom. Each

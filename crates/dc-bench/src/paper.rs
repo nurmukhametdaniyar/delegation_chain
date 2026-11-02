@@ -497,8 +497,19 @@ fn classify(a: &str) -> Result<String, String> {
     if a.starts_with("run(") && a.ends_with("Ok(())") {
         return Ok("phase 6 accepts the unmutated chain".into());
     }
-    if a.ends_with(".is_ok()") {
+    // With or without a message after it.
+    if a.ends_with(".is_ok()")
+        || a.split_once(", \"")
+            .is_some_and(|(x, _)| x.ends_with(".is_ok()"))
+    {
         return Ok("accept".into());
+    }
+    // The pin-time check (D-100).
+    if a.contains("PinError::OverBudget") || (a.contains(".pin(") && a.ends_with(".is_err()")) {
+        return Ok("pin refused (over the budget)".into());
+    }
+    if a.contains(".pin(") && a.ends_with(", Ok(())") {
+        return Ok("pinned".into());
     }
     // Operation counts: (n.a, n.b, …), (x, y, …)
     if let Some(rest) = a.strip_prefix('(')
@@ -525,6 +536,7 @@ fn classify(a: &str) -> Result<String, String> {
             "cold: resolver and policy-store calls > 0".into()
         }
         "other.load(Relaxed), 0" => "no outcome other than accept, L17, L50".into(),
+        a if a.starts_with("v.cached_policies(), 0") => "the policy cache still empty".into(),
         a if a.starts_with("per_round.iter().all(|a| *a == 1)") => {
             "exactly 1 accept per round".into()
         }
@@ -949,6 +961,9 @@ mod tests {
             assert!(v.verify(&c).is_ok());
             assert_eq!((n.pairings(), n.resolver_calls), (0, 0), "{n:?}");
             assert!(matches!(v.verify(&x), Err(Reject::L02Decode(_))));
+            assert!(r.is_ok(), "B = {b}: {r:?}");
+            assert_eq!(v.pin("orga", h), Err(PinError::OverBudget { budget: 1 }));
+            assert_eq!(v.pin("orga", h), Ok(()));
         "#;
         let got: Vec<String> = assertions(body)
             .iter()
@@ -956,7 +971,15 @@ mod tests {
             .collect();
         assert_eq!(
             got,
-            ["L23", "accept", "pairings 0, resolver calls 0", "L02"]
+            [
+                "L23",
+                "accept",
+                "pairings 0, resolver calls 0",
+                "L02",
+                "accept",
+                "pin refused (over the budget)",
+                "pinned"
+            ]
         );
         assert!(classify("something_else()").is_err());
         // A #[cfg] on the line before an assertion selects an instantiation.

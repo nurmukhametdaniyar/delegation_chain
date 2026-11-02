@@ -1,31 +1,59 @@
-//! PROTOTYPE (D-99): a count of the containment procedure's atom-level
-//! checks, for a deterministic work budget on `Contains`. Only the
-//! `work-budget` feature counts. Without it, [`charge`] never calls its
-//! argument and compiles to nothing, so the protocol path is unchanged; no
-//! headline build enables it.
+//! The work count of `Contains` under a budget (SPEC §9.6.1; D-100, from
+//! D-99's prototype).
 //!
-//! The unit is one atom examined, weighted by its operand's literals: an
-//! atom with a 64-element `in` list counts 64. The count depends only on the
-//! two scopes, so every replica of a verifier reaches the same total on the
-//! same input. String lengths are not counted.
+//! The unit is one atom literal examined: an atom with a 64-element `in`
+//! list counts 64. SPEC §9.6.1's table says where each check is charged.
+//! The count depends only on the two scopes, so every replica of a verifier
+//! reaches the same total on the same input. String lengths are not
+//! counted.
+//!
+//! Every charge comes before the work it pays for, and a check whose charge
+//! passes the budget skips that work and answers in the sound direction
+//! (`implies` and `unsat` false). Once the budget has run out the answer is
+//! false whatever the skipped checks would have said, so skipping them
+//! changes no decision; it only stops the procedure promptly.
+
+use std::cell::Cell;
 
 use crate::ast::{Atom, Operand};
 
-#[cfg(feature = "work-budget")]
-thread_local! {
-    static WORK: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+/// A running count of atom-level checks, against a budget.
+#[derive(Debug)]
+pub struct Meter {
+    spent: Cell<u64>,
+    budget: u64,
 }
 
-/// True when this build counts.
-pub const ENABLED: bool = cfg!(feature = "work-budget");
+impl Meter {
+    pub fn new(budget: u64) -> Self {
+        Meter {
+            spent: Cell::new(0),
+            budget,
+        }
+    }
 
-/// Adds `n()` checks to this thread's count, in a counting build.
-#[inline(always)]
-pub(crate) fn charge(n: impl FnOnce() -> usize) {
-    #[cfg(feature = "work-budget")]
-    WORK.with(|w| w.set(w.get() + n() as u64));
-    #[cfg(not(feature = "work-budget"))]
-    let _ = n;
+    /// A meter that never runs out: the procedure without a budget.
+    pub fn unlimited() -> Self {
+        Meter::new(u64::MAX)
+    }
+
+    /// Adds `n` checks. False once the count has passed the budget, in which
+    /// case the caller skips the work it charged for.
+    pub(crate) fn charge(&self, n: usize) -> bool {
+        let spent = self.spent.get().saturating_add(n as u64);
+        self.spent.set(spent);
+        spent <= self.budget
+    }
+
+    /// The count so far.
+    pub fn spent(&self) -> u64 {
+        self.spent.get()
+    }
+
+    /// Has the count passed the budget?
+    pub fn exhausted(&self) -> bool {
+        self.spent.get() > self.budget
+    }
 }
 
 /// An atom's weight: the literals of its operand.
@@ -39,16 +67,4 @@ pub(crate) fn weight(a: &Atom) -> usize {
 /// The total weight of `atoms`.
 pub(crate) fn weights(atoms: &[&Atom]) -> usize {
     atoms.iter().map(|a| weight(a)).sum()
-}
-
-/// Sets this thread's count to zero.
-#[cfg(feature = "work-budget")]
-pub fn reset() {
-    WORK.with(|w| w.set(0));
-}
-
-/// This thread's count.
-#[cfg(feature = "work-budget")]
-pub fn spent() -> u64 {
-    WORK.with(std::cell::Cell::get)
 }

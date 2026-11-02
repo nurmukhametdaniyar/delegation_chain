@@ -13,6 +13,10 @@
 //! `scripts/reorder-check.sh` runs them, each into its own directory under
 //! `results/exploratory/reorder/`, and archives each directory's raw data
 //! under its own manifest. This module reads only the verified archives.
+//!
+//! D-100's check of the work budget's cost has the same shape ([`BUDGET`]):
+//! the measured build, the commit before the budget, and a build with it,
+//! under `results/exploratory/budget/headline/`.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -23,8 +27,22 @@ use serde_json::Value;
 
 use crate::report::{decompress, hex, read_json, us};
 
-/// The builds, in the order the tables list them.
-pub const BUILDS: [&str; 3] = ["measured", "pre-reorder", "reordered"];
+/// A three-build check: M9's measured build, the commit before a change,
+/// and a build with it, in the order the tables list them.
+#[derive(Clone, Copy)]
+pub struct Check {
+    pub builds: [&'static str; 3],
+}
+
+/// D-96: D-94's reorder.
+pub const REORDER: Check = Check {
+    builds: ["measured", "pre-reorder", "reordered"],
+};
+
+/// D-100: the work budget on `Contains`.
+pub const BUDGET: Check = Check {
+    builds: ["measured", "pre-budget", "budgeted"],
+};
 
 /// The cells (arm, state), all at N = 3 in the medium profile: B against D
 /// with prefix caches, A against C without. C warm and D warm+prefix are
@@ -44,7 +62,7 @@ pub fn ids() -> Vec<String> {
         .collect()
 }
 
-/// How far a median may move, reordered against measured, before the
+/// How far a median may move, the new build against measured, before the
 /// author's instruction is to stop and report.
 pub const THRESHOLD: f64 = 0.05;
 
@@ -62,6 +80,7 @@ pub struct Build {
 }
 
 pub struct Data {
+    pub check: Check,
     pub builds: Vec<Build>,
 }
 
@@ -153,12 +172,13 @@ fn load_build(dir: &Path, name: &'static str) -> Result<Build, String> {
 }
 
 /// Reads `dir`'s three builds, each from its verified archives.
-pub fn load(dir: &Path) -> Result<Data, String> {
-    let builds = BUILDS
+pub fn load(dir: &Path, check: Check) -> Result<Data, String> {
+    let builds = check
+        .builds
         .iter()
         .map(|&b| load_build(&dir.join(b), b))
         .collect::<Result<_, _>>()?;
-    Ok(Data { builds })
+    Ok(Data { check, builds })
 }
 
 impl Build {
@@ -199,10 +219,11 @@ impl Data {
         self.builds.iter().find(|b| b.name == name).expect("build")
     }
 
-    /// The largest relative move of a pooled median, reordered against
+    /// The largest relative move of a pooled median, the new build against
     /// measured: (cell, relative change).
     pub fn largest_move(&self) -> (String, f64) {
-        let (m, r) = (self.build("measured"), self.build("reordered"));
+        let [base, _, new] = self.check.builds;
+        let (m, r) = (self.build(base), self.build(new));
         CELLS
             .iter()
             .map(|(arm, state)| {
@@ -215,10 +236,12 @@ impl Data {
             .expect("cells")
     }
 
-    /// The tables of BENCHMARKS.md §8's block for D-96. `m9` gives M9's
-    /// pooled median for a cell (arm, state) at N = 3, medium, in ns.
+    /// The tables of BENCHMARKS.md §8's block for the check (D-96, D-100).
+    /// `m9` gives M9's pooled median for a cell (arm, state) at N = 3,
+    /// medium, in ns.
     pub fn markdown(&self, m9: &dyn Fn(&str, &str) -> Option<f64>) -> String {
         let mut w = String::new();
+        let [base, mid, new] = self.check.builds;
         let pct = |x: f64| format!("{:+.1}%", 100.0 * x);
         writeln!(
             w,
@@ -245,15 +268,11 @@ impl Data {
         .unwrap();
         writeln!(
             w,
-            "| Cell | M9 (frozen) | measured | pre-reorder | reordered | reordered ÷ measured | reordered ÷ pre-reorder |"
+            "| Cell | M9 (frozen) | {base} | {mid} | {new} | {new} ÷ {base} | {new} ÷ {mid} |"
         )
         .unwrap();
         writeln!(w, "|---|---|---|---|---|---|---|").unwrap();
-        let (m, p, r) = (
-            self.build("measured"),
-            self.build("pre-reorder"),
-            self.build("reordered"),
-        );
+        let (m, p, r) = (self.build(base), self.build(mid), self.build(new));
         for (arm, state) in CELLS {
             let (a, b, c) = (
                 m.pooled(arm, state),
@@ -277,7 +296,7 @@ impl Data {
             "\n**Ratios** (pooled medians; each run's ratio in brackets):\n"
         )
         .unwrap();
-        writeln!(w, "| Ratio | measured | pre-reorder | reordered |").unwrap();
+        writeln!(w, "| Ratio | {base} | {mid} | {new} |").unwrap();
         writeln!(w, "|---|---|---|---|").unwrap();
         for (label, num, den) in [
             (
@@ -306,7 +325,7 @@ impl Data {
             writeln!(w, "| {label} | {} |", cells.join(" | ")).unwrap();
         }
         writeln!(w, "\n**Each run's median** (µs):\n").unwrap();
-        writeln!(w, "| Cell | measured | pre-reorder | reordered |").unwrap();
+        writeln!(w, "| Cell | {base} | {mid} | {new} |").unwrap();
         writeln!(w, "|---|---|---|---|").unwrap();
         for (arm, state) in CELLS {
             let cells: Vec<String> = self
@@ -325,7 +344,7 @@ impl Data {
         let (cell, mv) = self.largest_move();
         writeln!(
             w,
-            "\n**The largest move**, reordered against measured, is {} ({cell}): {} the {:.0}% at which the author asked for a stop.",
+            "\n**The largest move**, {new} against {base}, is {} ({cell}): {} the {:.0}% at which the author asked for a stop.",
             pct(mv),
             if mv.abs() > THRESHOLD { "beyond" } else { "within" },
             100.0 * THRESHOLD

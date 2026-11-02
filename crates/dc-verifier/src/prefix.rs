@@ -25,7 +25,7 @@ use dc_types::digest::{Digest32, m_delegation, m_invocation, m_session};
 use dc_types::{Body, BodyKind, Clock, Envelope, Principal, RevocationAssertion, decode_body};
 
 use crate::{
-    AcceptHook, Accepted, AcceptedParts, OpCounts, Pk, Reject, Verifier, body_scope,
+    AcceptHook, Accepted, AcceptedParts, OpCounts, PinError, Pk, Reject, Verifier, body_scope,
     decode_envelope, decode_sigs, line13,
 };
 
@@ -90,9 +90,10 @@ impl<C: PrefixScheme, R: Resolver, P: PolicyStore, K: Clock> PrefixVerifier<C, R
         &self.inner
     }
 
-    pub fn pin(&self, org: &str, hash: Digest32) {
-        self.inner.pin(org, hash);
+    pub fn pin(&self, org: &str, hash: Digest32) -> Result<(), PinError> {
+        self.inner.pin(org, hash)?;
         self.entries.write().unwrap().clear();
+        Ok(())
     }
 
     pub fn unpin(&self, org: &str, hash: &Digest32) {

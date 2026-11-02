@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# The exploratory measurement of D-100's work budget (not pre-registered).
+# Into results/exploratory/budget/:
+#   work.json           `dc-bench budget-counts`: each input's count under the
+#                       default budget, and the frozen generator's shapes the
+#                       default admits (deterministic, not timings)
+#   oracle.json         the differential oracle, 150,000 pairs, seed 56324,
+#                       with the budgeted procedure (test statistics)
+#   criterion.tar.zst   criterion's output for benches/budget_cost.rs:
+#                       Contains at the default budget, and lines 2 and 5 on
+#                       64 KiB scope bodies, with its .sha256
+#   env.json            the machine, after the criterion pass
+#   headline/<build>/   D-96's four headline cells (B and D warm+prefix, A
+#                       and C warm; N = 3, medium), by `dc-bench run` in three
+#                       builds, three runs each, rotating which goes first:
+#                         measured    b175599, M9's resume commit
+#                         pre-budget  2df8b53, D-94 and D-97 without the budget
+#                         budgeted    HEAD, which must be committed with D-100
+#                       each with env.json and archive/ under its manifest
+# and a BENCH_LOG.md entry.
+#
+# Everything is built first, with M9's flags, the three headline builds in
+# their own git worktrees under target/exploratory/budget/. The counts and
+# the oracle run next, before the machine has to be idle. Then M9's machine
+# state (AC power, High Power mode, an idle machine) is awaited for up to 10
+# minutes with `dc-bench env`, and the timings run: the criterion pass, then,
+# once the machine is idle again, the nine headline runs, each of which
+# checks M9's machine state itself. It takes about an hour.
+#
+# Usage: scripts/budget-check.sh [--dry]
+#   --dry   criterion's shortest times and 10-iteration headline runs, under
+#           results/dry-run/; no machine-state requirement. Its numbers are
+#           never reported.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+root=$(pwd)
+
+dry=0
+mode=full
+if [[ "${1:-}" == "--dry" ]]; then
+  dry=1
+  mode=dry
+fi
+out=results/exploratory/budget
+root_out=results
+if [[ $dry == 1 ]]; then
+  out=results/dry-run/exploratory/budget
+  root_out=results/dry-run
+fi
+
+if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
+  echo "budget-check: commit first; the budgeted build is HEAD" >&2
+  exit 1
+fi
+if ! grep -q 'contains_budget' crates/dc-verifier/src/lib.rs; then
+  echo "budget-check: HEAD does not have D-100's budget" >&2
+  exit 1
+fi
+if [[ $dry == 0 && -e "$out" ]]; then
+  echo "budget-check: $out exists; refusing to overwrite measured data" >&2
+  exit 1
+fi
+rm -rf "$out"
+mkdir -p "$out"
+abs_out="$root/$out"
+
+builds=(measured pre-budget budgeted)
+commit_of() {
+  case "$1" in
+    measured) echo b175599 ;;
+    pre-budget) echo 2df8b53 ;;
+    budgeted) git rev-parse HEAD ;;
+  esac
+}
+wt_of() { echo "$root/target/exploratory/budget/src-$1"; }
+cells=(--only "B warm+prefix N=3 medium" --only "D warm+prefix N=3 medium"
+  --only "A warm N=3 medium" --only "C warm N=3 medium")
+
+export RUSTFLAGS="-C target-cpu=native"
+echo "== build: HEAD's bench and harness"
+cargo bench -q -p dc-bench --bench budget_cost --no-run
+cargo build -q --release -p dc-bench --bin dc-bench
+cargo test -q --release -p dc-policy --test oracle --no-run
+for b in "${builds[@]}"; do
+  c=$(commit_of "$b")
+  wt=$(wt_of "$b")
+  echo "== build: $b at ${c:0:7}"
+  if [[ -d "$wt" ]]; then
+    git -C "$wt" checkout -q --detach "$c"
+  else
+    git worktree add -q --detach "$wt" "$c"
+  fi
+  (cd "$wt" && cargo build -q --release -p dc-bench --bin dc-bench)
+done
+
+echo "== 1 of 4: the counts (deterministic)"
+./target/release/dc-bench budget-counts --out "$root_out"
+echo "== 2 of 4: the differential oracle, 150,000 pairs (test statistics)"
+DC_ORACLE_CASES=150000 DC_ORACLE_LOGIC_CASES=150000 DC_ORACLE_SEED=56324 \
+  DC_ORACLE_REPORT="$abs_out/oracle.json" \
+  cargo test -q --release -p dc-policy --test oracle >/dev/null
+
+# Waits up to 10 minutes for M9's machine state, writing env.json into $1.
+await_idle() {
+  [[ $dry == 1 ]] && return 0
+  for i in $(seq 40); do
+    ./target/release/dc-bench env --out "$1" >/dev/null
+    if python3 -I -c 'import json, sys; sys.exit(0 if json.load(open(sys.argv[1]))["m9_requirements"]["ok"] is True else 1)' "$1/env.json"; then
+      return 0
+    fi
+    echo "budget-check: waiting for the machine to become idle"
+    sleep 15
+  done
+  echo "budget-check: the machine did not become idle within 10 minutes" >&2
+  exit 1
+}
+await_idle "$out"
+
+echo "== 3 of 4: Contains at the default budget, and lines 2 and 5 (criterion)"
+crit=(--noplot)
+if [[ $dry == 1 ]]; then
+  crit+=(--warm-up-time 0.01 --measurement-time 0.01 --sample-size 10)
+fi
+CRITERION_HOME="$abs_out/criterion" cargo bench -q -p dc-bench --bench budget_cost -- "${crit[@]}"
+if [[ $dry == 0 ]]; then
+  # The machine as the criterion pass left it.
+  ./target/release/dc-bench env --out "$out" >/dev/null
+fi
+COPYFILE_DISABLE=1 tar -C "$out" -cf - criterion | zstd -q -19 -o "$out/criterion.tar.zst"
+(cd "$out" && shasum -a 256 criterion.tar.zst > criterion.tar.zst.sha256)
+
+echo "== 4 of 4: the headline cells, three builds, three runs"
+# The criterion pass kept a core busy; let the load average settle, so that
+# the first run's own check does not refuse. Its record is not kept:
+# $out/env.json is the machine right after the criterion pass.
+await_idle "$(mktemp -d)"
+for r in 1 2 3; do
+  order=("${builds[@]:$((r - 1))}" "${builds[@]:0:$((r - 1))}")
+  for b in "${order[@]}"; do
+    echo "== run $r: $b"
+    (cd "$(wt_of "$b")" && ./target/release/dc-bench run --run "$r" --mode "$mode" \
+      --no-throughput --out "$abs_out/headline/$b" "${cells[@]}")
+  done
+done
+for b in "${builds[@]}"; do
+  (cd "$(wt_of "$b")" && ./target/release/dc-bench env --out "$abs_out/headline/$b" >/dev/null)
+  ./target/release/dc-bench archive --mode "$mode" --out "$abs_out/headline/$b"
+done
+
+if [[ $dry == 0 ]]; then
+  {
+    echo
+    echo "## $(date -u +%Y-%m-%d) — Exploratory run (not pre-registered): the work budget's ceiling and cost"
+    echo "Reason: D-100 put a work budget on Contains on the protocol path, and the author asked for its measured ceiling (Contains at the default budget, and line 2 on a 64 KiB scope body), the frozen generator's shapes it admits, and its cost on the headline cells."
+    echo "- **What ran.** \`scripts/budget-check.sh\` at \`$(git rev-parse --short HEAD)\`, with \`target-cpu=native\` as M9: \`dc-bench budget-counts\`, the differential oracle (150,000 pairs, seed 56324), \`benches/budget_cost.rs\`, and the frozen grid's B and D warm+prefix and A and C warm configurations at N = 3, medium, by \`dc-bench run\` with M9's counts, three runs, in three builds: measured \`$(commit_of measured)\`, pre-budget \`$(commit_of pre-budget)\` and budgeted \`$(git rev-parse --short HEAD)\`, rotating which ran first."
+    echo "- **Machine state.** M9's, awaited before the criterion pass and recorded in \`$out/env.json\` after it; each headline run checked it at its start (its run metadata). Nothing monitored the machine during the criterion pass."
+    echo "- **Where the results go.** \`BENCHMARKS.md\` §8 (exploratory) only. Criterion's output is \`$out/criterion.tar.zst\`, pinned by its \`.sha256\`; the headline runs' raw data are archived under \`$out/headline/<build>/archive/\`, each pinned by its \`MANIFEST.sha256\`."
+    echo
+    echo "Configurations re-run: none."
+  } >> BENCH_LOG.md
+fi
+echo "budget-check: done; \`dc-bench budget-report$([[ $dry == 1 ]] && echo ' --mode dry')\` prints D-100's block, headline comparison included"

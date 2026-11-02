@@ -15,7 +15,8 @@ fn accepts<C: ChainScheme>(setting: &Setting<C::Base>, profile: Profile, n: usiz
         setting.clock(),
         VerifierConfig::default(),
     );
-    v.pin("orga", setting.hash(profile));
+    v.pin("orga", setting.hash(profile))
+        .expect("the policy passes the pin-time check");
     for layout in [Layout::Fresh, Layout::Prefixed { prefixes: 2 }] {
         // Sets verified by one verifier need distinct tags, or their nonce
         // streams coincide (the harness tags every set by all its parameters).

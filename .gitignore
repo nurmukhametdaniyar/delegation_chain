@@ -41,3 +41,9 @@ results/exploratory/reorder/*/aborted/
 # Contains after D-97 and the work budget (D-98, D-99): criterion.tar.zst
 # is committed; criterion/ is where it unpacks.
 results/exploratory/contains-cost/criterion/
+# The work budget's measurement (D-100): criterion.tar.zst is committed and
+# criterion/ is where it unpacks; the headline builds' raw CSVs stay out of
+# git, their archive/ and env.json are committed.
+results/exploratory/budget/criterion/
+results/exploratory/budget/headline/*/raw/
+results/exploratory/budget/headline/*/aborted/

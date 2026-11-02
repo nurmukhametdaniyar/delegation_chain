@@ -83,7 +83,7 @@ pub fn load(dir: &Path) -> Result<Data, String> {
     })
 }
 
-fn ms(ns: f64) -> String {
+pub(crate) fn ms(ns: f64) -> String {
     let v = ns / 1e6;
     if v >= 100.0 {
         format!("{v:.0}")

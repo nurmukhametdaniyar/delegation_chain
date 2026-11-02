@@ -15,7 +15,10 @@
 //! declaration shape; and two shapes no rule can declare.
 //!
 //! Assertions: (i) `Contains` true ⇒ no counterexample; (ii) reflexivity;
-//! (iii) the same soundness property for `implies` and `unsat`, per type.
+//! (iii) the same soundness property for `implies` and `unsat`, per type;
+//! (iv) the budgeted procedure at the default budget gives the unbudgeted
+//! answer unless its count passes the budget, and then false (SPEC
+//! §9.6.1; D-100).
 //! Completeness (the share of oracle-contained pairs that `Contains`
 //! accepts) is reported, not asserted. Completeness is relative to the
 //! bounded oracle, so for strings without a finite set it is a lower bound.
@@ -26,12 +29,12 @@
 //! names a JSON file to write the statistics to. `DC_ORACLE_ANSWERS` names
 //! a file to write every `Contains` answer to, one line per generated pair
 //! in (shard, case) order, so that two builds can be compared answer by
-//! answer (D-97). Runs are deterministic for a given `DC_ORACLE_SEED`.
+//! answer (D-97). Since D-100 these are the verifier's answers, under the
+//! default budget. Runs are deterministic for a given `DC_ORACLE_SEED`.
 //!
-//! With dc-policy's prototype `work-budget` feature (D-99), the report also
-//! gives the largest atom-level count any `Contains` call reaches, and the
-//! completeness under each budget that `DC_ORACLE_BUDGETS` lists
-//! (comma-separated).
+//! The report also gives the largest work count any `Contains` call
+//! reaches, and the completeness under the default budget and under each
+//! budget that `DC_ORACLE_BUDGETS` lists (comma-separated; D-99, D-100).
 
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -42,8 +45,8 @@ use dc_cbor::{INT_MAX, INT_MIN, Key, Value};
 use dc_policy::logic::{implies as logic_implies, implies_path, unsat as logic_unsat, unsat_path};
 use dc_policy::validate::is_canonical_abs;
 use dc_policy::{
-    Atom, Decision, Declaration, Invocation, Leaf, Literal, Op, Operand, Rule, Scope, ScopeForm,
-    Type, atom_holds, contains, evaluate, subsumes,
+    Atom, DEFAULT_BUDGET, Decision, Declaration, Invocation, Leaf, Literal, Op, Operand, Rule,
+    Scope, ScopeForm, Type, atom_holds, contains, contains_within, evaluate, subsumes,
 };
 use dc_types::{Identifier, Principal};
 use proptest::collection::vec;
@@ -800,54 +803,82 @@ impl Counter {
     }
 }
 
-/// D-99: the atom-level counts of the prototype work budget.
-#[cfg(feature = "work-budget")]
+/// The work counts (D-99), and the budgeted procedure the verifier runs
+/// (D-100): assertion (iv), and the completeness under each budget.
 struct BudgetStats {
     max_pair: AtomicU64,
     max_reflexivity: AtomicU64,
-    /// Each budget of `DC_ORACLE_BUDGETS`, with the completeness under it.
+    /// Pairs and reflexivity checks whose count passed the default budget.
+    exhausted_pairs: AtomicU64,
+    exhausted_reflexivity: AtomicU64,
+    /// The default budget, then each budget of `DC_ORACLE_BUDGETS`, with
+    /// the completeness under it.
     budgets: Vec<(u64, Counter)>,
 }
 
-#[cfg(feature = "work-budget")]
 impl BudgetStats {
     fn new() -> Self {
-        let budgets = std::env::var("DC_ORACLE_BUDGETS")
+        let mut list = vec![DEFAULT_BUDGET];
+        for b in std::env::var("DC_ORACLE_BUDGETS")
             .unwrap_or_default()
             .split(',')
             .filter_map(|b| b.trim().parse().ok())
-            .map(|b| (b, Counter::default()))
-            .collect();
+        {
+            if !list.contains(&b) {
+                list.push(b);
+            }
+        }
         BudgetStats {
             max_pair: AtomicU64::new(0),
             max_reflexivity: AtomicU64::new(0),
-            budgets,
+            exhausted_pairs: AtomicU64::new(0),
+            exhausted_reflexivity: AtomicU64::new(0),
+            budgets: list.into_iter().map(|b| (b, Counter::default())).collect(),
         }
     }
 
-    fn reflexivity(&self, s: &Scope) {
-        let w = dc_policy::contains_within(s, s, u64::MAX).work;
-        self.max_reflexivity.fetch_max(w, Relaxed);
+    /// The reflexivity check under the default budget: true unless the
+    /// count passes the budget. Returns the verifier's answer.
+    fn reflexivity(&self, s: &Scope) -> Result<bool, TestCaseError> {
+        let w = contains_within(s, s, u64::MAX);
+        prop_assert!(w.answer, "reflexivity fails for {}", s);
+        self.max_reflexivity.fetch_max(w.work, Relaxed);
+        let d = contains_within(s, s, DEFAULT_BUDGET);
+        prop_assert_eq!(d.exhausted, w.work > DEFAULT_BUDGET);
+        prop_assert_eq!(d.answer, !d.exhausted);
+        if d.exhausted {
+            self.exhausted_reflexivity.fetch_add(1, Relaxed);
+        }
+        Ok(d.answer)
     }
 
     /// Records the pair's count, and its answer under each budget, which
-    /// must be the unbudgeted answer unless the budget ran out.
+    /// must be the unbudgeted answer unless the count passed the budget,
+    /// and then false. Returns the answer under the default budget.
     fn pair(
         &self,
         s1: &Scope,
         s2: &Scope,
         contained: bool,
         claimed: bool,
-    ) -> Result<(), TestCaseError> {
-        let w = dc_policy::contains_within(s1, s2, u64::MAX);
+    ) -> Result<bool, TestCaseError> {
+        let w = contains_within(s1, s2, u64::MAX);
         prop_assert_eq!(w.answer, claimed);
         self.max_pair.fetch_max(w.work, Relaxed);
+        let mut default = None;
         for (b, counter) in &self.budgets {
-            let within = dc_policy::contains_within(s1, s2, *b);
-            prop_assert!(within.exhausted || within.answer == claimed);
+            let within = contains_within(s1, s2, *b);
+            prop_assert_eq!(within.exhausted, w.work > *b);
+            prop_assert_eq!(within.answer, claimed && !within.exhausted);
             counter.record(contained, within.answer);
+            if *b == DEFAULT_BUDGET {
+                if within.exhausted {
+                    self.exhausted_pairs.fetch_add(1, Relaxed);
+                }
+                default = Some(within.answer);
+            }
         }
-        Ok(())
+        Ok(default.expect("the default budget is always checked"))
     }
 
     fn json(&self) -> serde_json::Value {
@@ -857,6 +888,12 @@ impl BudgetStats {
             .map(|(b, c)| (b.to_string(), c.json()))
             .collect();
         serde_json::json!({
+            "default_budget": DEFAULT_BUDGET,
+            "completeness_overall_at_default_budget": self.budgets[0].1.json(),
+            "exhausted_at_default_budget": {
+                "wellformed_pairs": self.exhausted_pairs.load(Relaxed),
+                "reflexivity_checks": self.exhausted_reflexivity.load(Relaxed),
+            },
             "max_work_wellformed_pairs": self.max_pair.load(Relaxed),
             "max_work_reflexivity": self.max_reflexivity.load(Relaxed),
             "completeness_overall_by_budget": budgets,
@@ -1060,7 +1097,6 @@ fn differential_oracle() {
     let stats = Stats::default();
     let start = std::time::Instant::now();
     let dump = std::env::var("DC_ORACLE_ANSWERS").ok();
-    #[cfg(feature = "work-budget")]
     let budget = BudgetStats::new();
     let answers: Mutex<Vec<(u64, u64, String)>> = Mutex::new(vec![]);
 
@@ -1095,9 +1131,9 @@ fn differential_oracle() {
                     for s in &scopes {
                         stats.reflexivity_checks.fetch_add(1, Relaxed);
                         let reflexive = contains(s, s);
-                        #[cfg(feature = "work-budget")]
-                        budget.reflexivity(s);
-                        line.push(if reflexive { 'R' } else { 'r' });
+                        // The dump has the verifier's answer, under the
+                        // default budget (D-100).
+                        line.push(if budget.reflexivity(s)? { 'R' } else { 'r' });
                         if !reflexive {
                             stats.reflexivity_failures.fetch_add(1, Relaxed);
                         }
@@ -1107,8 +1143,19 @@ fn differential_oracle() {
                         [s1, s2] => Some(contains(s1, s2)),
                         _ => None,
                     };
+                    let ce = match scopes.as_slice() {
+                        [s1, s2] => Some(counterexample(s1, s2)),
+                        _ => None,
+                    };
+                    // Assertion (iv), and the verifier's answer for the dump.
+                    let verifier_answer = match (scopes.as_slice(), &ce, pair_answer) {
+                        ([s1, s2], Some(ce), Some(claimed)) => {
+                            Some(budget.pair(s1, s2, ce.is_none(), claimed)?)
+                        }
+                        _ => None,
+                    };
                     if dump.is_some() {
-                        line.push(match pair_answer {
+                        line.push(match verifier_answer {
                             Some(true) => 'T',
                             Some(false) => 'F',
                             None => '-',
@@ -1122,7 +1169,7 @@ fn differential_oracle() {
                     };
                     stats.wellformed_pairs.fetch_add(1, Relaxed);
                     let claimed = pair_answer.expect("two well-formed scopes");
-                    let ce = counterexample(s1, s2);
+                    let ce = ce.expect("two well-formed scopes");
                     if claimed {
                         stats.contains_true.fetch_add(1, Relaxed);
                         if ce.is_some() {
@@ -1141,8 +1188,6 @@ fn differential_oracle() {
                     prop_assert_eq!(failure.is_none(), claimed, "trace disagrees with contains");
                     let contained = ce.is_none();
                     stats.overall.record(contained, claimed);
-                    #[cfg(feature = "work-budget")]
-                    budget.pair(s1, s2, contained, claimed)?;
                     if !rules_of(s2)
                         .iter()
                         .any(|r| sem_unsat(&r.params, &atoms_of(r), false))
@@ -1218,7 +1263,6 @@ fn differential_oracle() {
         },
         "elapsed_seconds": start.elapsed().as_secs_f64(),
     });
-    #[cfg(feature = "work-budget")]
     let report = {
         let mut r = report;
         r["work_budget"] = budget.json();

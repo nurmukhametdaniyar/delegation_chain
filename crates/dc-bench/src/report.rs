@@ -405,6 +405,14 @@ pub(crate) fn read_json(path: &Path) -> Option<Value> {
     serde_json::from_str(&fs::read_to_string(path).ok()?).ok()
 }
 
+/// Criterion's median for one benchmark id under `dir`, in ns.
+pub fn criterion_median(dir: &Path, id: &str) -> Option<f64> {
+    criterion_estimates(dir)
+        .into_iter()
+        .find(|e| e.0 == id)
+        .map(|e| e.1)
+}
+
 /// Criterion's estimates under `dir`: (benchmark id, median ns, CI).
 pub(crate) fn criterion_estimates(dir: &Path) -> Vec<(String, f64, (f64, f64))> {
     let mut out = vec![];

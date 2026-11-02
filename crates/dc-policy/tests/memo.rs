@@ -5,11 +5,14 @@
 //! side, most of them sharing one head, and child rules drawn mostly from
 //! the parent's, so that the skip test runs often and often succeeds.
 //!
+//! D-100: on the same pairs, under budgets from 0 to twice each pair's
+//! count, a budgeted true implies the reference's true (SPEC §9.6.1).
+//!
 //! `DC_MEMO_CASES` sets the number of pairs (default 20,000).
 
 use std::cell::Cell;
 
-use dc_policy::{Scope, contains, contains_unmemoized};
+use dc_policy::{Scope, contains, contains_unmemoized, contains_within};
 use proptest::prelude::*;
 use proptest::test_runner::{Config, RngAlgorithm, TestRng, TestRunner};
 
@@ -129,4 +132,50 @@ fn memoized_contains_matches_the_procedure_as_written() {
         contained > both / 20 && contained < both - both / 20,
         "{contained} contained of {both}"
     );
+}
+
+#[test]
+fn budgeted_true_implies_the_procedure_as_written() {
+    let cases: u32 = std::env::var("DC_MEMO_CASES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(20_000);
+    let config = Config {
+        cases,
+        failure_persistence: None,
+        ..Config::default()
+    };
+    let mut r = TestRunner::new_with_rng(
+        config,
+        TestRng::from_seed(RngAlgorithm::ChaCha, &[0xb0; 32]),
+    );
+    let (budgeted_true, exhausted) = (Cell::new(0u32), Cell::new(0u32));
+    // The budget is a fraction of the pair's count, in thousandths: 0 to 2.
+    r.run(&(pair(), 0u64..=2000), |((p, c), frac)| {
+        let (Ok(s1), Ok(s2)) = (Scope::parse(&p.join("\n")), Scope::parse(&c.join("\n"))) else {
+            return Ok(());
+        };
+        let reference = contains_unmemoized(&s1, &s2);
+        let w = contains_within(&s1, &s2, u64::MAX).work;
+        let budget = w * frac / 1000;
+        let at = contains_within(&s1, &s2, budget);
+        // A budgeted true implies the procedure's true.
+        prop_assert!(!at.answer || reference, "S1:\n{}\nS2:\n{}", s1, s2);
+        // Within the budget the answers are equal, and past it false.
+        prop_assert_eq!(at.answer, reference && w <= budget);
+        // The budget runs out exactly when the count passes it.
+        prop_assert_eq!(at.exhausted, w > budget);
+        prop_assert!(!at.exhausted || at.work > budget);
+        // A larger budget never turns true into false.
+        let more = contains_within(&s1, &s2, budget.saturating_mul(2).max(budget + 1));
+        prop_assert!(!at.answer || more.answer);
+        budgeted_true.set(budgeted_true.get() + u32::from(at.answer));
+        exhausted.set(exhausted.get() + u32::from(at.exhausted));
+        Ok(())
+    })
+    .unwrap();
+    let (t, e) = (budgeted_true.get(), exhausted.get());
+    println!("{t} budgeted true, {e} exhausted");
+    // Both outcomes, in quantity.
+    assert!(t > cases / 20 && e > cases / 20, "{t} true, {e} exhausted");
 }

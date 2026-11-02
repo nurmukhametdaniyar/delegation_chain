@@ -1220,7 +1220,7 @@ D-97 memoizes step 3(b)'s skip test: each parent rule's first shadowing child ru
 
 ### A deterministic work budget for Contains (prototype)
 
-A budget on `Contains` caps what a compromised signer can force on one link, whatever the bounds (D-99). It counts atom-level checks, not time, so every replica of a verifier gives up on the same input. When the count passes the budget, `Contains` returns false, which is sound: it only turns answers to false. It is a prototype behind dc-policy's `work-budget` feature, which no headline build enables.
+A budget on `Contains` caps what a compromised signer can force on one link, whatever the bounds (D-99). It counts atom-level checks, not time, so every replica of a verifier gives up on the same input. When the count passes the budget, `Contains` returns false, which is sound: it only turns answers to false. It is a prototype behind dc-policy's `work-budget` feature, which no headline build enables. D-100 has since put it on the protocol path; the block after this one measures it there.
 - **The unit.** One atom examined while building or querying a path's constraint, weighted by its operand's literals (a 64-element `in` list counts 64). String lengths are not counted. The count is checked between the procedure's checks, so it can pass the budget by one check's worth.
 - **The smallest budget** that nothing legitimate here hits is the largest count of any `Contains` call that the workload profiles' verifications make (the ceiling and every link up to N = 10) or that the differential oracle makes. Candidates with headroom are measured too.
 
@@ -1264,4 +1264,14 @@ A budget on `Contains` caps what a compromised signer can force on one link, wha
 | 1. D-21's bounds, budget 16,384 | intlist1_r256_a32, cut off by the budget | 0.43 | 6.08 | 21 |
 | 2. D-21's bounds, budget 1,048,576 | intlist1_r256_a32, cut off by the budget | 26.3 | 368 | 1273 |
 | 3. At most 16 rules, 8 atoms a rule and 8-element lists, no budget | sweep/strlist8x2/r16_a8 | 11.7 | 163 | 565 |
+
+
+### The work budget on the protocol path
+
+D-100 puts D-99's budget on the protocol path at a default of 65,536 (SPEC §9.6.1): lines 35 and 37 reject when `Contains`'s count passes it, and a verifier refuses to pin a policy whose reflexive check passes it. This exploratory pass, which is not in the frozen plan, measures what the default leaves a compromised signer, and what the budget costs on the headline cells. It changes no measured result.
+- **`Contains` at the budget.** Every padding of D-98's search, and paddings that are slow per counted unit, because the unit does not count text lengths, head comparisons or approval comparisons: `contains`, `ends_with` and `under` operands of up to about 1 KiB (`contains`, `suffix`, `under`), string `in` lists whose members are filtered through such atoms (`setcontains`, `setunder`), 31 extra declared parameters (`decl`) and large approval sets (`approvals`). Each at the most rules that fit a body with 4, 8, 16, 24 or 32 atoms a rule, and the frozen generator's worst case at every cell of D-98 that fits. The costliest measured is a lower bound on the ceiling.
+- **Lines 2 and 5.** A delegation body of the medium profile with its scope replaced by one that fills the body: the most atoms, integer literals, text items, declared paths or approvers, or the longest text, NFC text that only a full check confirms, and the longest `under` paths. Line 2 decodes the body and decodes and validates its scope, as the verifier does; line 5 re-encodes it and compares.
+- **How.** `scripts/budget-check.sh`: criterion with ten samples of each input, on M9's machine state and build flags; each call's result is checked. Then D-96's headline cells in three builds: the measured commit, the commit before the budget (`2df8b53`, with D-94 and D-97), and the commit with it.
+
+_Not run yet: there is no `results/exploratory/budget/criterion.tar.zst`._
 

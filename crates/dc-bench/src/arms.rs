@@ -280,7 +280,8 @@ fn plain<C: ChainScheme>(
         s.clock(),
         config,
     );
-    v.pin("orga", s.hash(profile));
+    v.pin("orga", s.hash(profile))
+        .expect("the policy passes the pin-time check");
     v
 }
 
@@ -296,7 +297,8 @@ fn rtt<C: ChainScheme>(s: &Setting<C::Base>, profile: Profile, ms: u64) -> RttSu
         s.clock(),
         VerifierConfig::default(),
     );
-    v.pin("orga", s.hash(profile));
+    v.pin("orga", s.hash(profile))
+        .expect("the policy passes the pin-time check");
     RttSubject { v, resolver, store }
 }
 

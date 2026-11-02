@@ -23,6 +23,7 @@ The deposit is a snapshot of this repository at the commit its description names
 | The reorder check (D-96): each build's raw data as archives with its manifest, and its machine record | `results/exploratory/reorder/<build>/archive/`, `results/exploratory/reorder/<build>/env.json` |
 | Criterion's output for `Contains` at the scope-size bounds (D-95), and the machine record | `results/exploratory/bounds/criterion.tar.zst` with its `.sha256`, `results/exploratory/bounds/env.json` |
 | `Contains` after D-97 and the prototype work budget (D-98, D-99): criterion's output, the atom-level counts, the oracle under budgets, the search's ranking, and the machine record | `results/exploratory/contains-cost/` (`criterion.tar.zst` with its `.sha256`, `work.json`, `oracle-budget.json`, `search.txt`, `env.json`) |
+| The work budget on the protocol path (D-100): criterion's output for `Contains` at the default budget and lines 2 and 5, the counts, the oracle's report, the machine record, and the headline check's three builds as archives with their manifests | `results/exploratory/budget/` (`criterion.tar.zst` with its `.sha256`, `work.json`, `oracle.json`, `env.json`, `headline/<build>/archive/`, `headline/<build>/env.json`) |
 | Bytes on the wire (Q2), memory (Q10), the machine records | `results/bytes.json`, `results/memory.json`, `results/env.json`, `results/env-resume.json` |
 | M9's console log: the safety-valve abort and the three refused resumes that BENCHMARKS.md §7 cites | `results/logs/m9.log` |
 | The generated summary, document and paper artifacts | `results/summary.{md,json}`, `BENCHMARKS.md`, `paper/` |
@@ -63,6 +64,11 @@ zstd -dc results/exploratory/bounds/criterion.tar.zst | tar -x -C results/explor
 # Contains after D-97 and the work budget (D-98, D-99), once measured.
 (cd results/exploratory/contains-cost && shasum -a 256 -c criterion.tar.zst.sha256)
 zstd -dc results/exploratory/contains-cost/criterion.tar.zst | tar -x -C results/exploratory/contains-cost
+
+# The work budget on the protocol path (D-100), once measured.
+(cd results/exploratory/budget && shasum -a 256 -c criterion.tar.zst.sha256)
+zstd -dc results/exploratory/budget/criterion.tar.zst | tar -x -C results/exploratory/budget
+for b in measured pre-budget budgeted; do (cd results/exploratory/budget/headline/$b/archive && shasum -a 256 -c MANIFEST.sha256); done
 ```
 
 The generators check every archive themselves and refuse to run on a missing manifest or a mismatch. They also refuse to run without criterion's output, rather than write a summary without its micro-benchmark section.
@@ -117,6 +123,7 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
 - **The exploratory session** was measured at `b1cc711`.
 - **Why later commits don't qualify.** From step 3 (2026-10-04) on, the protocol's default instantiation is Ed25519 per hop, BLS aggregation a variant, and the Ed25519 decoder checks canonical encodings (D-80, D-81). Builds of later commits are therefore not the measured binaries, although the arms verify the same chains.
 - **The measured commits predate D-94.** They verify the chain signatures after policy and approvals (paper revision 2026-10-06's order); from `1f5f4fa` on, the chain signatures come first (SPEC Appendix A). An accepted chain runs the same checks in either order, so the measured chains, all of which are accepted, do the same work. The exploratory re-run of four cells in both orders is in `results/exploratory/reorder/` (D-96; BENCHMARKS.md §8).
+- **The measured commits have no work budget on `Contains`.** From D-100 on, lines 35 and 37 run `Contains` under a budget of 65,536 atom literals examined, and `pin` checks a policy's reflexive containment against it. Every measured chain's counts are far below the budget, so its decisions are the same. The exploratory measurement of the budget, including four headline cells with and without it, is in `results/exploratory/budget/` (BENCHMARKS.md §8).
 - **How.** Check the measured commit out in its own worktree (`git worktree add ../dc-m9 b175599`) and run the commands below there. The generators of this and later commits read the archives either way.
 
 - **The full benchmark (M9).** Run it with the machine on AC power, in High Power mode (`pmset powermode 2`) and idle. The harness checks all three and aborts otherwise.
@@ -160,7 +167,14 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
   scripts/contains-cost.sh
   ```
 
-  It writes `results/exploratory/contains-cost/` and appends a `BENCH_LOG.md` entry.
+  It writes `results/exploratory/contains-cost/` and appends a `BENCH_LOG.md` entry. Its run was at `7d71b92`, where the budget was a prototype behind a feature; at a later commit the script measures the protocol path's budget.
+- **The work budget on the protocol path (D-100).** At a commit with D-100, on M9's machine state; about an hour. It runs the counts and the 150,000-pair oracle first, then awaits an idle machine for the criterion pass (`benches/budget_cost.rs`), and again for D-96's four headline cells in three builds (the measured commit `b175599`, `2df8b53` before the budget, and the commit with it), each built in its own worktree under `target/exploratory/budget/` (remove them afterwards with `git worktree remove`).
+
+  ```sh
+  scripts/budget-check.sh
+  ```
+
+  It writes `results/exploratory/budget/` and appends a `BENCH_LOG.md` entry; `dc-bench budget-report` prints its BENCHMARKS.md block. `--dry` checks the pipeline under `results/dry-run/`.
 
 ## 6. Packing a deposit
 

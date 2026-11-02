@@ -21,7 +21,7 @@ use std::sync::{Arc, RwLock};
 use dc_crypto::ops;
 use dc_crypto::phases::{self, Phase};
 use dc_crypto::{ChainScheme, Dst, SigScheme};
-use dc_policy::{Decision, Invocation, Scope, contains, evaluate};
+use dc_policy::{DEFAULT_BUDGET, Decision, Invocation, Scope, contains_within, evaluate};
 use dc_registry::{
     PolicyStore, Resolver, RevocationError, RevocationSet, RevokedBinding, verify_revocation,
 };
@@ -35,7 +35,7 @@ pub use dc_crypto::ops::OpCounts;
 pub use nonce::{NonceCache, nonce_key};
 #[cfg(feature = "variant-prefix-cache")]
 pub use prefix::{Path, PrefixVerifier};
-pub use reject::Reject;
+pub use reject::{ContainsFailure, PinError, Reject};
 
 type Pk<C> = <<C as ChainScheme>::Base as SigScheme>::PublicKey;
 
@@ -53,6 +53,10 @@ pub struct VerifierConfig {
     /// The bound on clock skew, in seconds: added to the nonce TTL (D-25)
     /// and to how long a revocation is kept (paper §5.6; D-82).
     pub clock_skew: u64,
+    /// `Contains`'s work budget at lines 35 and 37, and at pinning, in atom
+    /// literals examined (SPEC §9.6.1; D-100). Every replica of one logical
+    /// verifier must use the same value. `u64::MAX` is no budget.
+    pub contains_budget: u64,
     /// Security-suite hooks (feature `test-hooks`).
     #[cfg(feature = "test-hooks")]
     pub hooks: TestHooks,
@@ -65,6 +69,7 @@ impl Default for VerifierConfig {
             cache_policies: true,
             certificate_cache_ttl: 3600,
             clock_skew: 60,
+            contains_budget: DEFAULT_BUDGET,
             #[cfg(feature = "test-hooks")]
             hooks: TestHooks::default(),
         }
@@ -208,14 +213,26 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
         &self.self_id
     }
 
-    /// Adds `hash` to `Pinned[org]`.
-    pub fn pin(&self, org: &str, hash: Digest32) {
+    /// Adds `hash` to `Pinned[org]`, after the pin-time check (SPEC §9.6.1;
+    /// D-100): if the store serves the policy `hash` names, well formed, its
+    /// reflexive `Contains` check must stay within the budget. A hash whose
+    /// policy is unavailable is pinned unchecked, and line 34 rejects every
+    /// chain under it while it stays so (D-12). The check neither reads nor
+    /// fills the policy cache.
+    pub fn pin(&self, org: &str, hash: Digest32) -> Result<(), PinError> {
+        if let Some(policy) = self.fetch_policy(&hash) {
+            let budget = self.config.contains_budget;
+            if contains_within(&policy, &policy, budget).exhausted {
+                return Err(PinError::OverBudget { budget });
+            }
+        }
         self.pinned
             .write()
             .unwrap()
             .entry(org.to_owned())
             .or_default()
             .insert(hash);
+        Ok(())
     }
 
     /// Removes `hash` from `Pinned[org]`.
@@ -367,11 +384,7 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
             return Some(s.clone());
         }
         ops::add(|c| c.policy_store_calls += 1);
-        let bytes = self.policy_store.load(hash)?;
-        if &sha256(&[&bytes]) != hash {
-            return None;
-        }
-        let scope = Arc::new(Scope::decode_policy(&bytes).ok()?);
+        let scope = Arc::new(self.fetch_policy(hash)?);
         if self.config.cache_policies {
             self.policy_cache
                 .write()
@@ -381,9 +394,27 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
         Some(scope)
     }
 
-    fn contains(&self, parent: &Scope, child: &Scope) -> bool {
+    /// The policy `hash` names, from the store, if it matches the hash and
+    /// is well formed (D-12). No cache.
+    fn fetch_policy(&self, hash: &Digest32) -> Option<Scope> {
+        let bytes = self.policy_store.load(hash)?;
+        if &sha256(&[&bytes]) != hash {
+            return None;
+        }
+        Scope::decode_policy(&bytes).ok()
+    }
+
+    /// `Contains_B` under the configured budget (lines 35 and 37; SPEC
+    /// §9.6.1).
+    fn contains(&self, parent: &Scope, child: &Scope) -> Result<(), ContainsFailure> {
         ops::add(|c| c.contains_calls += 1);
-        contains(parent, child)
+        let budget = self.config.contains_budget;
+        let w = contains_within(parent, child, budget);
+        match (w.answer, w.exhausted) {
+            (true, _) => Ok(()),
+            (false, true) => Err(ContainsFailure::BudgetExhausted { budget }),
+            (false, false) => Err(ContainsFailure::NotContained),
+        }
     }
 
     /// Algorithms 1 and 2, in order: since D-94 the chain signatures (phase
@@ -545,14 +576,12 @@ impl<C: ChainScheme, R: Resolver, P: PolicyStore, K: Clock> Verifier<C, R, P, K>
         };
         // Line 35.
         phases::enter(Phase::Contains);
-        if !self.contains(&policy, scope(0)) {
-            return Err(Reject::L35SessionScopeExceedsPolicy);
-        }
+        self.contains(&policy, scope(0))
+            .map_err(|why| Reject::L35SessionScopeExceedsPolicy { why })?;
         // Lines 36–38.
         for k in 1..n {
-            if !self.contains(scope(k - 1), scope(k)) {
-                return Err(Reject::L37ScopeEscalation { k });
-            }
+            self.contains(scope(k - 1), scope(k))
+                .map_err(|why| Reject::L37ScopeEscalation { k, why })?;
         }
         // Lines 39–40.
         phases::enter(Phase::Evaluate);

@@ -179,6 +179,28 @@ pub enum Pad {
     /// `x in [0, …, len − 1]` on the deciding path itself, `len` ≥ 7 so that
     /// every list holds [0, 6].
     XList(usize),
+    /// D-100, slow per counted unit: `s contains` a string of `bytes` bytes,
+    /// a different one in each atom, so that each implication searches the
+    /// rule's other operands.
+    StrContains(usize),
+    /// `s ends_with` nested suffixes of `bytes` + k bytes.
+    StrSuffix(usize),
+    /// `s under` nested canonical paths of about `bytes` + 2k bytes.
+    StrUnder(usize),
+    /// `s in` a list of `len` strings of about `bytes` bytes, then `s
+    /// contains` substrings every member holds: each counted unit filters a
+    /// member through one atom.
+    SetContains(usize, usize),
+    /// As `SetContains`, with `s under` paths every member lies under: each
+    /// unit checks a long path's canonical form.
+    SetUnder(usize, usize),
+    /// [`Pad::Bounds`]' atoms, under 31 more declared parameters of `len` + 2
+    /// bytes each, which every head comparison reads and the unit does not
+    /// count.
+    Decl(usize),
+    /// [`Pad::Bounds`]' atoms, with `len` approvers on every rule, which every
+    /// approval comparison reads and the unit does not count.
+    Approvals(usize),
 }
 
 impl Pad {
@@ -189,23 +211,74 @@ impl Pad {
             Pad::StrPrefix(b) => format!("prefix{b}"),
             Pad::StrList(n, b) => format!("strlist{n}x{b}"),
             Pad::XList(n) => format!("xlist{n}"),
+            Pad::StrContains(b) => format!("contains{b}"),
+            Pad::StrSuffix(b) => format!("suffix{b}"),
+            Pad::StrUnder(b) => format!("under{b}"),
+            Pad::SetContains(n, b) => format!("setcontains{n}x{b}"),
+            Pad::SetUnder(n, b) => format!("setunder{n}x{b}"),
+            Pad::Decl(n) => format!("decl{n}"),
+            Pad::Approvals(n) => format!("approvals{n}"),
         }
     }
 
-    fn head(self) -> &'static str {
+    fn head(self) -> String {
         match self {
-            Pad::Bounds | Pad::XList(_) => SHORT_HEAD,
-            Pad::IntList(_) => "allow at=o:service:s tool=t action=a params { x: int, y: int }",
-            Pad::StrPrefix(_) | Pad::StrList(..) => {
-                "allow at=o:service:s tool=t action=a params { x: int, s: string }"
+            Pad::Bounds | Pad::XList(_) | Pad::Approvals(_) => SHORT_HEAD.into(),
+            Pad::IntList(_) => {
+                "allow at=o:service:s tool=t action=a params { x: int, y: int }".into()
+            }
+            Pad::StrPrefix(_)
+            | Pad::StrList(..)
+            | Pad::StrContains(_)
+            | Pad::StrSuffix(_)
+            | Pad::StrUnder(_)
+            | Pad::SetContains(..)
+            | Pad::SetUnder(..) => {
+                "allow at=o:service:s tool=t action=a params { x: int, s: string }".into()
+            }
+            Pad::Decl(n) => {
+                let extra: Vec<String> = (0..31)
+                    .map(|k| format!("p{k:02}{}: int", "a".repeat(n)))
+                    .collect();
+                format!(
+                    "allow at=o:service:s tool=t action=a params {{ x: int, {} }}",
+                    extra.join(", ")
+                )
             }
         }
     }
 
+    /// What follows the where clause.
+    fn tail(self) -> String {
+        match self {
+            Pad::Approvals(n) => {
+                let a: Vec<String> = (0..n).map(|k| format!("o:approver:a{k:04}")).collect();
+                format!(" approval requires {}", a.join(", "))
+            }
+            _ => String::new(),
+        }
+    }
+
+    /// The member strings of a `Set*` padding's list: `bytes` bytes each,
+    /// sharing everything but a 3-digit tail.
+    fn members(n: usize, b: usize, under: bool) -> Vec<String> {
+        (0..n)
+            .map(|i| {
+                if under {
+                    format!("{}/m{i:03}", "/a".repeat(b / 2))
+                } else {
+                    format!("{}{i:03}", "a".repeat(b))
+                }
+            })
+            .collect()
+    }
+
     fn atom(self, k: usize) -> String {
         match self {
-            Pad::Bounds if k.is_multiple_of(2) => format!("x >= {}", -1 - k as i64),
-            Pad::Bounds => format!("x <= {}", 7 + k),
+            Pad::Bounds | Pad::Decl(_) | Pad::Approvals(_) if k.is_multiple_of(2) => {
+                format!("x >= {}", -1 - k as i64)
+            }
+            Pad::Bounds | Pad::Decl(_) | Pad::Approvals(_) => format!("x <= {}", 7 + k),
             Pad::IntList(n) | Pad::XList(n) => {
                 let l: Vec<String> = (0..n).map(|v| v.to_string()).collect();
                 let path = if matches!(self, Pad::XList(_)) {
@@ -220,6 +293,21 @@ impl Pad {
                 let l: Vec<String> = (0..n).map(|v| format!("\"{v:0>b$}\"")).collect();
                 format!("s in [{}]", l.join(", "))
             }
+            // Equal lengths, a common prefix of `b` bytes: no operand
+            // contains another, and every search reads to the end.
+            Pad::StrContains(b) => format!("s contains \"{}{k:03}\"", "a".repeat(b)),
+            Pad::StrSuffix(b) => format!("s ends_with \"{}{}\"", "b".repeat(k), "a".repeat(b)),
+            Pad::StrUnder(b) => format!("s under \"{}\"", "/a".repeat(b / 2 + k)),
+            Pad::SetContains(n, b) | Pad::SetUnder(n, b) if k == 0 => {
+                let under = matches!(self, Pad::SetUnder(..));
+                let l: Vec<String> = Pad::members(n, b, under)
+                    .into_iter()
+                    .map(|m| format!("\"{m}\""))
+                    .collect();
+                format!("s in [{}]", l.join(", "))
+            }
+            Pad::SetContains(_, b) => format!("s contains \"{}\"", "a".repeat(b - k)),
+            Pad::SetUnder(_, b) => format!("s under \"{}\"", "/a".repeat(b / 2 - k)),
         }
     }
 }
@@ -235,7 +323,7 @@ pub fn padded(pad: Pad, rules: usize, atoms: usize, low: bool) -> Scope {
         } else {
             a.extend([lo, hi]);
         }
-        format!("{} where {}", pad.head(), a.join(" and "))
+        format!("{} where {}{}", pad.head(), a.join(" and "), pad.tail())
     };
     let most = if low {
         rule((0, 5), false)
@@ -298,10 +386,10 @@ pub const RUNNERS_UP: [(Pad, usize); 3] = [
 /// atoms fit a body, if any.
 pub fn max_rules(pad: Pad, atoms: usize) -> Option<usize> {
     let ok = |r: usize| fits(&padded(pad, r, atoms, true)) && fits(&padded(pad, r, atoms, false));
-    if !ok(2) {
+    if !ok(1) {
         return None;
     }
-    let (mut lo, mut hi) = (2usize, 256usize);
+    let (mut lo, mut hi) = (1usize, 256usize);
     while lo < hi {
         let mid = (lo + hi).div_ceil(2);
         if ok(mid) {
@@ -313,10 +401,9 @@ pub fn max_rules(pad: Pad, atoms: usize) -> Option<usize> {
     Some(lo)
 }
 
-/// PROTOTYPE (D-99): the atom-level count of every `Contains` call that a
-/// verification of each workload profile makes (the ceiling, and each link
-/// up to N = 10), and of the inputs D-98 measures. Deterministic.
-#[cfg(feature = "work-budget")]
+/// D-99: the atom-level count of every `Contains` call that a verification
+/// of each workload profile makes (the ceiling, and each link up to
+/// N = 10), and of the inputs D-98 measures. Deterministic.
 pub fn work_counts() -> serde_json::Value {
     use crate::workload::{Profile, hop_scopes};
     use dc_policy::contains_within;

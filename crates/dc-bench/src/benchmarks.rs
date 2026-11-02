@@ -26,7 +26,7 @@ use crate::report::{
     self, AIP_CHAINED_MS, Key, Raw, Row, criterion_estimates, read_json, us, verdict,
 };
 use crate::stats::{Ratio, quantile_sorted, ratio};
-use crate::{aip, bounds, contains_cost, encoding, phases, reorder};
+use crate::{aip, bounds, budget, contains_cost, encoding, phases, reorder};
 
 /// AIP's published token sizes for biscuit-auth 6.0 chained mode (SPEC
 /// §13.10; arXiv:2603.24775v1, Table 5, "Size (Rust)", checked on
@@ -84,6 +84,8 @@ pub struct Doc {
     pub(crate) reorder: Option<reorder::Data>,
     /// Contains after D-97, and the work budget (D-98, D-99), once unpacked.
     pub(crate) contains_cost: Option<contains_cost::Data>,
+    /// The work budget on the protocol path (D-100), once unpacked.
+    pub(crate) budget: Option<budget::Data>,
     /// `docs/paper-sections.json` (D-86), when the results directory sits
     /// in the repository.
     pub(crate) sections: Option<Value>,
@@ -169,9 +171,15 @@ impl Doc {
         } else {
             None
         };
+        let bdir = results.join("exploratory/budget");
+        let budget = if bdir.join("criterion.tar.zst").exists() {
+            Some(budget::load(&bdir)?)
+        } else {
+            None
+        };
         let rdir = results.join("exploratory/reorder");
         let reorder = if rdir.join("reordered/archive/MANIFEST.sha256").exists() {
-            Some(reorder::load(&rdir)?)
+            Some(reorder::load(&rdir, reorder::REORDER)?)
         } else {
             None
         };
@@ -199,6 +207,7 @@ impl Doc {
             bounds,
             reorder,
             contains_cost,
+            budget,
             sections,
             revision: std::cell::Cell::new(Revision::Checked),
         })
@@ -888,6 +897,13 @@ impl Doc {
             ["workbudget"] => match &self.contains_cost {
                 Some(d) => d.markdown_budget(self.crit("ed25519/verify_strict")?),
                 None => "_Not run yet: there is no `results/exploratory/contains-cost/criterion.tar.zst`._".into(),
+            },
+            // The work budget on the protocol path (D-100).
+            ["budgetcheck"] => match &self.budget {
+                Some(d) => d.markdown(self.crit("ed25519/verify_strict")?, &|arm, state| {
+                    self.row(arm, state, 3, "medium").ok().map(|r| r.pooled.median)
+                }),
+                None => "_Not run yet: there is no `results/exploratory/budget/criterion.tar.zst`._".into(),
             },
             // The reorder check (D-96), from its three builds' archives.
             ["reorder"] => match &self.reorder {

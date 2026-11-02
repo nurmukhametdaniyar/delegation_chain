@@ -22,6 +22,7 @@ use dc_policy::{Decision, Scope};
 use dc_registry::{RegistryError, Resolver};
 use dc_types::digest::m_delegation;
 use dc_types::{Body, CertBody, Identifier, Kind, ParsedCert, RawScope};
+use dc_verifier::ContainsFailure::NotContained;
 use dc_verifier::{Reject, VerifierConfig, check_phase6};
 
 /// Removes body `k` from an envelope, and its signature with it when the
@@ -311,7 +312,10 @@ fn t2b_delegation_wider_than_parent() {
     );
     assert_eq!(
         v.verify(&c.to_bytes()),
-        Err(Reject::L37ScopeEscalation { k: 1 })
+        Err(Reject::L37ScopeEscalation {
+            k: 1,
+            why: NotContained
+        })
     );
 }
 
@@ -328,7 +332,7 @@ fn t2b_session_scope_exceeds_policy() {
     );
     assert_eq!(
         v.verify(&c.to_bytes()),
-        Err(Reject::L35SessionScopeExceedsPolicy)
+        Err(Reject::L35SessionScopeExceedsPolicy { why: NotContained })
     );
 }
 
@@ -380,7 +384,10 @@ fn t2b_allow_all_under_a_rule_list() {
     );
     assert_eq!(
         v.verify(&c.to_bytes()),
-        Err(Reject::L37ScopeEscalation { k: 1 })
+        Err(Reject::L37ScopeEscalation {
+            k: 1,
+            why: NotContained
+        })
     );
 }
 
@@ -811,7 +818,7 @@ fn t5b_compromised_root_is_bounded() {
     );
     assert_eq!(
         v.verify(&c.to_bytes()),
-        Err(Reject::L35SessionScopeExceedsPolicy)
+        Err(Reject::L35SessionScopeExceedsPolicy { why: NotContained })
     );
     // Another organization's namespace: a certificate for an orgb issuer
     // signed with orga's root, even if served for orgb, fails line 24.
@@ -1124,7 +1131,10 @@ fn t6b_confused_deputy_is_bounded() {
     );
     assert_eq!(
         v.verify(&c.to_bytes()),
-        Err(Reject::L37ScopeEscalation { k: 1 })
+        Err(Reject::L37ScopeEscalation {
+            k: 1,
+            why: NotContained
+        })
     );
 }
 
@@ -1717,7 +1727,13 @@ fn phase_ordering_count_ops() {
     let warm = s.verifier();
     assert!(warm.verify(&s.chain(2).to_bytes()).is_ok()); // caches a1, a2, the issuer, the policy
     let (r, n) = warm.verify_counted(&c.to_bytes());
-    assert_eq!(r, Err(Reject::L37ScopeEscalation { k: 1 }));
+    assert_eq!(
+        r,
+        Err(Reject::L37ScopeEscalation {
+            k: 1,
+            why: NotContained
+        })
+    );
     assert_eq!((n.contains_calls, n.resolver_calls), (2, 0), "warm: {n:?}");
     #[cfg(not(feature = "aggregate-variant"))]
     assert_eq!((n.sig_verifications, n.pairings()), (3, 0), "warm: {n:?}");
@@ -1733,7 +1749,13 @@ fn phase_ordering_count_ops() {
         "warm: {n:?}"
     );
     let (r, n) = s.verifier().verify_counted(&c.to_bytes());
-    assert_eq!(r, Err(Reject::L37ScopeEscalation { k: 1 }));
+    assert_eq!(
+        r,
+        Err(Reject::L37ScopeEscalation {
+            k: 1,
+            why: NotContained
+        })
+    );
     #[cfg(not(feature = "aggregate-variant"))]
     assert_eq!(
         (n.sig_verifications, n.resolver_calls),
@@ -1881,4 +1903,196 @@ fn theorem_5_part_2_cross_verifier() {
     let c = s.chain(2).to_bytes();
     assert!(v1.verify(&c).is_ok());
     assert_eq!(v2.verify(&c), Err(Reject::L08WrongAudience));
+}
+
+// ============================================================ Contains work budget
+
+/// A policy whose payments rule bounds the amount 16 times: cheap to check
+/// against itself, but each bound re-reads a child rule's constraint, so a
+/// child with long lists costs much more (SPEC §9.6.1).
+fn budget_policy() -> Scope {
+    let bounds: Vec<String> = (0..16).map(|i| format!("amount <= {}", 1000 + i)).collect();
+    Scope::parse(&format!(
+        "allow at=orgb:service:payments tool=payments action=transfer \
+         params {{ amount: int, to_account: string }} where {}",
+        bounds.join(" and ")
+    ))
+    .unwrap()
+}
+
+/// `copies` copies of a rule inside `budget_policy()`'s, and inside the §6.2
+/// policy's first rule, that admits the 500-unit transfer: two 64-element
+/// lists on the amount.
+fn heavy_scope(copies: usize) -> Scope {
+    let list: Vec<String> = (470..534).map(|v| v.to_string()).collect();
+    let list = list.join(", ");
+    let rule = format!(
+        "allow at=orgb:service:payments tool=payments action=transfer \
+         params {{ amount: int, to_account: string }} \
+         where amount in [{list}] and amount in [{list}]\n"
+    );
+    Scope::parse(&rule.repeat(copies)).unwrap()
+}
+
+/// The fewest copies of `heavy_scope` whose count against `parent` (or
+/// against itself, for `None`) passes the default budget, with that count.
+/// Every such pair is contained, so only the budget can reject it, and the
+/// parent's own reflexive check (line 35's link when the session scope is
+/// the parent) fits every budget down to that count less one.
+fn fewest_over(parent: Option<&Scope>) -> (Scope, u64) {
+    for copies in 1..=64 {
+        let child = heavy_scope(copies);
+        let w = dc_policy::contains_within(parent.unwrap_or(&child), &child, u64::MAX);
+        assert!(w.answer, "contained");
+        if w.work > dc_policy::DEFAULT_BUDGET {
+            assert!(child.canonical_bytes().len() < 60_000, "fits a body");
+            if let Some(p) = parent {
+                assert!(dc_policy::contains_within(p, p, u64::MAX).work < w.work - 1);
+            }
+            return (child, w.work);
+        }
+    }
+    panic!("no number of copies passes the budget");
+}
+
+/// A verifier for payments with nothing pinned.
+fn unpinned(s: &Suite, config: VerifierConfig) -> V {
+    dc_verifier::Verifier::new(
+        p(PAYMENTS),
+        s.w.roots(),
+        s.w.directory(),
+        s.w.policies(),
+        s.w.clock(),
+        config,
+    )
+}
+
+fn budget(b: u64) -> VerifierConfig {
+    VerifierConfig {
+        contains_budget: b,
+        ..VerifierConfig::default()
+    }
+}
+
+#[test]
+fn contains_budget_exhaustion_rejects_at_lines_35_and_37() {
+    // D-100. The pinned policy and every scope are honest and contained in
+    // their parents: only the work budget separates acceptance from
+    // rejection. At the default the line rejects with the budget as its
+    // reason; at a budget equal to the link's count W the chain is accepted,
+    // and at W − 1 rejected (the budget is inclusive).
+    use dc_policy::DEFAULT_BUDGET;
+    use dc_verifier::ContainsFailure::BudgetExhausted;
+    let mut s = Suite::new();
+    s.policy = budget_policy();
+    s.hash = s.w.publish(&s.policy);
+    let (heavy, w) = fewest_over(Some(&s.policy));
+    let tx = || transfer(500, "acct_vendor_a");
+
+    // Line 35: the session scope is the costly one.
+    for (b, expect) in [
+        (DEFAULT_BUDGET, Some(DEFAULT_BUDGET)),
+        (w, None),
+        (w - 1, Some(w - 1)),
+    ] {
+        let v = s.verifier_as(PAYMENTS, budget(b));
+        let c = s.chain_with(
+            std::slice::from_ref(&heavy),
+            PAYMENTS,
+            "payments",
+            "transfer",
+            tx(),
+        );
+        let r = v.verify(&c.to_bytes());
+        match expect {
+            Some(budget) => assert_eq!(
+                r,
+                Err(Reject::L35SessionScopeExceedsPolicy {
+                    why: BudgetExhausted { budget }
+                }),
+                "B = {b}"
+            ),
+            None => assert!(r.is_ok(), "B = {b}: {r:?}"),
+        }
+    }
+
+    // Line 37: the session scope is the policy, and delegation 1's scope
+    // the costly one.
+    let scopes = [s.policy.clone(), heavy.clone()];
+    for (b, expect) in [
+        (DEFAULT_BUDGET, Some(DEFAULT_BUDGET)),
+        (w, None),
+        (w - 1, Some(w - 1)),
+    ] {
+        let v = s.verifier_as(PAYMENTS, budget(b));
+        let c = s.chain_with(&scopes, PAYMENTS, "payments", "transfer", tx());
+        let (r, n) = v.verify_counted(&c.to_bytes());
+        match expect {
+            Some(budget) => {
+                assert_eq!(
+                    r,
+                    Err(Reject::L37ScopeEscalation {
+                        k: 1,
+                        why: BudgetExhausted { budget }
+                    }),
+                    "B = {b}"
+                );
+                assert_eq!((n.contains_calls, n.evaluate_calls), (2, 0), "{n:?}");
+            }
+            None => assert!(r.is_ok(), "B = {b}: {r:?}"),
+        }
+    }
+}
+
+#[test]
+fn pin_refuses_a_policy_over_the_budget() {
+    // D-100's operational rule. A policy whose reflexive Contains check
+    // passes the budget is not pinned, and a chain under it is rejected at
+    // line 33. A verifier whose budget covers the check pins it and accepts
+    // a session whose scope is the policy itself. A hash whose document is
+    // absent is pinned unchecked, and line 34 rejects under it.
+    use dc_policy::DEFAULT_BUDGET;
+    use dc_verifier::PinError;
+    let mut s = Suite::new();
+    let (heavy, w) = fewest_over(None);
+    s.policy = heavy.clone();
+    s.hash = s.w.publish(&heavy);
+    let tx = || transfer(500, "acct_vendor_a");
+
+    let v: V = unpinned(&s, VerifierConfig::default());
+    assert_eq!(
+        v.pin("orga", s.hash),
+        Err(PinError::OverBudget {
+            budget: DEFAULT_BUDGET
+        })
+    );
+    assert_eq!(v.cached_policies(), 0, "pinning does not fill the cache");
+    let c = s.chain_with(
+        std::slice::from_ref(&heavy),
+        PAYMENTS,
+        "payments",
+        "transfer",
+        tx(),
+    );
+    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L33NotPinned));
+
+    let v: V = unpinned(&s, budget(w));
+    assert_eq!(v.pin("orga", s.hash), Ok(()));
+    let c = s.chain_with(
+        std::slice::from_ref(&heavy),
+        PAYMENTS,
+        "payments",
+        "transfer",
+        tx(),
+    );
+    assert!(v.verify(&c.to_bytes()).is_ok());
+    let v: V = unpinned(&s, budget(w - 1));
+    assert!(v.pin("orga", s.hash).is_err());
+
+    let v: V = unpinned(&s, VerifierConfig::default());
+    let absent = policy_with_bound(900);
+    s.hash = absent.policy_hash();
+    assert_eq!(v.pin("orga", s.hash), Ok(()));
+    let c = s.chain(1);
+    assert_eq!(v.verify(&c.to_bytes()), Err(Reject::L34PolicyUnavailable));
 }

@@ -13,8 +13,8 @@ Test & Asserted, in order & Default & Aggregate \\
 \bottomrule
 \endfoot
 \multicolumn{4}{l}{\emph{T1a forgery}} \\
-\texttt{t1a\_\allowbreak{}foreign\_\allowbreak{}signatures} & L49 & yes & yes \\
-\texttt{t1a\_\allowbreak{}victim\_\allowbreak{}identity\_\allowbreak{}signed\_\allowbreak{}by\_\allowbreak{}attacker} & L49 & yes & yes \\
+\texttt{t1a\_\allowbreak{}foreign\_\allowbreak{}signatures} & L32 & yes & yes \\
+\texttt{t1a\_\allowbreak{}victim\_\allowbreak{}identity\_\allowbreak{}signed\_\allowbreak{}by\_\allowbreak{}attacker} & L32 & yes & yes \\
 \texttt{t1a\_\allowbreak{}victim\_\allowbreak{}identity\_\allowbreak{}with\_\allowbreak{}attacker\_\allowbreak{}key} & L23 & yes & yes \\
 \midrule
 \multicolumn{4}{l}{\emph{T1b chain forgery}} \\
@@ -24,71 +24,77 @@ Test & Asserted, in order & Default & Aggregate \\
 \texttt{t1b\_\allowbreak{}extension} & L07 & yes & yes \\
 \texttt{t1b\_\allowbreak{}insertion} & L11 & yes & yes \\
 \texttt{t1b\_\allowbreak{}splice} & L11 & yes & yes \\
-\texttt{theorem\_\allowbreak{}3\_\allowbreak{}digest\_\allowbreak{}recursion\_\allowbreak{}catches\_\allowbreak{}what\_\allowbreak{}line\_\allowbreak{}11\_\allowbreak{}catches} & phase 8 accepts the unmutated chain; L49 ($\times$3) & yes & yes \\
+\texttt{theorem\_\allowbreak{}3\_\allowbreak{}digest\_\allowbreak{}recursion\_\allowbreak{}catches\_\allowbreak{}what\_\allowbreak{}line\_\allowbreak{}11\_\allowbreak{}catches} & phase 6 accepts the unmutated chain; L32 ($\times$3) & yes & yes \\
 \midrule
 \multicolumn{4}{l}{\emph{T2a / T2b}} \\
 \texttt{t2a\_\allowbreak{}parameter\_\allowbreak{}substitution\_\allowbreak{}keeping\_\allowbreak{}the\_\allowbreak{}hash} & L09 & yes & yes \\
-\texttt{t2a\_\allowbreak{}parameter\_\allowbreak{}substitution\_\allowbreak{}recomputing\_\allowbreak{}the\_\allowbreak{}hash} & L49 & yes & yes \\
-\texttt{t2b\_\allowbreak{}delegation\_\allowbreak{}wider\_\allowbreak{}than\_\allowbreak{}parent} & L34 & yes & yes \\
-\texttt{t2b\_\allowbreak{}session\_\allowbreak{}scope\_\allowbreak{}exceeds\_\allowbreak{}policy} & L32 & yes & yes \\
-\texttt{t2b\_\allowbreak{}policy\_\allowbreak{}not\_\allowbreak{}pinned} & L30 & yes & yes \\
-\texttt{t2b\_\allowbreak{}policy\_\allowbreak{}unavailable\_\allowbreak{}or\_\allowbreak{}malformed} & L31 ($\times$3) & yes & yes \\
-\texttt{t2b\_\allowbreak{}allow\_\allowbreak{}all\_\allowbreak{}under\_\allowbreak{}a\_\allowbreak{}rule\_\allowbreak{}list} & L34 & yes & yes \\
+\texttt{t2a\_\allowbreak{}parameter\_\allowbreak{}substitution\_\allowbreak{}recomputing\_\allowbreak{}the\_\allowbreak{}hash} & L32 & yes & yes \\
+\texttt{t2b\_\allowbreak{}delegation\_\allowbreak{}wider\_\allowbreak{}than\_\allowbreak{}parent} & L37 & yes & yes \\
+\texttt{t2b\_\allowbreak{}session\_\allowbreak{}scope\_\allowbreak{}exceeds\_\allowbreak{}policy} & L35 & yes & yes \\
+\texttt{t2b\_\allowbreak{}policy\_\allowbreak{}not\_\allowbreak{}pinned} & L33 & yes & yes \\
+\texttt{t2b\_\allowbreak{}policy\_\allowbreak{}unavailable\_\allowbreak{}or\_\allowbreak{}malformed} & L34 ($\times$3) & yes & yes \\
+\texttt{t2b\_\allowbreak{}allow\_\allowbreak{}all\_\allowbreak{}under\_\allowbreak{}a\_\allowbreak{}rule\_\allowbreak{}list} & L37 & yes & yes \\
 \midrule
 \multicolumn{4}{l}{\emph{T3 reuse}} \\
 \texttt{t3a\_\allowbreak{}outside\_\allowbreak{}the\_\allowbreak{}validity\_\allowbreak{}window} & L13 ($\times$2); L15 & yes & yes \\
 \texttt{t3b\_\allowbreak{}replay\_\allowbreak{}sequential} & accept; L17 & yes & yes \\
 \texttt{t3c\_\allowbreak{}cross\_\allowbreak{}context} & L07 ($\times$3) & yes & yes \\
 \texttt{t3d\_\allowbreak{}cross\_\allowbreak{}verifier} & L08 & yes & yes \\
-\texttt{t3d\_\allowbreak{}audience\_\allowbreak{}clause} & L37 & yes & yes \\
+\texttt{t3d\_\allowbreak{}audience\_\allowbreak{}clause} & L40 & yes & yes \\
 \midrule
 \multicolumn{4}{l}{\emph{T4 approvals}} \\
-\texttt{t4a\_\allowbreak{}compromised\_\allowbreak{}approver\_\allowbreak{}is\_\allowbreak{}bounded} & accept (with approval); L37 & yes & yes \\
+\texttt{t4a\_\allowbreak{}compromised\_\allowbreak{}approver\_\allowbreak{}is\_\allowbreak{}bounded} & accept (with approval); L40 & yes & yes \\
 \texttt{t4a\_\allowbreak{}approver\_\allowbreak{}key\_\allowbreak{}as\_\allowbreak{}delegator} & L26 & yes & yes \\
-\texttt{t4b\_\allowbreak{}routing\_\allowbreak{}to\_\allowbreak{}a\_\allowbreak{}permissive\_\allowbreak{}approver} & L40 & yes & yes \\
-\texttt{t4c\_\allowbreak{}receipt\_\allowbreak{}reuse} & L43 & yes & yes \\
-\texttt{t4d\_\allowbreak{}stale\_\allowbreak{}approval} & L43 & yes & yes \\
-\texttt{receipt\_\allowbreak{}window} & L44; L41; L42 ($\times$2) & yes & yes \\
+\texttt{t4b\_\allowbreak{}routing\_\allowbreak{}to\_\allowbreak{}a\_\allowbreak{}permissive\_\allowbreak{}approver} & L43 & yes & yes \\
+\texttt{t4c\_\allowbreak{}receipt\_\allowbreak{}reuse} & L46 & yes & yes \\
+\texttt{t4d\_\allowbreak{}stale\_\allowbreak{}approval} & L46 & yes & yes \\
+\texttt{receipt\_\allowbreak{}window} & L47; L44; L45 ($\times$2) & yes & yes \\
 \texttt{receipt\_\allowbreak{}list\_\allowbreak{}rules} & L02 ($\times$3); accept & yes & yes \\
 \midrule
 \multicolumn{4}{l}{\emph{T5 identity infrastructure}} \\
 \texttt{t5a\_\allowbreak{}misattribution\_\allowbreak{}at\_\allowbreak{}registration} & registry rejects (BadPop); registry rejects (NonceUsed) & yes & yes \\
 \texttt{t5a\_\allowbreak{}pop\_\allowbreak{}under\_\allowbreak{}the\_\allowbreak{}chain\_\allowbreak{}dst} & registry rejects (BadPop) & --- & yes \\
 \texttt{t5a\_\allowbreak{}chain\_\allowbreak{}signature\_\allowbreak{}as\_\allowbreak{}pop} & registry rejects (BadPop) & yes & --- \\
-\texttt{t5b\_\allowbreak{}compromised\_\allowbreak{}root\_\allowbreak{}is\_\allowbreak{}bounded} & accept; L32; L24 & yes & yes \\
+\texttt{t5b\_\allowbreak{}compromised\_\allowbreak{}root\_\allowbreak{}is\_\allowbreak{}bounded} & accept; L35; L24 & yes & yes \\
 \texttt{t5c\_\allowbreak{}revocation\_\allowbreak{}propagation} & accept; L27 & yes & yes \\
 \texttt{t5c\_\allowbreak{}expiry\_\allowbreak{}and\_\allowbreak{}not\_\allowbreak{}yet\_\allowbreak{}valid} & L27 ($\times$2); accept ($\times$2); L27 & yes & yes \\
 \texttt{t5d\_\allowbreak{}certificate\_\allowbreak{}substitution} & L24; L25 & yes & yes \\
-\texttt{t5e\_\allowbreak{}role\_\allowbreak{}confusion} & L26 ($\times$3); L41 & yes & yes \\
-\texttt{scheduled\_\allowbreak{}rotation\_\allowbreak{}with\_\allowbreak{}overlapping\_\allowbreak{}certificates} & accept ($\times$2); L27 ($\times$2); L42; L27 & yes & yes \\
+\texttt{t5e\_\allowbreak{}role\_\allowbreak{}confusion} & L26 ($\times$3); L44 & yes & yes \\
+\texttt{scheduled\_\allowbreak{}rotation\_\allowbreak{}with\_\allowbreak{}overlapping\_\allowbreak{}certificates} & accept ($\times$2); L27 ($\times$2); L45; L27 & yes & yes \\
 \midrule
 \multicolumn{4}{l}{\emph{T6 bounded misuse}} \\
-\texttt{t6a\_\allowbreak{}prompt\_\allowbreak{}injection\_\allowbreak{}is\_\allowbreak{}bounded} & accept; L37 & yes & yes \\
-\texttt{t6b\_\allowbreak{}confused\_\allowbreak{}deputy\_\allowbreak{}is\_\allowbreak{}bounded} & accept; L34 & yes & yes \\
+\texttt{t6a\_\allowbreak{}prompt\_\allowbreak{}injection\_\allowbreak{}is\_\allowbreak{}bounded} & accept; L40 & yes & yes \\
+\texttt{t6b\_\allowbreak{}confused\_\allowbreak{}deputy\_\allowbreak{}is\_\allowbreak{}bounded} & accept; L37 & yes & yes \\
 \midrule
 \multicolumn{4}{l}{\emph{closed world}} \\
-\texttt{closed\_\allowbreak{}world} & L37 ($\times$3); accept & yes & yes \\
+\texttt{closed\_\allowbreak{}world} & L40 ($\times$3); accept & yes & yes \\
 \midrule
 \multicolumn{4}{l}{\emph{structure}} \\
 \texttt{structure} & L02; L03; L05 & yes & yes \\
 \texttt{structure\_\allowbreak{}limits\_\allowbreak{}and\_\allowbreak{}classes} & L02 ($\times$4); L05 & yes & yes \\
 \texttt{reencoding\_\allowbreak{}alone\_\allowbreak{}catches\_\allowbreak{}non\_\allowbreak{}canonical\_\allowbreak{}bodies} & L05 ($\times$2) & yes & yes \\
 \texttt{point\_\allowbreak{}validation\_\allowbreak{}bls} & L02 ($\times$2) & --- & yes \\
-\texttt{point\_\allowbreak{}validation\_\allowbreak{}ed25519} & L02 ($\times$2); L49; L02; registry rejects (InvalidKey) & yes & --- \\
-\texttt{malformed\_\allowbreak{}scopes\_\allowbreak{}p15} & L02 ($\times$2); L31 & yes & yes \\
+\texttt{point\_\allowbreak{}validation\_\allowbreak{}ed25519} & L02 ($\times$2); L32; L02; registry rejects (InvalidKey) & yes & --- \\
+\texttt{malformed\_\allowbreak{}scopes\_\allowbreak{}p15} & L02 ($\times$2); L34 & yes & yes \\
+\texttt{scope\_\allowbreak{}size\_\allowbreak{}bounds\_\allowbreak{}d21} & L02 & yes & yes \\
 \midrule
 \multicolumn{4}{l}{\emph{key chain, resolution}} \\
 \texttt{key\_\allowbreak{}chain\_\allowbreak{}keys} & L18; L20 & yes & yes \\
 \texttt{key\_\allowbreak{}chain\_\allowbreak{}identifiers\_\allowbreak{}p16} & L18; L20 & yes & yes \\
 \texttt{resolution\_\allowbreak{}unknown\_\allowbreak{}signer} & L23 & yes & yes \\
-\texttt{distinct\_\allowbreak{}messages} & L48 & yes & yes \\
+\texttt{distinct\_\allowbreak{}messages} & L31 & yes & yes \\
 \midrule
 \multicolumn{4}{l}{\emph{phase ordering, offline}} \\
-\texttt{phase\_\allowbreak{}ordering\_\allowbreak{}count\_\allowbreak{}ops} & L13; signature checks 0, pairings 0, resolver calls 0; L08; signature checks 0, pairings 0, resolver calls 0; accept; L34; signature checks 0, pairings 0, resolver calls 0; L34; signature checks 3, resolver calls 3; aggregate variant: hash-to-G2 3, Miller loops 6, final exps 3; accept ($\times$2); default: signature checks 3, pairings 0; aggregate variant: hash-to-G2 3, Miller loops 4, final exps 1, signature checks 1 & yes & yes \\
+\texttt{phase\_\allowbreak{}ordering\_\allowbreak{}count\_\allowbreak{}ops} & L13; signature checks 0, pairings 0, resolver calls 0; L08; signature checks 0, pairings 0, resolver calls 0; accept; L37; Contains calls 2, resolver calls 0; default: signature checks 3, pairings 0; aggregate variant: hash-to-G2 3, Miller loops 4, final exps 1, signature checks 1; L37; default: signature checks 6, resolver calls 3; aggregate variant: hash-to-G2 6, Miller loops 10, final exps 4, signature checks 4, resolver calls 3; accept ($\times$2); default: signature checks 3, pairings 0; aggregate variant: hash-to-G2 3, Miller loops 4, final exps 1, signature checks 1 & yes & yes \\
+\texttt{unsigned\_\allowbreak{}chain\_\allowbreak{}does\_\allowbreak{}no\_\allowbreak{}policy\_\allowbreak{}work} & accept; L32; Contains calls 0, Evaluate calls 0, resolver calls 0, policy-store calls 0 & yes & yes \\
 \texttt{steady\_\allowbreak{}state\_\allowbreak{}is\_\allowbreak{}offline} & accept ($\times$2); resolver calls 0, policy-store calls 0; cold: resolver and policy-store calls $>$ 0 & yes & yes \\
 \texttt{theorem\_\allowbreak{}5\_\allowbreak{}part\_\allowbreak{}2\_\allowbreak{}cross\_\allowbreak{}verifier} & accept; L08 & yes & yes \\
+\midrule
+\multicolumn{4}{l}{\emph{Contains work budget}} \\
+\texttt{contains\_\allowbreak{}budget\_\allowbreak{}exhaustion\_\allowbreak{}rejects\_\allowbreak{}at\_\allowbreak{}lines\_\allowbreak{}35\_\allowbreak{}and\_\allowbreak{}37} & L35; accept; L37; Contains calls 2, Evaluate calls 0; accept & yes & yes \\
+\texttt{pin\_\allowbreak{}refuses\_\allowbreak{}a\_\allowbreak{}policy\_\allowbreak{}over\_\allowbreak{}the\_\allowbreak{}budget} & pin refused (over the budget); the policy cache still empty; L33; pinned; accept; pin refused (over the budget); pinned; L34 & yes & yes \\
 \midrule
 \multicolumn{4}{l}{\emph{T3b replay, concurrent (Theorem 5)}} \\
 \texttt{theorem\_\allowbreak{}5\_\allowbreak{}concurrent\_\allowbreak{}replay} & accept; no outcome other than accept, L17, L50; exactly 1 accept per round; every other attempt L17 or L50 & yes & yes \\
 \end{longtable}
-% Default: 53 of 53 tests passed. Aggregate variant: 53 of 53 tests passed.
+% Default: 57 of 57 tests passed. Aggregate variant: 57 of 57 tests passed.

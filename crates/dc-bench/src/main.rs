@@ -14,7 +14,9 @@
 //! dc-bench aip     [--mode M] [--out DIR] [--aip-dir DIR] AIP's own benchmark, here (D-79)
 //! dc-bench encoding [--mode M] [--out DIR] [--resume] the cost of D-81's encoding checks (D-87)
 //! dc-bench reorder [--mode M] [--out DIR]           prints the reorder check's comparison (D-96)
-//! dc-bench budget [--out DIR]                       D-99's work counts (a `work-budget` build only)
+//! dc-bench budget [--out DIR]                       D-99's work counts
+//! dc-bench budget-counts [--out DIR]                D-100's counts under the default budget
+//! dc-bench budget-report [--mode M] [--out DIR]     prints D-100's block of BENCHMARKS.md §8
 //! ```
 //!
 //! `scripts/reorder-check.sh` runs the reorder check's three builds (D-96);
@@ -84,7 +86,7 @@ struct Args {
 fn parse() -> Result<Args, String> {
     let mut it = std::env::args().skip(1);
     let cmd = it.next().ok_or(
-        "usage: dc-bench <all|run|bytes|env|archive|report|plan|benchmarks|paper|phases|aip|encoding|reorder|budget> [options]",
+        "usage: dc-bench <all|run|bytes|env|archive|report|plan|benchmarks|paper|phases|aip|encoding|reorder|budget|budget-counts|budget-report> [options]",
     )?;
     let mut a = Args {
         cmd,
@@ -183,8 +185,13 @@ fn main() -> ExitCode {
         "bytes" => cmd_bytes(&a),
         "archive" => archive(&out_dir(&a)),
         "budget" => cmd_budget(&a),
-        "reorder" => dc_bench::reorder::load(&out_dir(&a).join("exploratory/reorder"))
-            .map(|d| print!("{}", d.markdown(&|_, _| None))),
+        "budget-counts" => cmd_budget_counts(&a),
+        "reorder" => dc_bench::reorder::load(
+            &out_dir(&a).join("exploratory/reorder"),
+            dc_bench::reorder::REORDER,
+        )
+        .map(|d| print!("{}", d.markdown(&|_, _| None))),
+        "budget-report" => cmd_budget_report(&a),
         "report" => cmd_report(&a),
         "benchmarks" => {
             let out = out_dir(&a);
@@ -532,17 +539,10 @@ fn headline_build() -> Result<(), String> {
                 .into(),
         );
     }
-    if dc_policy::meter::ENABLED {
-        return Err(
-            "this build counts Contains's work (`work-budget`, D-99); headline runs must not use it"
-                .into(),
-        );
-    }
     Ok(())
 }
 
 /// D-99's atom-level counts, into `exploratory/contains-cost/work.json`.
-#[cfg(feature = "work-budget")]
 fn cmd_budget(a: &Args) -> Result<(), String> {
     let dir = out_dir(a).join("exploratory/contains-cost");
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -554,9 +554,29 @@ fn cmd_budget(a: &Args) -> Result<(), String> {
     .map_err(|e| e.to_string())
 }
 
-#[cfg(not(feature = "work-budget"))]
-fn cmd_budget(_: &Args) -> Result<(), String> {
-    Err("`budget` needs a build with `--features work-budget` (D-99)".into())
+/// D-100's counts, into `exploratory/budget/work.json`.
+fn cmd_budget_counts(a: &Args) -> Result<(), String> {
+    let dir = out_dir(a).join("exploratory/budget");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let v = dc_bench::budget::counts();
+    fs::write(
+        dir.join("work.json"),
+        serde_json::to_string_pretty(&v).unwrap() + "\n",
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// D-100's block, from `exploratory/budget/` (its criterion output
+/// unpacked), against the frozen pass's strict Ed25519 verification.
+fn cmd_budget_report(a: &Args) -> Result<(), String> {
+    let d = dc_bench::budget::load(&out_dir(a).join("exploratory/budget"))?;
+    let strict = dc_bench::report::criterion_median(
+        &root().join("results/criterion"),
+        "ed25519/verify_strict",
+    )
+    .ok_or("no frozen criterion estimate for ed25519/verify_strict (ARTIFACT.md §3)")?;
+    print!("{}", d.markdown(strict, &|_, _| None));
+    Ok(())
 }
 
 fn cmd_run(a: &Args) -> Result<(), String> {

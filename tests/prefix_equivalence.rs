@@ -61,7 +61,7 @@ impl<C: ChainScheme> Config for VOf<C> {
         self.ingest_revocation(a).unwrap();
     }
     fn pin(&self, org: &str, hash: Digest32) {
-        VOf::<C>::pin(self, org, hash);
+        VOf::<C>::pin(self, org, hash).expect("the policy passes the pin-time check");
     }
     fn unpin(&self, org: &str, hash: &Digest32) {
         VOf::<C>::unpin(self, org, hash);
@@ -77,7 +77,7 @@ impl<C: PrefixScheme> Config for PV<C> {
         self.ingest_revocation(a).unwrap();
     }
     fn pin(&self, org: &str, hash: Digest32) {
-        PV::<C>::pin(self, org, hash);
+        PV::<C>::pin(self, org, hash).expect("the policy passes the pin-time check");
     }
     fn unpin(&self, org: &str, hash: &Digest32) {
         PV::<C>::unpin(self, org, hash);

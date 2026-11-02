@@ -18,9 +18,7 @@ mod text;
 pub mod validate;
 
 pub use ast::{Atom, Decision, Declaration, Literal, Op, Operand, Rule, Scope, ScopeForm, Type};
-#[cfg(feature = "work-budget")]
-pub use contains::{Within, contains_within};
-pub use contains::{contains, subsumes};
+pub use contains::{DEFAULT_BUDGET, Within, contains, contains_within, subsumes};
 #[cfg(feature = "test-hooks")]
 pub use contains::{contains_pre_review, contains_unmemoized};
 pub use error::PolicyError;

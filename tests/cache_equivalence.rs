@@ -74,8 +74,11 @@ fn uncached_and_warm_verifiers_agree() {
         // ---- interleaved events ----
         if step == total / 2 {
             // A new pin: chains naming P2 start being accepted.
-            uncached.pin("orga", h2);
-            warm.pin("orga", h2);
+            uncached
+                .pin("orga", h2)
+                .expect("the policy passes the pin-time check");
+            warm.pin("orga", h2)
+                .expect("the policy passes the pin-time check");
             *events.entry("new pin").or_default() += 1;
         }
         if chance(&mut rng, 20) {

@@ -11,6 +11,14 @@ Put this file in the repository root as `SPEC.md`.
 
 ## Changelog
 
+**2026-11-02 — a work budget on `Contains` (D-100; P-35).** Chosen by the author from D-99's measured candidates. This runs ahead of paper revision 2026-10-06 (§2).
+- **Why.** After D-94 a compromised agent, which the threat model includes, can still sign scopes that make one `Contains` call cost seconds within D-21's bounds (D-95, D-98). D-21's bounds stay as they are.
+- **The change (§9.6.1).** Lines 35 and 37 run `Contains` under a deterministic work budget B, a verifier configuration parameter (default 65,536), counted in D-99's unit: atom literals examined. A call whose count passes B returns false, and the line rejects with the budget as the reason. Replicas of one logical verifier use the same B. The unit fixes the procedure's order of work, so D-97's memoized skip test is now part of the procedure's definition; its answers are unchanged.
+- **One operational rule.** A verifier refuses to pin a policy whose reflexive `Contains` check exceeds B (§6.6, §9.6.1).
+- **Unchanged.** Algorithm 2's text (Appendix A): `Contains` now means the budgeted procedure. Every decision on a pair whose count is within B, so every honest chain of the workload profiles and every pair of the differential oracle.
+- **Tests (§9.7, §11.2).** The L35 and L37 variants carry their reason. New rows: budget exhaustion at each line, and the pin-time check. The oracle also checks the budgeted procedure.
+- **The benchmark (§12, §13) is unchanged.** The measured commits have no budget.
+
 **2026-11-01 — chain signatures before policy (D-94; P-34).** Asked for by the author after a pre-submission review. This runs ahead of paper revision 2026-10-06, which will copy Algorithms 1–2 from Appendix A (§2).
 - **Why.** Phases 1–5 need no private key. An attacker can name real identities with their real keys, so that certificates resolve (from cache on a warm verifier), copy a pinned policy hash off the wire, and attach scopes of its own. In revision 2026-10-06, phase 6 then runs `Contains` on those scopes before phase 8 checks any signature. The frozen plan's criterion results put `Contains` at 64 rules × 8 atoms at about 250 times one strict Ed25519 verification, and varying the scopes defeats any containment cache.
 - **The change (Appendix A, §10.2).** The chain signatures are phase 6, ahead of policy (phase 7) and approvals (phase 8). Lines 1–29 and 50–52 are unchanged. Line mapping, old → new:
@@ -155,6 +163,8 @@ If this spec contradicts the paper, the paper wins. Log the contradiction as a `
 - **P-30 (D-26, revised).** Resolution returns the newest certificate for the binding that is valid at t, if there is one (§6.6).
 
 **Exception (agreed 2026-11-01, open).** This spec runs ahead of paper revision 2026-10-06 on the order of Algorithm 2 (D-94, P-34). Appendix A is the source of truth for Algorithms 1–2 and their line numbers, and the paper will copy it verbatim. Until the paper does, where the two disagree on that order or those numbers, this spec takes precedence.
+
+**Exception (agreed 2026-11-02, open).** This spec runs ahead of paper revision 2026-10-06 on `Contains`'s work budget and the pin-time check (§9.6.1; D-100, P-35). Until the paper states them, this spec takes precedence on both.
 
 ---
 
@@ -527,6 +537,7 @@ trait PolicyStore{ fn load(&self, policy_hash: &[u8; 32]) -> Option<Vec<u8>>; }
   - Paper §5.4 (revision 2026-09-29) says "the most recently issued certificate … whether or not it is currently valid". Revision 2026-09-28 said "resolution returns the valid certificate" (P-18).
   - Line 27 checks `t ∈ [nbf, exp]` and revocation (D-35, D-65).
 - **Content addressing.** `load` returns bytes; the verifier accepts them only if `SHA256(bytes) == policy_hash` and the bytes decode as a well-formed policy (§9.3). A malformed policy is treated as _unavailable_ (line 34) (**D-12**).
+- **Pinning (D-100).** `pin(org, hash)` loads `hash`'s document from the store and, if it is available, matches its hash and is well formed, refuses to pin a policy whose reflexive `Contains` check exceeds the work budget (§9.6.1). An unavailable or malformed document is pinned unchecked, and line 34 rejects under it (D-12). Pinning neither reads nor fills the policy cache.
 
 ---
 
@@ -748,7 +759,7 @@ Anything that fails validation is **malformed** and rejected.
     - The counterexample is in P-15.
   - Because every where-path is now declared, D-20 below is always well defined.
   - Paper §6.1 "Well-formedness" (revision 2026-09-29) states this rule (condition 1), together with D-19 (condition 1), D-20 (condition 2, as a table) and the `at`/`approval` kinds (condition 3).
-- **Size limits** (**D-21**): ≤ 256 rules per scope, ≤ 32 params per rule, ≤ 32 atoms per rule, ≤ 64 list elements, text ≤ 1024 bytes, path depth ≤ 8.
+- **Size limits** (**D-21**): ≤ 256 rules per scope, ≤ 32 params per rule, ≤ 32 atoms per rule, ≤ 64 list elements, text ≤ 1024 bytes, path depth ≤ 8. Within them, `Contains`'s work at lines 35 and 37 is bounded by the work budget (§9.6.1, D-100).
 
 **Canonical absolute path (paper §6.1):**
 
@@ -861,6 +872,54 @@ Special forms need a test each (**D-24**):
 - **`Contains(S1, allow all)` with S1 not `allow all` returns false** (step 2). This is soundness-critical: getting it wrong lets a delegation widen to everything. An earlier paper revision worded step 2 so that it could be read the other way.
 - If S1 is `deny all` and S2 has rules, step 3(a) finds no r1 and returns false. This is conservative, and correct.
 
+#### 9.6.1 Work budget (D-100; ahead of the paper, P-35)
+
+The verifier runs `Contains` under a **work budget** B, a verifier configuration parameter. **The default is B = 65,536.**
+
+- **The decision.** `Contains_B(S1, S2)` is true iff the procedure above returns true and its work count W(S1, S2) is at most B. W is the count, in the unit below, of the work the procedure does until it returns.
+  - The count only grows, so an implementation may stop, returning false, as soon as its running count passes B. Stopping early never changes a decision.
+  - Lines 35 and 37 call `Contains_B`. When the count passed B, the rejection gives the budget as its reason (§10.2).
+- **Sound.** The budget only turns true into false. Proposition 2's soundness therefore holds for `Contains_B`, and so do the theorems that rest on it. Completeness falls only for pairs whose W exceeds B.
+- **Reflexive only within the budget.** `Contains(P, P)` is true for every P (§9.7), but `Contains_B(P, P)` is false when W(P, P) > B. Hence the pin-time check below.
+- **The unit** is one atom literal examined.
+  - An atom's weight w(a) is its operand's literal count: 1, or the length of an `in` list. For a list of atoms A, w(A) is the sum of the weights, and n(A) the number of atoms.
+  - Text lengths are not counted, so the time per unit varies with the input. D-100's exploratory measurement gives the cost at the default.
+  - W is the sum of the charges below, made in the order the table gives. The order matters because every loop stops at its first deciding answer.
+
+  | Where | Charge |
+  |---|---|
+  | Steps 0–2; comparing heads, declarations and approval sets | 0 |
+  | Step 3(a): each test `r2 ⊆ r1`, r1 in S1's order until one subsumes | 1; then, if the heads and declarations agree and the approvals pass, `implies(r2.where, r1.where)` |
+  | Step 3(b): each r′ before r1 | 1; then, if r′ agrees with r2 on head and declaration, `unsat` of r′'s atoms followed by r2's; if that is satisfiable, the skip test, then the approval comparison |
+  | The skip test for r′ | each `implies(r′.where, r2′.where)` its search runs (below) |
+  | `unsat(C)` | n(C); then, for each distinct path of C in byte order, until one is unsatisfiable: n(C) to select the atoms A on that path, then that path's satisfiability check |
+  | `implies(C2, C1)` | `unsat(C2)`, which answers true if C2 is unsatisfiable; then, for each atom b of C1 in order, until one is not implied: n(C2) to select the atoms A of C2 on b's path, then that path's implication check of b |
+  | Every path check, first | w(A), building the path's constraint from A |
+  | int, satisfiability | n(F) if A has `==` or `in` atoms, F being the intersection of their operand sets; else 0 |
+  | int, implication of b | the satisfiability check, which answers true if unsatisfiable; then, with F: n(F) again, then n(F′)·w(b), F′ being F's members within A's bounds; without F: w(b) if b is an `in` atom, else 0 |
+  | bool, satisfiability | 0 |
+  | bool, implication of b | 2·w(b) |
+  | string, satisfiability | with E, as F for strings: n(E)·w(A); without E: n(P)² + n(S)² + n(U)² + n(P)·n(U) |
+  | string, implication of b | the satisfiability check, which answers true if unsatisfiable; then, with E: n(E)·w(A) again, then n(E′)·w(b), E′ being E's members that satisfy every atom of A; without E: n(P) + n(S) + n(K) + n(U) if b's operand is one string, else 0 |
+
+  P, S, K and U are the operands of A's `starts_with`, `ends_with`, `contains` and `under` atoms.
+- **The skip test's search (D-97, now part of the definition).** For each rule r′ of S1, step 3(b) examines the child rules r2′ in S2's order, each at most once per `Contains` call.
+  - It resumes at the first child rule not yet examined for r′, and examines only child rules before the current r2.
+  - It stops at the first r2′ that agrees with r′ on head and declaration and has `implies(r′.where, r2′.where)`. That r2′ then skips r′ for every later r2.
+  - The answers are step 3(b)'s as written above. Only the count needs the order: the procedure as written repeats the search for every r2, and would count more.
+- **Configuration.** `VerifierConfig::contains_budget`. `u64::MAX` means no budget. The budget is part of the verifier's configuration, like `Pinned` and `Root` (paper §7.1, verifier configuration integrity).
+- **Replicas.** Every replica of one logical verifier uses the same budget.
+  - W depends only on the two scopes, so replicas with the same B reach the same decision on every chain.
+  - Replicas with different budgets can split on one chain: one accepts it while another rejects it at line 35 or 37.
+  - As for the nonce cache (§10.4), the protocol states this requirement but cannot enforce it.
+- **Pin-time check.** A verifier refuses to pin a policy whose reflexive check exceeds the budget.
+  - To pin hash h, the verifier loads h's document from its policy store. If the document is available, hashes to h and is well formed (§6.6, §9.3), the verifier computes W(P, P) and refuses if it exceeds B.
+  - Otherwise it pins h unchecked, as before. Line 34 then rejects every chain under h while the document stays unavailable (D-12).
+  - The check neither reads nor fills the policy cache, so a verifier is still cold after pinning (§10.5).
+  - Why: a pinned policy that fails its own reflexive check under the budget would make line 35 reject every session whose scope is the policy itself, the commonest session (paper §6.4 on reflexivity).
+  - The check does not bound `Contains(P, S0)` for a session scope S0 inside P, because W depends on S0 too.
+- **The default** is the author's choice (D-100), from D-99's measured candidates. BENCHMARKS.md §8 gives the counts of the workload profiles and the differential oracle, the frozen generator's shapes the default admits, and the cost at the default.
+
 ### 9.7 Required policy tests (in addition to §11)
 
 - **Paper examples:**
@@ -889,8 +948,13 @@ Special forms need a test each (**D-24**):
     - (i) Soundness: `Contains(S1, S2) == true` implies the oracle finds no counterexample. Any counterexample is a real bug, because it is a concrete invocation.
     - (ii) Reflexivity.
     - (iii) The same soundness property separately for `implies` and `unsat`, per type.
-  - **Reporting.** Track the completeness rate (the fraction of oracle-contained pairs that `Contains` accepts) and report it; do not assert on it. The oracle is bounded to the enumerated universe, so a pair it calls contained may have a counterexample outside that universe. Report the rate as relative to the bounded oracle.
+    - (iv) The budgeted procedure at the default budget (§9.6.1) gives the unbudgeted answer on every pair and reflexivity check whose count is within the budget, and false otherwise (D-100).
+  - **Reporting.** Track the completeness rate (the fraction of oracle-contained pairs that `Contains` accepts) and report it; do not assert on it. The oracle is bounded to the enumerated universe, so a pair it calls contained may have a counterexample outside that universe. Report the rate as relative to the bounded oracle. Report it for the budgeted procedure at the default budget too, with the largest count of any pair and of any reflexivity check.
   - **Scale.** At least 100,000 generated cases in CI's extended profile.
+- **Work budget (D-100):**
+  - **Property.** On generated pairs of up to 24 rules a side and budgets from 0 to twice the pair's count: a budgeted true implies the unbudgeted procedure's true, compared with the procedure as written (`contains_unmemoized`); within the budget the answers are equal; the budget runs out exactly when the count passes it; and a larger budget never turns true into false.
+  - **The unit.** Counts computed by hand from §9.6.1's table equal the implementation's, for one pair of each path type.
+  - **Determinism.** The count and the answer of a pair are identical across repeated runs, across threads, and whatever ran before on the thread.
 
 ---
 
@@ -908,10 +972,11 @@ pub struct Verifier<S: ChainScheme, R: Resolver, P: PolicyStore, C: Clock> {
     policy_cache: PolicyCache,                 // keyed by hash; immutable
     nonce_cache: NonceCache,                   // §10.4
     revoked: RevocationSet,                    // (registry, identifier, key) bindings (D-65)
-    config: VerifierConfig,
+    config: VerifierConfig,                    // includes contains_budget, default 65,536 (§9.6.1)
 }
 
 pub fn verify(&self, chain: &[u8]) -> Result<Accepted, Reject>;
+pub fn pin(&self, org: &str, hash: [u8; 32]) -> Result<(), PinError>;  // the pin-time check (§9.6.1)
 ```
 
 ### 10.2 Algorithms 1–2, line by line
@@ -923,7 +988,7 @@ Implement Appendix A exactly, in order. The `Reject` enum has one variant per re
 - **The chain signatures are verified before any policy work.** Phases 1–5 can be passed by an attacker with no private key: it can name real identities with their real keys, so that their certificates resolve (from cache, on a warm verifier), copy a pinned policy hash off the wire, and attach scopes it wrote itself. If policy came next, `Contains` would run on those scopes before any signature had been checked, and scopes that vary from one attempt to the next defeat any containment cache. At the frozen plan's largest criterion size (64 rules × 8 atoms), one `Contains` call costs about 250 strict Ed25519 verifications. Verifying the chain signatures first (phase 6) confines policy work (phase 7) and approvals (phase 8) to chains whose every hop is signed.
 - **The cold-verifier exception still holds.** On a cold verifier, phase 5 verifies N + 1 certificates under their registry roots before the chain signatures: under BLS roots, N + 1 pairing checks (P-28, D-61). Their results are cached per binding; failures are not.
 - An accepted chain passes every phase in either order, so honest traffic does the same work as before. A chain rejected in phase 7 or 8 now costs its N + 1 chain-signature checks (one multi-pairing under the aggregate variant).
-- The scope-size bounds (D-21, D-03, D-16) remain necessary: a compromised agent, which the threat model includes, can still sign a large sub-scope.
+- The scope-size bounds (D-21, D-03, D-16) remain necessary: a compromised agent, which the threat model includes, can still sign a large sub-scope. Since D-100, the work budget (§9.6.1) bounds what each such scope costs at lines 35 and 37. Decoding and validating it at line 2 is bounded by the size limits alone, and runs before any signature.
 
 Definitions, from paper §4.6:
 
@@ -950,6 +1015,8 @@ Line-level notes:
 - **Line 27:** reject unless `t ∈ [cert.nbf, cert.exp]`, closed at both ends (**D-35**), and reject if the certificate's binding (registry, identifier, key) is revoked (**D-65**, ahead of the paper, which revokes by serial; P-29). The paper's line 27 says "not yet valid, expired, or revoked at t", without stating the boundary (P-26). Line 45's "phase-5 checks" include the same window.
 - **Line 31:** compare all N+1 digests pairwise; use a hash set. This is the only distinctness check; `blst` does not do one (§5.6).
 - **Line 32:** §5.6.
+- **Line 33:** `Pinned[o]` holds only hashes that passed the pin-time check, or whose document was unavailable when pinned (§9.6.1, D-100).
+- **Lines 35 and 37:** `Contains` is `Contains_B` under the configured budget (§9.6.1, D-100). `L35SessionScopeExceedsPolicy { why }` and `L37ScopeEscalation { k, why }` carry the reason: `NotContained` when the procedure returned false within the budget, `BudgetExhausted { budget }` when its count passed the budget. Still one variant per rejecting line.
 - **Line 43:** receipts from approvers outside `svcs` are ignored (D-34).
 - **Line 44:** `Resolve(s, R.approver_pk)`; reject if unresolvable (`L44`, **D-27**).
 - **Line 45:** the phase-5 checks (lines 24–27) with kind `approver`: root, namespace, kind, validity window, revocation.
@@ -1025,8 +1092,8 @@ Unless a row says otherwise, give every body the same `exp`, set every `hop_inde
 | Theorem 3, digest recursion            | Line 11 now catches the reorder, truncation and insertion rows before phase 6, but the paper says those checks are redundant with the digest recursion. Prove it: call the phase-6 check (lines 30–32) directly on the mutated body lists, with the running aggregate adjusted as an attacker could (subtracting σ_k, recoverable from partial sums, paper §4.3). | aggregate check fails for each mutation                |
 | T2a parameter substitution             | Change a param, keep `params_hash`                                                                                                                                                                                                                                                                                                                                | L09                                                    |
 | T2a                                    | Change a param and recompute `params_hash`                                                                                                                                                                                                                                                                                                                        | L32                                                    |
-| T2b scope escalation                   | Delegation sub-scope wider than its parent                                                                                                                                                                                                                                                                                                                        | L37                                                    |
-| T2b                                    | Session scope exceeds the pinned policy                                                                                                                                                                                                                                                                                                                           | L35                                                    |
+| T2b scope escalation                   | Delegation sub-scope wider than its parent                                                                                                                                                                                                                                                                                                                        | L37, `NotContained`                                    |
+| T2b                                    | Session scope exceeds the pinned policy                                                                                                                                                                                                                                                                                                                           | L35, `NotContained`                                    |
 | T2b                                    | `policy_hash` not pinned for the issuing org                                                                                                                                                                                                                                                                                                                      | L33                                                    |
 | T2b                                    | Pinned but absent from the store; or malformed policy bytes                                                                                                                                                                                                                                                                                                       | L34                                                    |
 | T2b (step 2 regression)                | Delegate `allow all` under a rule-list parent                                                                                                                                                                                                                                                                                                                     | L37                                                    |
@@ -1069,6 +1136,8 @@ Unless a row says otherwise, give every body the same `exp`, set every `hop_inde
 | Phase ordering (Figure 2, `count-ops`; D-94) | Expired chain; wrong `aud`; L37 rejection, warm and cold | Expired and wrong `aud`: 0 signature checks, 0 pairings and 0 resolver calls. L37 warm: the N + 1 chain-signature checks (under the aggregate variant, one multi-pairing) and 0 resolver calls, since phase 6 precedes policy (D-94). Cold L37: also N + 1 certificate checks and N + 1 resolver calls (paper §4.6), and under the aggregate variant their pairings (D-61) |
 | Unsigned policy work (D-94, P-34)      | N = 16. Every body well formed, with real identities and keys whose certificates a warm verifier has cached, the pinned policy hash, and well-formed scopes at the size bounds (256 rules; a rule with 32 parameters, 32 atoms, a 64-element list, a 1,024-byte string and a depth-8 path), not contained in the policy; every chain signature made by an unrelated key over the right digest | L32, with 0 `Contains`, 0 `Evaluate`, 0 resolver and 0 policy-store calls |
 | Scope size bounds (D-21)               | A delegation scope one past a bound, correctly signed: 257 rules; a rule with 33 atoms; 33 parameters; a 65-element list; a 1,025-byte string; a depth-9 path | L02 each |
+| Contains work budget (D-100)           | A pinned policy whose payments rule bounds the amount 16 times (each bound re-reads a child rule's constraint). As the session scope, then as delegation 1's scope under a session scope equal to the policy: k copies of a rule inside it that admits the invocation, with two 64-element `amount in` lists, k the fewest whose count W passes the default budget; the chain otherwise honest. Then the same chains with the budget set to W, and to W − 1 | L35 and L37 (k = 1), each with `BudgetExhausted { budget: 65,536 }`; accept at B = W; `BudgetExhausted { budget: W − 1 }` at B = W − 1 |
+| Pin-time check (D-100)                 | A policy of k copies of such a rule, k the fewest whose reflexive count W passes the default budget, published to the store. Pin it at the default; then at B = W. And a hash whose document is absent from the store | Refused at the default (`PinError::OverBudget`), and a chain under it rejected at L33; pinned at B = W, and the chain accepted; the absent hash pinned unchecked, and L34 |
 | Steady-state offline (paper §8.2)      | Warm verifier accepts a chain from known partners                                                                                                                                                                                                                                                                                                                 | 0 resolver and 0 policy-store calls                    |
 | Theorem 5, part 2                      | A chain accepted at V1 is presented to V2                                                                                                                                                                                                                                                                                                                         | L08                                                    |
 

@@ -116,7 +116,8 @@ fn certificate_cache<C: ChainScheme>(k: usize) -> (usize, i64) {
                 ..VerifierConfig::default()
             },
         );
-        v.pin("orga", hash);
+        v.pin("orga", hash)
+            .expect("the policy passes the pin-time check");
         v
     };
     let run = |cache: bool| {
@@ -147,7 +148,8 @@ fn prefix_cache<C: PrefixScheme>(k: usize) -> (usize, i64) {
             setting.clock(),
             VerifierConfig::default(),
         );
-        v.pin("orga", setting.hash(Profile::Medium));
+        v.pin("orga", setting.hash(Profile::Medium))
+            .expect("the policy passes the pin-time check");
         v
     };
     let pv = PrefixVerifier::new(plain());

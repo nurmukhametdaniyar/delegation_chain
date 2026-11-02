@@ -408,3 +408,27 @@ Suggested fix to the paper:
 - The claims table's phase-ordering rows and §8.7 describe the measured commits, which ran the old order; say so.
 Severity: clarity (a denial-of-service cost; soundness is unaffected, since every accepted chain passes every check in either order)
 Status: open in revision 2026-10-06. SPEC.md runs ahead of the paper (SPEC §2, D-94).
+
+## P-35 — `Contains` has no work bound a verifier can rely on
+Paper location: §6.1 ("Implementations also bound the size of a scope … so that evaluation and containment stay bounded on input the sender chooses; those bounds belong in a normative specification"); §6.4 (the procedure; the reflexivity paragraph; Proposition 2's cost half and the "Measured, Contains takes …" paragraph; Remark 1); §5.4 ("it can fetch and check the documents when it pins them"); §4.6 (the nonce cache's replica paragraph); §7.1 ("Verifier configuration integrity"); §7.2 (Theorem 4's proof: "The converse does not hold: by Remark 1"); §7.4 ("The containment procedure of Section 6.4 is sound but not complete"); §8.2 (Table 1); §9.3 ("Containment completeness") (revision 2026-10-06)
+Problem:
+- Size bounds alone do not bound the procedure's cost usefully. Within the bounds this implementation uses (D-21: 256 rules, 32 atoms, 64-element lists, in a 64 KiB body), a compromised agent can sign scopes for which one `Contains` call takes seconds, after D-97's memoization (D-95, D-98; BENCHMARKS.md §8). Proposition 2's "polynomial in |S1| + |S2|" is true but does not bound it at sizes a verifier can accept.
+- Since D-94 the cost needs signatures by a compromised agent, which the threat model includes (P-34).
+What the implementation does: D-100. A deterministic work budget on `Contains` (SPEC §9.6.1), default 65,536 atom literals examined, a verifier configuration parameter. The size bounds stay.
+- `Contains_B(S1, S2)` is the procedure's answer if its count W is at most B, and false otherwise. Lines 35 and 37 reject with the budget as the reason. Sound, since it only turns true into false.
+- The count is defined by a table of charges over the procedure's steps. It fixes the order of work, including D-97's memoized skip search, so that replicas count alike.
+- Replicas of one logical verifier use the same budget.
+- A verifier refuses to pin a policy whose reflexive check exceeds the budget.
+Suggested fix to the paper:
+- §6.1: the size bounds stay, but the work budget is what bounds containment. State the budget there or in §6.4.
+- §6.4: define `Contains_B`, the unit and its charges (or cite the specification for the table), the default and its rationale, and the order of the skip search. The reflexivity paragraph ("the procedure is reflexive: P ⊆ P for every scope P") holds for the procedure, and for `Contains_B` only within the budget; say so, and give the pin-time check.
+- Proposition 2: soundness is unchanged. Add to the cost half that `Contains_B` examines at most B atom literals (plus one step), and that the unit does not count text lengths, head comparisons or approval comparisons, so its time per unit varies by input. Replace "Measured, Contains takes 9.0 µs … 5146 µs …" with the budget's measured ceiling (BENCHMARKS.md §8, D-100), and drop or qualify the advice to cache containment results, which a scope that varies defeats.
+- Remark 1: a second, deliberate source of incompleteness: pairs whose count passes the budget.
+- §5.4: when a verifier pins a policy, it fetches it and refuses it if its reflexive check exceeds the budget.
+- §4.6: next to the nonce cache's replica requirement, replicas of one logical verifier use the same budget, or they can decide one chain differently.
+- §7.1: the budget is part of the verifier's configuration.
+- §7.2 (Theorem 4's proof) and §7.4: completeness is lost to the budget as well as to Remark 1. Soundness, and so Theorems 2 and 4, are unaffected.
+- §8.2, Table 1: the completeness of the budgeted procedure at the default (unchanged in this oracle; D-100).
+- §9.3, "Containment completeness": a change to step 3(a) must come with its charges in the unit's table.
+Severity: clarity (a denial-of-service cost within the threat model; soundness is unaffected)
+Status: open in revision 2026-10-06. SPEC.md runs ahead of the paper (SPEC §2, D-100).

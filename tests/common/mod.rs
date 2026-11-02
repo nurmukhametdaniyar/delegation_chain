@@ -156,7 +156,8 @@ impl<C: ChainScheme> ArmSuite<C> {
             self.w.clock(),
             config,
         );
-        v.pin("orga", self.hash);
+        v.pin("orga", self.hash)
+            .expect("the policy passes the pin-time check");
         v
     }
 

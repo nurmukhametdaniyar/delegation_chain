@@ -189,7 +189,8 @@ fn a_pin_change_clears_the_cache() {
         v.verify_traced(&invoke(&mut s, &pre).to_bytes(), t),
         (Err(Reject::L33NotPinned), Path::Miss)
     );
-    v.pin("orga", s.hash);
+    v.pin("orga", s.hash)
+        .expect("the policy passes the pin-time check");
     assert_eq!(
         v.verify_traced(&invoke(&mut s, &pre).to_bytes(), t).1,
         Path::Miss

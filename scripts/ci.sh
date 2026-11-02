@@ -16,9 +16,6 @@ cargo test -p delegationchain --features aggregate-variant --no-fail-fast
 echo "== phase timing (D-77): clippy and the partition test"
 cargo clippy -p dc-bench --features phase-timing --all-targets -- -D warnings
 cargo test -q -p dc-crypto --features phase-timing --lib phases
-echo "== the prototype work budget (D-99): clippy, and the oracle with its counts"
-cargo clippy -p dc-bench --features work-budget --all-targets -- -D warnings
-cargo test -q -p dc-policy --features work-budget --test oracle
 echo "== extended: differential oracle, 150,000 cases (SPEC §9.7)"
 DC_ORACLE_CASES=150000 DC_ORACLE_LOGIC_CASES=150000 cargo test --release -q -p dc-policy --test oracle
 echo "== scripts/check-unsafe.sh"

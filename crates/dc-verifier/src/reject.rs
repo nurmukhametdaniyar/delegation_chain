@@ -1,5 +1,24 @@
 use thiserror::Error;
 
+/// Why `Contains` returned false at line 35 or 37 (SPEC §9.6.1; D-100).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
+pub enum ContainsFailure {
+    /// The procedure returned false within the budget.
+    #[error("the procedure returned false")]
+    NotContained,
+    /// Its work count passed the verifier's budget.
+    #[error("its work count passed the budget of {budget}")]
+    BudgetExhausted { budget: u64 },
+}
+
+/// Why `pin` refused a policy (SPEC §9.6.1; D-100).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
+pub enum PinError {
+    /// The policy's reflexive `Contains` check passed the budget.
+    #[error("the policy's reflexive containment check passes the work budget of {budget}")]
+    OverBudget { budget: u64 },
+}
+
 /// Why a chain was rejected: one variant per rejecting line of Algorithms
 /// 1–2 (SPEC §10.2, Appendix A; D-94's numbering). `k` is the body position.
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
@@ -46,10 +65,10 @@ pub enum Reject {
     L33NotPinned,
     #[error("line 34: the policy is unavailable")]
     L34PolicyUnavailable,
-    #[error("line 35: the session scope is not contained in the policy")]
-    L35SessionScopeExceedsPolicy,
-    #[error("line 37: delegation {k}'s scope is not contained in its parent's")]
-    L37ScopeEscalation { k: usize },
+    #[error("line 35: the session scope is not contained in the policy: {why}")]
+    L35SessionScopeExceedsPolicy { why: ContainsFailure },
+    #[error("line 37: delegation {k}'s scope is not contained in its parent's: {why}")]
+    L37ScopeEscalation { k: usize, why: ContainsFailure },
     #[error("line 40: the innermost scope denies the invocation")]
     L40Denied,
     #[error("line 43: no receipt from a required approval service")]
@@ -92,7 +111,7 @@ impl Reject {
             L32ChainSignaturesInvalid => 32,
             L33NotPinned => 33,
             L34PolicyUnavailable => 34,
-            L35SessionScopeExceedsPolicy => 35,
+            L35SessionScopeExceedsPolicy { .. } => 35,
             L37ScopeEscalation { .. } => 37,
             L40Denied => 40,
             L43MissingReceipt => 43,
