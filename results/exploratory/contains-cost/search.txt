@@ -1,0 +1,129 @@
+pad atoms rules seconds
+bounds 8 256 0.237
+bounds 16 256 0.710
+bounds 24 256 1.498
+bounds 32 256 2.343
+intlist1 8 256 0.451
+intlist1 16 256 1.816
+intlist1 24 256 4.110
+intlist1 32 256 7.301
+intlist2 8 256 0.504
+intlist2 16 256 2.119
+intlist2 24 256 4.788
+intlist2 32 256 8.471
+intlist4 8 256 0.587
+intlist4 16 256 2.450
+intlist4 24 256 5.653
+intlist4 32 207 6.511
+intlist8 8 256 1.064
+intlist8 16 256 4.578
+intlist8 24 197 6.208
+intlist8 32 149 6.435
+intlist16 8 256 2.040
+intlist16 16 193 5.251
+intlist16 24 128 5.373
+intlist16 32 96 5.438
+intlist32 8 204 2.149
+intlist32 16 94 2.091
+intlist32 24 61 1.998
+intlist32 32 45 1.933
+intlist64 8 92 0.819
+intlist64 16 40 0.677
+intlist64 24 26 0.652
+intlist64 32 19 0.601
+xlist7 8 256 1.269
+xlist7 16 256 5.009
+xlist7 24 213 7.659
+xlist7 32 162 7.864
+xlist8 8 256 1.275
+xlist8 16 256 5.293
+xlist8 24 199 6.856
+xlist8 32 150 6.924
+xlist16 8 256 2.497
+xlist16 16 194 5.866
+xlist16 24 129 5.915
+xlist16 32 96 5.763
+xlist64 8 92 0.853
+xlist64 16 40 0.687
+xlist64 24 26 0.657
+xlist64 32 19 0.614
+prefix1 8 256 0.266
+prefix1 16 256 1.177
+prefix1 24 159 1.206
+prefix1 32 97 0.879
+prefix8 8 256 0.264
+prefix8 16 206 0.666
+prefix8 24 114 0.539
+prefix8 32 73 0.438
+prefix64 8 135 0.069
+prefix64 16 58 0.053
+prefix64 24 35 0.056
+prefix64 32 25 0.060
+prefix256 8 39 0.007
+prefix256 16 16 0.007
+prefix256 24 10 0.008
+prefix256 32 7 0.009
+prefix992 8 10 0.001
+prefix992 16 4 0.001
+prefix992 24 2 0.001
+prefix992 32 2 0.001
+strlist1x2 8 256 0.566
+strlist1x2 16 256 2.269
+strlist1x2 24 256 5.307
+strlist1x2 32 229 7.536
+strlist1x32 8 235 0.459
+strlist1x32 16 110 0.400
+strlist1x32 24 71 0.394
+strlist1x32 32 53 0.365
+strlist1x256 8 39 0.014
+strlist1x256 16 17 0.011
+strlist1x256 24 11 0.010
+strlist1x256 32 8 0.009
+strlist2x2 8 256 0.831
+strlist2x2 16 256 3.575
+strlist2x2 24 227 6.420
+strlist2x2 32 173 6.755
+strlist2x32 8 134 0.198
+strlist2x32 16 60 0.172
+strlist2x32 24 39 0.163
+strlist2x32 32 28 0.147
+strlist2x256 8 20 0.007
+strlist2x256 16 8 0.004
+strlist2x256 24 5 0.004
+strlist2x256 32 4 0.004
+strlist8x2 8 256 3.168
+strlist8x2 16 144 4.551
+strlist8x2 24 95 4.682
+strlist8x2 32 70 4.518
+strlist8x32 8 37 0.050
+strlist8x32 16 16 0.042
+strlist8x32 24 10 0.036
+strlist8x32 32 7 0.033
+strlist8x256 8 5 0.002
+strlist8x256 16 2 0.001
+strlist8x256 24 - larger than a body at 2 rules
+strlist8x256 32 - larger than a body at 2 rules
+strlist32x2 8 98 3.623
+strlist32x2 16 43 3.259
+strlist32x2 24 28 3.229
+strlist32x2 32 20 2.984
+strlist32x32 8 9 0.020
+strlist32x32 16 4 0.017
+strlist32x32 24 2 0.008
+strlist32x32 32 - larger than a body at 2 rules
+strlist32x256 8 - larger than a body at 2 rules
+strlist32x256 16 - larger than a body at 2 rules
+strlist32x256 24 - larger than a body at 2 rules
+strlist32x256 32 - larger than a body at 2 rules
+strlist64x2 8 52 3.268
+strlist64x2 16 22 2.716
+strlist64x2 24 14 2.555
+strlist64x2 32 10 2.310
+strlist64x32 8 4 0.011
+strlist64x32 16 2 0.011
+strlist64x32 24 - larger than a body at 2 rules
+strlist64x32 32 - larger than a body at 2 rules
+strlist64x256 8 - larger than a body at 2 rules
+strlist64x256 16 - larger than a body at 2 rules
+strlist64x256 24 - larger than a body at 2 rules
+strlist64x256 32 - larger than a body at 2 rules

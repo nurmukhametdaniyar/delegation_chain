@@ -1181,7 +1181,42 @@ D-97 memoizes step 3(b)'s skip test: each parent rule's first shadowing child ru
 - **The search.** Paddings of integer bounds, integer `in` lists (on the deciding path or another), nested string prefixes and string `in` lists, of several sizes, each at the most rules that fit with 8, 16, 24 or 32 atoms, ranked by one call each (`search.txt`). Its runners-up are measured too, and at three smaller bounds every padding that fits.
 - **How.** `scripts/contains-cost.sh`: criterion, one call per sample for the large cells, ten samples, on M9's machine state and build flags; each call's result is checked.
 
-_Not run yet: there is no `results/exploratory/contains-cost/criterion.tar.zst`._
+| Rules × atoms | frozen-worst (ms) | alternating (ms) | intlist2 (ms) |
+|---|---|---|---|
+| 16 × 8 | 0.33 [0.32, 0.33] | 0.90 [0.90, 0.91] | 1.95 [1.94, 1.98] |
+| 16 × 16 | 0.64 [0.64, 0.64] | 2.86 [2.83, 2.87] | 7.85 [7.80, 7.99] |
+| 16 × 32 | 2.09 [2.08, 2.11] | 9.48 [9.46, 9.51] | 32.1 [31.9, 32.6] |
+| 32 × 8 | 1.30 [1.29, 1.31] | 3.72 [3.70, 3.75] | 8.06 [7.94, 8.16] |
+| 32 × 16 | 2.52 [2.52, 2.54] | 11.6 [11.6, 11.7] | 33.0 [32.5, 33.3] |
+| 32 × 32 | 8.41 [8.40, 8.45] | 39.1 [38.8, 39.2] | 133 [131, 136] |
+| 64 × 8 | 5.19 [5.15, 5.25] | 15.2 [15.1, 15.3] | 32.8 [31.7, 32.9] |
+| 64 × 16 | 9.92 [9.90, 9.99] | 47.1 [46.8, 47.3] | 133 [132, 135] |
+| 64 × 32 | 32.9 [32.8, 33.1] | 159 [158, 159] | 538 [535, 541] |
+| 128 × 8 | 20.3 [20.2, 20.4] | 61.3 [60.3, 61.6] | 131 [130, 132] |
+| 128 × 16 | 39.2 [39.0, 39.4] | 189 [188, 191] | 544 [536, 550] |
+| 128 × 32 | 130 [129, 130] | 633 [632, 636] | 2156 [2113, 2183] |
+| 256 × 8 | 80.5 [80.2, 81.5] | 245 [244, 246] | 525 [518, 530] |
+| 256 × 16 | 156 [155, 157] | 756 [752, 759] | 2148 [2139, 2170] |
+| 256 × 32 | larger than a body | 2550 [2538, 2554] | 8652 [8594, 8685] |
+
+**The search's runners-up**, at the most rules that fit (ms):
+
+| Input | Median [95% CI] |
+|---|---|
+| intlist1/r256_a32 | 7418 [7389, 7453] |
+| strlist1x2/r229_a32 | 7417 [7387, 7447] |
+| xlist7/r213_a24 | 7681 [7646, 7716] |
+
+**At smaller bounds,** every padding of the search that fits; the costliest at each (ms):
+
+| Bounds (rules × atoms) | Costliest input | Median |
+|---|---|---|
+| 16 × 8 | strlist64x2 | 289 |
+| 32 × 8 | strlist64x2 | 1190 |
+| 64 × 16 | intlist32 | 980 |
+
+**The worst input found** is intlist2/r256_a32: 8652 ms for one `Contains` call. It is a lower bound on the worst case: the inputs are constructions and a small search, not a proof.
+
 
 ### A deterministic work budget for Contains (prototype)
 
@@ -1189,4 +1224,44 @@ A budget on `Contains` caps what a compromised signer can force on one link, wha
 - **The unit.** One atom examined while building or querying a path's constraint, weighted by its operand's literals (a 64-element `in` list counts 64). String lengths are not counted. The count is checked between the procedure's checks, so it can pass the budget by one check's worth.
 - **The smallest budget** that nothing legitimate here hits is the largest count of any `Contains` call that the workload profiles' verifications make (the ceiling and every link up to N = 10) or that the differential oracle makes. Candidates with headroom are measured too.
 
-_Not run yet: there is no `results/exploratory/contains-cost/criterion.tar.zst`._
+**Atom-level counts** of the largest `Contains` call, which a budget must clear:
+
+| Workload | Largest count |
+|---|---|
+| profile large | 2228 |
+| profile medium | 92 |
+| profile medium-approval | 92 |
+| profile small | 6 |
+| oracle, well-formed pairs | 369 |
+| oracle, reflexivity checks | 778 |
+
+**The cost at a budget:** the costliest of the measured inputs, each far above the budget, until `Contains` gives up (ms):
+
+| Budget | Costliest input | Median |
+|---|---|---|
+| 2228 | intlist1_r256_a32 | 0.11 |
+| 16384 | intlist1_r256_a32 | 0.43 |
+| 1048576 | intlist1_r256_a32 | 26.3 |
+
+**The oracle's completeness** with a budget (150,000 pairs, seed 56324):
+
+| Budget | Completeness |
+|---|---|
+| none | 0.9197 |
+| 32 | 0.7489 |
+| 64 | 0.8672 |
+| 128 | 0.9154 |
+| 256 | 0.9196 |
+| 2228 | 0.9197 |
+| 16384 | 0.9197 |
+| 1048576 | 0.9197 |
+
+**Candidate configurations.** The worst measured `Contains` call per link; per chain, the 14 links at N = 16 whose parent a compromised agent signed; and each against one strict Ed25519 verification (20.6 µs).
+
+| Configuration | Worst input | Per link (ms) | Per chain (ms) | Per link ÷ Ed25519 |
+|---|---|---|---|---|
+| As now: D-21's bounds, memoization only | intlist2/r256_a32 | 8652 | 121128 | 419262 |
+| 1. D-21's bounds, budget 16,384 | intlist1_r256_a32, cut off by the budget | 0.43 | 6.08 | 21 |
+| 2. D-21's bounds, budget 1,048,576 | intlist1_r256_a32, cut off by the budget | 26.3 | 368 | 1273 |
+| 3. At most 16 rules, 8 atoms a rule and 8-element lists, no budget | sweep/strlist8x2/r16_a8 | 11.7 | 163 | 565 |
+

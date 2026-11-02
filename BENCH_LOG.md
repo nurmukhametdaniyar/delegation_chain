@@ -199,3 +199,11 @@ Reason: after D-94 the author asked what the scope-size bounds still let a compr
 - **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only. Criterion's output is `results/exploratory/bounds/criterion.tar.zst`, pinned by its `.sha256`.
 
 Configurations re-run: none.
+
+## 2026-11-02 — Exploratory run (not pre-registered): Contains after the memoization, and a work budget
+Reason: after D-95 the author asked for the cost of Contains after D-97's memoization at sizes up to the bounds, a search for costlier inputs, and a prototype work budget, to choose the scope-size bounds (D-98, D-99).
+- **What ran.** `scripts/contains-cost.sh` at `7d71b92`, with `target-cpu=native` as M9: the search (`examples/contains_search.rs`), `benches/contains_cost.rs`, `benches/contains_budget.rs` (a `work-budget` build), `dc-bench budget` and the differential oracle under budgets.
+- **Machine state.** AC power, High Power mode and an idle machine, checked before the run and recorded in `results/exploratory/contains-cost/env.json`. Nothing monitored the machine during it.
+- **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only. Criterion's output is `results/exploratory/contains-cost/criterion.tar.zst`, pinned by its `.sha256`; the counts, the oracle's report and the search's ranking sit beside it.
+
+Configurations re-run: none.

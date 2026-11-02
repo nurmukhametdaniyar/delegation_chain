@@ -1282,6 +1282,7 @@ Decision:
   - **At smaller bounds a different input is worst.** A 64-element string `in` list fits few rules, so it ranks low at full size, but at 16 rules × 8 atoms it is the costliest. So every padding that fits is measured at three smaller bounds (`SWEEP_BOUNDS`), and a candidate with lowered bounds is judged by its own worst input (D-99).
   - **The worst input found is a lower bound** on the worst case, and BENCHMARKS.md says so.
 - **How.** `scripts/contains-cost.sh`, on M9's machine state and build flags: criterion, ten samples, each call's result checked. Its output, the counts and the search's ranking go to `results/exploratory/contains-cost/`. `--dry` checks the pipeline on a few small cells, under `results/dry-run/`.
+- **Run (2026-11-02),** by the author at `7d71b92` with `scripts/contains-cost.sh`, on M9's machine state; every cell that fits a body was measured, and the archive verifies (BENCH_LOG.md). The search, re-run on that machine state, ranks the same input first. BENCHMARKS.md §8 has the results.
 Why: D-97 removes a factor of the rule count; the author asked for the cost that remains, at sizes up to the bounds, before choosing them.
 Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.
 
@@ -1297,5 +1298,6 @@ Decision:
   3. at most 16 rules, 8 atoms a rule and 8-element lists, no budget. The list bound is there because of D-98's sweep: without it, a 64-element string list at 16 × 8 costs more than most inputs at the full bounds.
   - The table also shows the configuration as it stands, D-21's bounds with D-97 only.
 - **The per-link figures cover `Contains` only.** Decoding and validating a large scope at line 2 also costs a compromised signer's victim time, bounded by the 64 KiB body; it is not measured here.
+- **Run (2026-11-02),** in the same pass as D-98. BENCHMARKS.md §8 has the cost at each budget, the oracle's completeness under budgets and the candidates' costs. The choice is the author's.
 Why: the author asked for a budget prototype and for candidate configurations to choose from, with measured costs.
 Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only. The budget is not part of the protocol unless the author adopts it.
