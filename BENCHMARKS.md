@@ -1273,5 +1273,111 @@ D-100 puts D-99's budget on the protocol path at a default of 65,536 (SPEC §9.6
 - **Lines 2 and 5.** A delegation body of the medium profile with its scope replaced by one that fills the body: the most atoms, integer literals, text items, declared paths or approvers, or the longest text, NFC text that only a full check confirms, and the longest `under` paths. Line 2 decodes the body and decodes and validates its scope, as the verifier does; line 5 re-encodes it and compares.
 - **How.** `scripts/budget-check.sh`: criterion with ten samples of each input, on M9's machine state and build flags; each call's result is checked. Then D-96's headline cells in three builds: the measured commit, the commit before the budget (`2df8b53`, with D-94 and D-97), and the commit with it.
 
-_Not run yet: there is no `results/exploratory/budget/criterion.tar.zst`._
+**`Contains` at the default budget (65536),** the ten costliest of 281 inputs (ms; the count W, or *over the budget*):
+
+| Input | W | Median [95% CI] |
+|---|---|---|
+| setcontains8x1016/r2_a24 | 61311 | 115 [115, 116] |
+| setunder8x1016/r2_a24 | 61311 | 112 [110, 113] |
+| setcontains8x1016/r3_a16 | over the budget | 105 [104, 107] |
+| setunder8x1016/r3_a16 | over the budget | 101 [100, 102] |
+| setcontains16x1016/r1_a32 | 47162 | 84.1 [83.3, 85.5] |
+| setcontains16x1016/r2_a16 | over the budget | 81.3 [81.0, 82.3] |
+| setunder16x1016/r1_a32 | 47162 | 81.2 [80.6, 81.6] |
+| setunder16x1016/r2_a16 | over the budget | 77.8 [77.6, 77.9] |
+| setcontains4x1016/r3_a16 | 35500 | 62.2 [62.0, 63.4] |
+| setunder4x1016/r3_a16 | 35500 | 59.6 [59.3, 61.0] |
+
+**The costliest input of each family** (ms):
+
+| Family | Input | W | Median |
+|---|---|---|---|
+| setcontains | setcontains8x1016/r2_a24 | 61311 | 115 |
+| setunder | setunder8x1016/r2_a24 | 61311 | 112 |
+| intlist | intlist1/r256_a32 | over the budget | 1.70 |
+| approvals | approvals128/r28_a4 | over the budget | 1.36 |
+| strlist | strlist1x256/r11_a24 | over the budget | 1.34 |
+| decl | decl8/r143_a4 | over the budget | 1.21 |
+| xlist | xlist7/r162_a32 | over the budget | 1.10 |
+| contains | contains960/r32_a4 | over the budget | 0.77 |
+| bounds | bounds/r256_a4 | over the budget | 0.72 |
+| suffix | suffix960/r32_a4 | over the budget | 0.65 |
+| under | under960/r32_a4 | over the budget | 0.64 |
+| prefix | prefix992/r31_a4 | over the budget | 0.64 |
+| frozen-worst | frozen-worst/r128_a8 | over the budget | 0.49 |
+
+**Lines 2 and 5 on one scope body** filled toward 64 KiB (ms):
+
+| Body | Bytes | Line 2 | Line 5 |
+|---|---|---|---|
+| strlists | 60577 | 1.52 [1.52, 1.52] | 0.71 |
+| atoms | 50331 | 1.00 [1.00, 1.01] | 0.51 |
+| strlists-nfc-maybe | 61093 | 1.00 [0.99, 1.00] | 0.66 |
+| intlists | 64017 | 0.63 [0.62, 0.63] | 0.30 |
+| approvals | 64646 | 0.56 [0.55, 0.56] | 0.11 |
+| params | 64516 | 0.53 [0.52, 0.53] | 0.13 |
+| text-nfc-maybe | 64069 | 0.42 [0.42, 0.43] | 0.41 |
+| under-paths | 64007 | 0.22 [0.22, 0.22] | 0.0416 |
+| text-ascii | 64131 | 0.0479 [0.0478, 0.0480] | 0.0416 |
+
+**The measured ceiling** at N = 16: per link, the costliest `Contains` call (setcontains8x1016/r2_a24) and line 2 on the costliest body (strlists); per chain, 15 links and 16 bodies. Line 2 runs before any signature; `Contains` needs a compromised agent's signature. Both are the worst inputs found, so both are lower bounds on the true ceiling.
+
+| | Per link or body (ms) | Per chain (ms) | Per link or body ÷ one strict Ed25519 verification |
+|---|---|---|---|
+| `Contains` at the budget | 115 | 1731 | 5591 |
+| Line 2 | 1.52 | 24.4 | 74 |
+| **Both** | **117** | **1755** | **5665** |
+
+Line 5's re-encoding, also before any signature, is not in the sum: at most 0.71 ms per body (strlists).
+
+**The frozen generator's shapes the default admits:** the most rules for which the pin-time check on the policy, the link to a child scope one tighter, and the child's own reflexive check all stay within the budget (counts, not timings):
+
+| Atoms per rule | Most rules admitted | W at that size (pin, link, child) | W with one rule more | Largest that fits a body |
+|---|---|---|---|---|
+| 1 | 87 | 64467, 64467, 64467 | 65956, 65956, 65956 | 256 |
+| 2 | 60 | 64860, 64860, 64860 | 67039, 67039, 67039 | 256 |
+| 4 | 36 | 63504, 63504, 63504 | 67081, 67081, 67081 | 256 |
+| 8 | 20 | 63560, 63560, 63560 | 70077, 70077, 70077 | 256 |
+| 16 | 12 | 64200, 64200, 64200 | 75205, 75205, 75205 | 256 |
+| 32 | 5 | 50045, 50045, 50045 | 71844, 71844, 71844 | 141 |
+
+**Legitimate inputs.** The workload profiles' largest `Contains` count is 2228. The differential oracle (150000 pairs, seed 56324): completeness 0.9197 without a budget and 0.9197 at the default; 0 well-formed pairs and 0 reflexivity checks pass the budget; the largest counts are 369 (pairs) and 778 (reflexivity); soundness violations: 0.
+
+**The headline cells** with the budget, against the measured build:
+
+| Build | Commit | Archives | Samples per cell and run |
+|---|---|---|---|
+| measured | `b175599` | 12 | 10000 |
+| pre-budget | `2df8b53` | 12 | 10000 |
+| budgeted | `42b84ec` | 12 | 10000 |
+
+**Medians** (µs; N = 3, medium; pooled over the three runs):
+
+| Cell | M9 (frozen) | measured | pre-budget | budgeted | budgeted ÷ measured | budgeted ÷ pre-budget |
+|---|---|---|---|---|---|---|
+| B warm+prefix | 580 | 579 | 579 | 577 | -0.3% | -0.3% |
+| D warm+prefix | 26.4 | 26.5 | 26.5 | 26.5 | -0.2% | -0.3% |
+| A warm | 1144 | 1135 | 1134 | 1131 | -0.3% | -0.2% |
+| C warm | 109 | 109 | 109 | 109 | +0.0% | +0.1% |
+
+**Ratios** (pooled medians; each run's ratio in brackets):
+
+| Ratio | measured | pre-budget | budgeted |
+|---|---|---|---|
+| B / D, warm+prefix | 21.84 [21.77, 21.85, 21.78] | 21.81 [21.77, 21.87, 21.66] | 21.81 [21.77, 21.89, 21.67] |
+| A / C, warm | 10.42 [10.46, 10.37, 10.42] | 10.41 [10.46, 10.37, 10.43] | 10.38 [10.40, 10.37, 10.39] |
+
+**Each run's median** (µs):
+
+| Cell | measured | pre-budget | budgeted |
+|---|---|---|---|
+| B warm+prefix | 580, 577, 574 | 580, 579, 575 | 579, 577, 574 |
+| D warm+prefix | 26.6, 26.4, 26.4 | 26.6, 26.5, 26.5 | 26.6, 26.4, 26.5 |
+| A warm | 1143, 1127, 1132 | 1142, 1129, 1132 | 1133, 1128, 1133 |
+| C warm | 109, 109, 109 | 109, 109, 109 | 109, 109, 109 |
+
+**The largest move**, budgeted against measured, is -0.3% (A warm): within the 5% at which the author asked for a stop.
+
+**Thermal flags** (the calibration probe or pmset, around each configuration; none re-run): pre-budget run 1: B warm+prefix N=3 medium.
+
 

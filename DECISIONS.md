@@ -1334,6 +1334,14 @@ Decision:
   - **The ceiling:** per link, the costliest `Contains` call plus line 2 on the costliest body. Per chain at N = 16: 15 links, delegations 1–15, whose child a compromised agent signs, and 16 scope bodies. D-98 counted 14 links, those whose parent the agent also signs; under a budget a child alone can drive a link to the budget, so 15. Line 2 needs no signature at all.
   - **The admitted shapes and the counts** (`dc-bench budget-counts`, deterministic): for 1–32 atoms a rule, the most rules of the frozen generator's shape whose pin-time check, link and child reflexive check all stay within the default.
   - **The headline cells** as D-96: B and D warm+prefix and A and C warm, N = 3, medium, three runs, in the measured build (`b175599`), the build before the budget (`2df8b53`) and the build with it, rotating; `reorder::BUDGET` reads them. The author's stop rule: no median may move more than 5%, budgeted against measured.
-  - **Data** under `results/exploratory/budget/`; BENCHMARKS.md §8 renders it, and says "not run yet" until then.
+  - **Data** under `results/exploratory/budget/`; BENCHMARKS.md §8 renders it.
+- **Run (2026-11-04),** by the author at `42b84ec` with `scripts/budget-check.sh`, after one attempt that stopped before any timing because the machine never became idle (BENCH_LOG.md). The archives verify, and all nine headline runs passed M9's machine-state check.
+- **What it shows** (BENCHMARKS.md §8).
+  - **The default bounds the count, not the time.** The costliest input found is a string `in` list of 1 KiB members filtered through `contains` atoms, and its count is within the budget: an accepted link. Text lengths, which the unit does not count, put it nearly two orders of magnitude above the costliest integer input, which runs out of budget at about the time D-99's figures implied. The ceiling per link and per chain, and against one strict Ed25519 verification, is in the block. It is a lower bound: the inputs are constructions and a bounded search.
+  - **Line 2** on a 64 KiB scope body costs far less than `Contains` at the ceiling, but it needs no signature, so an unsigned chain can make the verifier pay it for all 16 bodies.
+  - **Legitimate inputs are untouched:** the workload profiles and the oracle stay far below the budget, and the oracle's completeness is unchanged.
+  - **The frozen generator's shapes** admitted fall steeply with the atoms per rule; the block gives the largest for each atom count, with its counts.
+  - **The headline cells** do not move: the largest change, budgeted against measured, is well within the author's 5%.
+  - **A unit that counts text** (each string comparison or search charged by its operands' length, say) would close the gap between count and time. It would change D-99's unit, so it is the author's decision.
 Why: D-95 and D-98 found that a compromised agent can make one link cost seconds within the size bounds. A budget bounds that work per link whatever the bounds, and it is deterministic, so replicas with the same budget decide alike.
 Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.

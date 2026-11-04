@@ -414,6 +414,7 @@ Paper location: §6.1 ("Implementations also bound the size of a scope … so th
 Problem:
 - Size bounds alone do not bound the procedure's cost usefully. Within the bounds this implementation uses (D-21: 256 rules, 32 atoms, 64-element lists, in a 64 KiB body), a compromised agent can sign scopes for which one `Contains` call takes seconds, after D-97's memoization (D-95, D-98; BENCHMARKS.md §8). Proposition 2's "polynomial in |S1| + |S2|" is true but does not bound it at sizes a verifier can accept.
 - Since D-94 the cost needs signatures by a compromised agent, which the threat model includes (P-34).
+- A budget in atom literals bounds the count, not the time. Text lengths are not counted, so at this implementation's default, string-heavy scopes within the budget cost far more per link than integer ones; the measured ceiling is in BENCHMARKS.md §8 (D-100). The paper should give the unit together with that measured ceiling, or a unit that counts text.
 What the implementation does: D-100. A deterministic work budget on `Contains` (SPEC §9.6.1), default 65,536 atom literals examined, a verifier configuration parameter. The size bounds stay.
 - `Contains_B(S1, S2)` is the procedure's answer if its count W is at most B, and false otherwise. Lines 35 and 37 reject with the budget as the reason. Sound, since it only turns true into false.
 - The count is defined by a table of charges over the procedure's steps. It fixes the order of work, including D-97's memoized skip search, so that replicas count alike.

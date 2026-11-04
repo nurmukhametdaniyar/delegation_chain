@@ -207,3 +207,14 @@ Reason: after D-95 the author asked for the cost of Contains after D-97's memoiz
 - **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only. Criterion's output is `results/exploratory/contains-cost/criterion.tar.zst`, pinned by its `.sha256`; the counts, the oracle's report and the search's ranking sit beside it.
 
 Configurations re-run: none.
+
+## 2026-11-04 — Exploratory run (not pre-registered): the work budget's ceiling and cost
+Reason: D-100 put a work budget on Contains on the protocol path, and the author asked for its measured ceiling (Contains at the default budget, and line 2 on a 64 KiB scope body), the frozen generator's shapes it admits, and its cost on the headline cells.
+- **What ran.** `scripts/budget-check.sh` at `42b84ec`, with `target-cpu=native` as M9: `dc-bench budget-counts`, the differential oracle (150,000 pairs, seed 56324), `benches/budget_cost.rs`, and the frozen grid's B and D warm+prefix and A and C warm configurations at N = 3, medium, by `dc-bench run` with M9's counts, three runs, in three builds: measured `b175599`, pre-budget `2df8b53` and budgeted `42b84ec`, rotating which ran first.
+- **Machine state.** M9's, awaited before the criterion pass and recorded in `results/exploratory/budget/env.json` after it; each headline run checked it at its start (its run metadata). Nothing monitored the machine during the criterion pass.
+- **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only. Criterion's output is `results/exploratory/budget/criterion.tar.zst`, pinned by its `.sha256`; the headline runs' raw data are archived under `results/exploratory/budget/headline/<build>/archive/`, each pinned by its `MANIFEST.sha256`.
+- **An earlier attempt the same day** (at `a64efbb`) built everything and wrote the counts and the oracle's report, then waited ten minutes for an idle machine and stopped: `mediaanalysisd` was at about 319% CPU, with a 1-minute load average of 25. Nothing was timed. Its files were deterministic and this run wrote them again; its machine record was set aside. The script now lets such an attempt be re-run, takes `--wait`, and names what keeps the machine busy (`42b84ec`).
+- **The record after the criterion pass** reads not idle: `XprotectService` at 34% CPU, load average 1.3. Nothing monitored the machine during the pass, so whether XProtect ran during it is unknown. The pass itself began only after the machine-state check passed. The record also reads `dirty`, because `dc-bench env` counts untracked files and the run's own output directory was untracked; the script refuses to start with tracked files modified.
+- **Headline runs.** All nine passed M9's machine-state check at their start. The calibration probe flagged one configuration (pre-budget, B warm+prefix, run 1); as in D-77, D-87 and D-96, it was not re-run.
+
+Configurations re-run: none.
