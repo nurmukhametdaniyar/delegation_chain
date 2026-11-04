@@ -174,7 +174,7 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
   scripts/budget-check.sh
   ```
 
-  It writes `results/exploratory/budget/` and appends a `BENCH_LOG.md` entry; `dc-bench budget-report` prints its BENCHMARKS.md block. `--dry` checks the pipeline under `results/dry-run/`.
+  It writes `results/exploratory/budget/` and appends a `BENCH_LOG.md` entry; `dc-bench budget-report` prints its BENCHMARKS.md block. `--wait MINUTES` waits longer for an idle machine (default 10); while it waits it names what keeps the machine busy. An attempt that stops before measuring can simply be run again. `--dry` checks the pipeline under `results/dry-run/`.
 
 ## 6. Packing a deposit
 

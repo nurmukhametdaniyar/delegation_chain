@@ -27,20 +27,40 @@
 # once the machine is idle again, the nine headline runs, each of which
 # checks M9's machine state itself. It takes about an hour.
 #
-# Usage: scripts/budget-check.sh [--dry]
-#   --dry   criterion's shortest times and 10-iteration headline runs, under
-#           results/dry-run/; no machine-state requirement. Its numbers are
-#           never reported.
+# An attempt that stops before the criterion pass (the machine never became
+# idle, say) leaves only the deterministic files and its machine record, and
+# running the script again starts over. Once criterion's output or a
+# headline run exists, the script refuses to overwrite it.
+#
+# Usage: scripts/budget-check.sh [--dry] [--wait MINUTES]
+#   --dry       criterion's shortest times and 10-iteration headline runs,
+#               under results/dry-run/; no machine-state requirement. Its
+#               numbers are never reported.
+#   --wait M    how long to wait for an idle machine, each time (default 10).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root=$(pwd)
 
 dry=0
 mode=full
-if [[ "${1:-}" == "--dry" ]]; then
-  dry=1
-  mode=dry
-fi
+wait_min=10
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry)
+      dry=1
+      mode=dry
+      ;;
+    --wait)
+      wait_min="${2:?--wait needs a number of minutes}"
+      shift
+      ;;
+    *)
+      echo "usage: scripts/budget-check.sh [--dry] [--wait MINUTES]" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
 out=results/exploratory/budget
 root_out=results
 if [[ $dry == 1 ]]; then
@@ -56,10 +76,12 @@ if ! grep -q 'contains_budget' crates/dc-verifier/src/lib.rs; then
   echo "budget-check: HEAD does not have D-100's budget" >&2
   exit 1
 fi
-if [[ $dry == 0 && -e "$out" ]]; then
-  echo "budget-check: $out exists; refusing to overwrite measured data" >&2
+if [[ $dry == 0 && (-e "$out/criterion" || -e "$out/criterion.tar.zst" || -e "$out/headline") ]]; then
+  echo "budget-check: $out holds measured data; refusing to overwrite it" >&2
   exit 1
 fi
+# Nothing measured: at most an earlier attempt's deterministic files and
+# machine record, which this run writes again.
 rm -rf "$out"
 mkdir -p "$out"
 abs_out="$root/$out"
@@ -100,18 +122,38 @@ DC_ORACLE_CASES=150000 DC_ORACLE_LOGIC_CASES=150000 DC_ORACLE_SEED=56324 \
   DC_ORACLE_REPORT="$abs_out/oracle.json" \
   cargo test -q --release -p dc-policy --test oracle >/dev/null
 
-# Waits up to 10 minutes for M9's machine state, writing env.json into $1.
+# What keeps env.json ($1) from M9's machine state, in one line.
+not_ready() {
+  python3 -I -c '
+import json, sys
+r = json.load(open(sys.argv[1]))["m9_requirements"]
+why = []
+if r["ac_power"] is not True:
+    why.append("not on AC power")
+if r["high_power_mode"] is not True:
+    why.append("not in High Power mode")
+idle = r["idle"]
+if idle["ok"] is not True:
+    why.append("load average %.1f" % idle["loadavg_1m"])
+    why += ["%s at %.0f%% CPU" % (p["command"].rsplit("/", 1)[-1], p["pcpu"]) for p in idle["busy_processes"]]
+print(", ".join(why))
+sys.exit(1 if why else 0)
+' "$1"
+}
+
+# Waits up to $wait_min minutes for M9's machine state, writing env.json
+# into $1.
 await_idle() {
   [[ $dry == 1 ]] && return 0
-  for i in $(seq 40); do
+  for i in $(seq $((wait_min * 4))); do
     ./target/release/dc-bench env --out "$1" >/dev/null
-    if python3 -I -c 'import json, sys; sys.exit(0 if json.load(open(sys.argv[1]))["m9_requirements"]["ok"] is True else 1)' "$1/env.json"; then
+    if why=$(not_ready "$1/env.json"); then
       return 0
     fi
-    echo "budget-check: waiting for the machine to become idle"
+    echo "budget-check: waiting for the machine to become idle ($why)"
     sleep 15
   done
-  echo "budget-check: the machine did not become idle within 10 minutes" >&2
+  echo "budget-check: the machine did not become idle within $wait_min minutes ($why); nothing was measured, and running the script again starts over" >&2
   exit 1
 }
 await_idle "$out"
