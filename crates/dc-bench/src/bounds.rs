@@ -201,6 +201,12 @@ pub enum Pad {
     /// [`Pad::Bounds`]' atoms, with `len` approvers on every rule, which every
     /// approval comparison reads and the unit does not count.
     Approvals(usize),
+    /// D-101: [`Pad::Bounds`]' atoms under an audience, tool and action of
+    /// about `len` bytes each.
+    Head(usize),
+    /// D-101: [`Pad::Bounds`]' atoms, with `n` approvers of about 1 KiB on
+    /// every rule.
+    LongApprovals(usize),
 }
 
 impl Pad {
@@ -218,12 +224,22 @@ impl Pad {
             Pad::SetUnder(n, b) => format!("setunder{n}x{b}"),
             Pad::Decl(n) => format!("decl{n}"),
             Pad::Approvals(n) => format!("approvals{n}"),
+            Pad::Head(n) => format!("head{n}"),
+            Pad::LongApprovals(n) => format!("longapprovals{n}"),
         }
     }
 
     fn head(self) -> String {
         match self {
-            Pad::Bounds | Pad::XList(_) | Pad::Approvals(_) => SHORT_HEAD.into(),
+            Pad::Bounds | Pad::XList(_) | Pad::Approvals(_) | Pad::LongApprovals(_) => {
+                SHORT_HEAD.into()
+            }
+            Pad::Head(n) => format!(
+                "allow at=o:service:s{} tool=t{} action=a{} params {{ x: int }}",
+                "a".repeat(n),
+                "a".repeat(n),
+                "a".repeat(n)
+            ),
             Pad::IntList(_) => {
                 "allow at=o:service:s tool=t action=a params { x: int, y: int }".into()
             }
@@ -255,6 +271,12 @@ impl Pad {
                 let a: Vec<String> = (0..n).map(|k| format!("o:approver:a{k:04}")).collect();
                 format!(" approval requires {}", a.join(", "))
             }
+            Pad::LongApprovals(n) => {
+                let a: Vec<String> = (0..n)
+                    .map(|k| format!("o:approver:{}{k:04}", "a".repeat(1000)))
+                    .collect();
+                format!(" approval requires {}", a.join(", "))
+            }
             _ => String::new(),
         }
     }
@@ -275,10 +297,22 @@ impl Pad {
 
     fn atom(self, k: usize) -> String {
         match self {
-            Pad::Bounds | Pad::Decl(_) | Pad::Approvals(_) if k.is_multiple_of(2) => {
+            Pad::Bounds
+            | Pad::Decl(_)
+            | Pad::Approvals(_)
+            | Pad::Head(_)
+            | Pad::LongApprovals(_)
+                if k.is_multiple_of(2) =>
+            {
                 format!("x >= {}", -1 - k as i64)
             }
-            Pad::Bounds | Pad::Decl(_) | Pad::Approvals(_) => format!("x <= {}", 7 + k),
+            Pad::Bounds
+            | Pad::Decl(_)
+            | Pad::Approvals(_)
+            | Pad::Head(_)
+            | Pad::LongApprovals(_) => {
+                format!("x <= {}", 7 + k)
+            }
             Pad::IntList(n) | Pad::XList(n) => {
                 let l: Vec<String> = (0..n).map(|v| v.to_string()).collect();
                 let path = if matches!(self, Pad::XList(_)) {

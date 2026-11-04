@@ -18,7 +18,8 @@ mod time;
 mod util;
 
 pub use body::{
-    Body, BodyKind, DecodedBody, DelegationBody, InvocationBody, RawScope, SessionBody, decode_body,
+    Body, BodyKind, DecodedBody, DelegationBody, InvocationBody, RawScope, SessionBody,
+    decode_body, decode_body_within,
 };
 pub use cert::{
     CERT_VERSION, CertBody, Certificate, ParsedCert, ParsedRevocation, PopChallenge,

@@ -24,6 +24,7 @@ The deposit is a snapshot of this repository at the commit its description names
 | Criterion's output for `Contains` at the scope-size bounds (D-95), and the machine record | `results/exploratory/bounds/criterion.tar.zst` with its `.sha256`, `results/exploratory/bounds/env.json` |
 | `Contains` after D-97 and the prototype work budget (D-98, D-99): criterion's output, the atom-level counts, the oracle under budgets, the search's ranking, and the machine record | `results/exploratory/contains-cost/` (`criterion.tar.zst` with its `.sha256`, `work.json`, `oracle-budget.json`, `search.txt`, `env.json`) |
 | The work budget on the protocol path (D-100): criterion's output for `Contains` at the default budget and lines 2 and 5, the counts, the oracle's report, the machine record, and the headline check's three builds as archives with their manifests | `results/exploratory/budget/` (`criterion.tar.zst` with its `.sha256`, `work.json`, `oracle.json`, `env.json`, `headline/<build>/archive/`, `headline/<build>/env.json`) |
+| D-101's unit: criterion's output for each charged class, the fixed cost, the search and lines 2 and 5 under the proposed limits, the counts, the oracle's report, the machine record, and the headline check's three builds as archives with their manifests | `results/exploratory/ceiling/` (`criterion.tar.zst` with its `.sha256`, `work.json`, `oracle.json`, `env.json`, `headline/<build>/archive/`, `headline/<build>/env.json`) |
 | Bytes on the wire (Q2), memory (Q10), the machine records | `results/bytes.json`, `results/memory.json`, `results/env.json`, `results/env-resume.json` |
 | M9's console log: the safety-valve abort and the three refused resumes that BENCHMARKS.md §7 cites | `results/logs/m9.log` |
 | The generated summary, document and paper artifacts | `results/summary.{md,json}`, `BENCHMARKS.md`, `paper/` |
@@ -69,6 +70,11 @@ zstd -dc results/exploratory/contains-cost/criterion.tar.zst | tar -x -C results
 (cd results/exploratory/budget && shasum -a 256 -c criterion.tar.zst.sha256)
 zstd -dc results/exploratory/budget/criterion.tar.zst | tar -x -C results/exploratory/budget
 for b in measured pre-budget budgeted; do (cd results/exploratory/budget/headline/$b/archive && shasum -a 256 -c MANIFEST.sha256); done
+
+# D-101's unit, once measured.
+(cd results/exploratory/ceiling && shasum -a 256 -c criterion.tar.zst.sha256)
+zstd -dc results/exploratory/ceiling/criterion.tar.zst | tar -x -C results/exploratory/ceiling
+for b in measured pre-budget budgeted; do (cd results/exploratory/ceiling/headline/$b/archive && shasum -a 256 -c MANIFEST.sha256); done
 ```
 
 The generators check every archive themselves and refuse to run on a missing manifest or a mismatch. They also refuse to run without criterion's output, rather than write a summary without its micro-benchmark section.
@@ -174,7 +180,14 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
   scripts/budget-check.sh
   ```
 
-  It writes `results/exploratory/budget/` and appends a `BENCH_LOG.md` entry; `dc-bench budget-report` prints its BENCHMARKS.md block. `--wait MINUTES` waits longer for an idle machine (default 10); while it waits it names what keeps the machine busy. An attempt that stops before measuring can simply be run again. `--dry` checks the pipeline under `results/dry-run/`.
+  It writes `results/exploratory/budget/` and appends a `BENCH_LOG.md` entry; `dc-bench budget-report` prints its BENCHMARKS.md block. Its run was at `42b84ec`, with D-99's unit.
+- **D-101's unit, its derived ceiling and the proposed size limits.** At a commit with D-101, on M9's machine state; about an hour. Like the budget's measurement: the counts and the oracle first, then the criterion pass (`benches/ceiling.rs`), then the headline cells in three builds, each in its own worktree under `target/exploratory/ceiling/`. The same options.
+
+  ```sh
+  scripts/ceiling-check.sh
+  ```
+
+  It writes `results/exploratory/ceiling/` and appends a `BENCH_LOG.md` entry; `dc-bench ceiling-report` prints its BENCHMARKS.md block. `--wait MINUTES` waits longer for an idle machine (default 10); while it waits it names what keeps the machine busy. An attempt that stops before measuring can simply be run again. `--dry` checks the pipeline under `results/dry-run/`.
 
 ## 6. Packing a deposit
 

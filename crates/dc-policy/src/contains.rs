@@ -2,11 +2,15 @@
 //! complete (Proposition 2, Remark 1). The verifier runs it under a work
 //! budget (SPEC §9.6.1; D-100): [`contains_within`].
 
+use std::collections::BTreeSet;
+
+use dc_types::Principal;
+
 use crate::ast::{Atom, Rule, Scope, ScopeForm};
 #[cfg(feature = "test-hooks")]
 use crate::logic::{implies, unsat};
 use crate::logic::{implies_counted, unsat_counted};
-use crate::meter::Meter;
+use crate::meter::{Meter, size};
 
 /// The verifier's default work budget for one `Contains` call, in atom
 /// literals examined (SPEC §9.6.1; D-100).
@@ -23,10 +27,26 @@ pub fn subsumes(r1: &Rule, r2: &Rule) -> bool {
     subsumes_counted(r1, r2, &Meter::unlimited())
 }
 
-/// [`subsumes`], charging `m` one, then the `implies` call.
-fn subsumes_counted(r1: &Rule, r2: &Rule, m: &Meter) -> bool {
-    m.charge(1)
+/// What comparing `r`'s head with another's costs at most: its audience,
+/// tool, action and every declared path (SPEC §9.6.1).
+fn head(r: &Rule) -> usize {
+    size(r.at.as_str())
+        + size(r.tool.as_str())
+        + size(r.action.as_str())
+        + r.params.keys().map(|k| size(k)).sum::<usize>()
+}
+
+/// What an approval set contributes to comparing it with another.
+fn approvals(a: &BTreeSet<Principal>) -> usize {
+    a.iter().map(|p| size(p.as_str())).sum()
+}
+
+/// [`subsumes`], charging `m`: one for the test and r2's head; if the heads
+/// agree, both approval sets; if they pass, the `implies` call.
+pub fn subsumes_counted(r1: &Rule, r2: &Rule, m: &Meter) -> bool {
+    m.charge(1 + head(r2))
         && r2.same_head(r1)
+        && m.charge(approvals(&r1.approval) + approvals(&r2.approval))
         && r1.approval.is_subset(&r2.approval)
         && implies_counted(&r2.params, &atoms(r2), &atoms(r1), m)
 }
@@ -92,7 +112,7 @@ fn core(s1: &Scope, s2: &Scope, m: &Meter) -> bool {
         };
         // (b) earlier rules of S1 that could decide an invocation r2 decides.
         for (i, rp) in r1s[..i1].iter().enumerate() {
-            if !m.charge(1) {
+            if !m.charge(1 + head(r2)) {
                 return false;
             }
             if !rp.same_head(r2) {
@@ -108,7 +128,8 @@ fn core(s1: &Scope, s2: &Scope, m: &Meter) -> bool {
             let shadowed = shadow[i].before(
                 j,
                 |k| {
-                    r2s[k].same_head(rp)
+                    m.charge(head(&r2s[k]))
+                        && r2s[k].same_head(rp)
                         && implies_counted(&rp.params, &atoms(rp), &atoms(&r2s[k]), m)
                 },
                 m,
@@ -119,7 +140,9 @@ fn core(s1: &Scope, s2: &Scope, m: &Meter) -> bool {
             if shadowed {
                 continue;
             }
-            if !rp.approval.is_subset(&r2.approval) {
+            if !m.charge(approvals(&rp.approval) + approvals(&r2.approval))
+                || !rp.approval.is_subset(&r2.approval)
+            {
                 return false;
             }
         }

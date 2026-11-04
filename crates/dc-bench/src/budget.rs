@@ -71,8 +71,28 @@ pub fn pads() -> Vec<Pad> {
     v
 }
 
+/// [`pads`], and D-101's paddings aimed at what its unit newly charges:
+/// long heads, long declared paths and long approver names.
+pub fn pads_d101() -> Vec<Pad> {
+    let mut v = pads();
+    v.extend([
+        Pad::Head(1000),
+        Pad::Decl(1000),
+        Pad::LongApprovals(8),
+        Pad::LongApprovals(32),
+    ]);
+    v
+}
+
 /// Every timed `Contains` input: (label, parent, child).
 pub fn contains_inputs() -> Vec<(String, Scope, Scope)> {
+    contains_inputs_for(&pads())
+}
+
+/// The frozen generator's worst case at every D-98 cell that fits, and
+/// every padding of `pads` at the most rules that fit with each of
+/// [`ATOMS`] atoms a rule.
+pub fn contains_inputs_for(pads: &[Pad]) -> Vec<(String, Scope, Scope)> {
     let mut v = vec![];
     for (rules, atoms) in COST_CELLS {
         let (p, c) = (
@@ -83,7 +103,7 @@ pub fn contains_inputs() -> Vec<(String, Scope, Scope)> {
             v.push((format!("frozen-worst/r{rules}_a{atoms}"), p, c));
         }
     }
-    for pad in pads() {
+    for &pad in pads {
         for atoms in ATOMS {
             if let Some(rules) = max_rules(pad, atoms) {
                 v.push((
@@ -175,7 +195,7 @@ fn fills() -> Vec<Fill> {
         // The most approvers, in one rule.
         Fill {
             label: "approvals",
-            max: 8192,
+            max: 16384,
             text: |n| {
                 let a: Vec<String> = (0..n).map(|k| format!("o:approver:a{k:04}")).collect();
                 format!("{SHORT_HEAD} approval requires {}", a.join(", "))
@@ -221,15 +241,34 @@ fn text_atoms(n: usize, text: &str) -> String {
 
 /// Every line-2 input: (label, a scope that fills a body).
 pub fn body_scopes() -> Vec<(String, Scope)> {
+    body_scopes_within(256, dc_cbor::MAX_BODY_SIZE)
+}
+
+/// The rules of a scope (0 for `allow all` and `deny all`).
+pub fn rule_count(s: &Scope) -> usize {
+    match s.form() {
+        dc_policy::ScopeForm::Rules(r) => r.len(),
+        _ => 0,
+    }
+}
+
+/// [`body_scopes`] with at most `max_rules` rules a scope, and bodies of at
+/// most `max_body` bytes with [`BODY_SPARE`] to spare (D-101's proposed
+/// limits).
+pub fn body_scopes_within(max_rules: usize, max_body: usize) -> Vec<(String, Scope)> {
+    let ok = |s: &Scope| {
+        rule_count(s) <= max_rules
+            && s.canonical_bytes().len() + crate::bounds::BODY_SPARE <= max_body
+    };
     fills()
         .into_iter()
         .map(|f| {
             let scope = |n| Scope::parse(&(f.text)(n)).expect("well formed");
             let (mut lo, mut hi) = (1usize, f.max);
-            assert!(fits(&scope(1)), "{}: one unit fits", f.label);
+            assert!(ok(&scope(1)), "{}: one unit fits", f.label);
             while lo < hi {
                 let mid = (lo + hi).div_ceil(2);
-                if fits(&scope(mid)) {
+                if ok(&scope(mid)) {
                     lo = mid;
                 } else {
                     hi = mid - 1;
@@ -244,6 +283,12 @@ pub fn body_scopes() -> Vec<(String, Scope)> {
 /// profile's (D-71's setting), in canonical form. Its signatures are
 /// irrelevant to line 2.
 pub fn delegation_body(setting: &Setting<Ed25519>, scope: &Scope) -> Vec<u8> {
+    delegation_body_within(setting, scope, dc_cbor::MAX_BODY_SIZE)
+}
+
+/// [`delegation_body`] for a body limit of `max` bytes (D-101's proposed
+/// limits).
+pub fn delegation_body_within(setting: &Setting<Ed25519>, scope: &Scope, max: usize) -> Vec<u8> {
     let mut rng = ChaCha20Rng::seed_from_u64(0xD100);
     let (b, holder) = setting.prefix::<Ed25519List>(Profile::Medium, 2, 0, &mut rng);
     let chain = setting.invoke(Profile::Medium, &b, &holder, &mut rng);
@@ -254,14 +299,23 @@ pub fn delegation_body(setting: &Setting<Ed25519>, scope: &Scope) -> Vec<u8> {
     };
     del.scope = scope.to_raw();
     let bytes = d.canonical_bytes().expect("encodes");
-    assert!(bytes.len() <= dc_cbor::MAX_BODY_SIZE, "fits a body");
+    assert!(bytes.len() <= max, "fits a body");
     bytes
 }
 
 /// Line 2 for one body, as the verifier runs it: decode the body under its
 /// own kind, then decode and validate its scope (D-28, D-32).
 pub fn line2(bytes: &[u8]) -> Option<Scope> {
-    let d = decode_body::<Ed25519>(bytes).ok()?;
+    line2_within(bytes, dc_cbor::MAX_BODY_SIZE)
+}
+
+/// [`line2`] with a body limit of `max` bytes (D-101's proposed limits).
+pub fn line2_within(bytes: &[u8], max: usize) -> Option<Scope> {
+    let limits = dc_cbor::Limits {
+        max_size: max,
+        ..dc_cbor::Limits::BODY
+    };
+    let d = dc_types::decode_body_within::<Ed25519>(bytes, limits).ok()?;
     d.body.scope().map(Scope::from_raw)?.ok()
 }
 

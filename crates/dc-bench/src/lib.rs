@@ -21,6 +21,7 @@ pub mod arms;
 pub mod benchmarks;
 pub mod bounds;
 pub mod budget;
+pub mod ceiling;
 pub mod contains_cost;
 pub mod encoding;
 pub mod env;

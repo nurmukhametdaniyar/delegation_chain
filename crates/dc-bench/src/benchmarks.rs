@@ -26,7 +26,7 @@ use crate::report::{
     self, AIP_CHAINED_MS, Key, Raw, Row, criterion_estimates, read_json, us, verdict,
 };
 use crate::stats::{Ratio, quantile_sorted, ratio};
-use crate::{aip, bounds, budget, contains_cost, encoding, phases, reorder};
+use crate::{aip, bounds, budget, ceiling, contains_cost, encoding, phases, reorder};
 
 /// AIP's published token sizes for biscuit-auth 6.0 chained mode (SPEC
 /// §13.10; arXiv:2603.24775v1, Table 5, "Size (Rust)", checked on
@@ -86,6 +86,8 @@ pub struct Doc {
     pub(crate) contains_cost: Option<contains_cost::Data>,
     /// The work budget on the protocol path (D-100), once unpacked.
     pub(crate) budget: Option<budget::Data>,
+    /// D-101's unit and its derived ceiling, once unpacked.
+    pub(crate) ceiling: Option<ceiling::Data>,
     /// `docs/paper-sections.json` (D-86), when the results directory sits
     /// in the repository.
     pub(crate) sections: Option<Value>,
@@ -177,6 +179,12 @@ impl Doc {
         } else {
             None
         };
+        let cdir101 = results.join("exploratory/ceiling");
+        let ceiling = if cdir101.join("criterion.tar.zst").exists() {
+            Some(ceiling::load(&cdir101)?)
+        } else {
+            None
+        };
         let rdir = results.join("exploratory/reorder");
         let reorder = if rdir.join("reordered/archive/MANIFEST.sha256").exists() {
             Some(reorder::load(&rdir, reorder::REORDER)?)
@@ -208,6 +216,7 @@ impl Doc {
             reorder,
             contains_cost,
             budget,
+            ceiling,
             sections,
             revision: std::cell::Cell::new(Revision::Checked),
         })
@@ -904,6 +913,13 @@ impl Doc {
                     self.row(arm, state, 3, "medium").ok().map(|r| r.pooled.median)
                 }),
                 None => "_Not run yet: there is no `results/exploratory/budget/criterion.tar.zst`._".into(),
+            },
+            // D-101's unit and its derived ceiling.
+            ["ceilingcheck"] => match &self.ceiling {
+                Some(d) => d.markdown(self.crit("ed25519/verify_strict")?, &|arm, state| {
+                    self.row(arm, state, 3, "medium").ok().map(|r| r.pooled.median)
+                }),
+                None => "_Not run yet: there is no `results/exploratory/ceiling/criterion.tar.zst`._".into(),
             },
             // The reorder check (D-96), from its three builds' archives.
             ["reorder"] => match &self.reorder {

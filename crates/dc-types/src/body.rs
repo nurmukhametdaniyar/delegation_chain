@@ -355,7 +355,17 @@ pub struct DecodedBody<S: SigScheme> {
 /// position in the chain (D-32). Malformed input is an error (line 2); a
 /// canonical-form violation is recorded (line 5).
 pub fn decode_body<S: SigScheme>(bytes: &[u8]) -> Result<DecodedBody<S>, Malformed> {
-    let (v, mut violation) = decode(bytes, Limits::BODY)?;
+    decode_body_within(bytes, Limits::BODY)
+}
+
+/// [`decode_body`] under other decoding limits. Only D-101's exploratory
+/// measurement of line 2 under proposed body limits uses it; the verifier
+/// decodes under [`Limits::BODY`].
+pub fn decode_body_within<S: SigScheme>(
+    bytes: &[u8],
+    limits: Limits,
+) -> Result<DecodedBody<S>, Malformed> {
+    let (v, mut violation) = decode(bytes, limits)?;
     let kind = v
         .get(&Key::Uint(1))
         .and_then(Value::as_u64)

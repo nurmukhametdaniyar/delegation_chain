@@ -17,6 +17,8 @@
 //! dc-bench budget [--out DIR]                       D-99's work counts
 //! dc-bench budget-counts [--out DIR]                D-100's counts under the default budget
 //! dc-bench budget-report [--mode M] [--out DIR]     prints D-100's block of BENCHMARKS.md §8
+//! dc-bench ceiling-counts [--out DIR]               D-101's counts, admitted shapes and proposed limits
+//! dc-bench ceiling-report [--mode M] [--out DIR]    prints D-101's block of BENCHMARKS.md §8
 //! ```
 //!
 //! `scripts/reorder-check.sh` runs the reorder check's three builds (D-96);
@@ -86,7 +88,7 @@ struct Args {
 fn parse() -> Result<Args, String> {
     let mut it = std::env::args().skip(1);
     let cmd = it.next().ok_or(
-        "usage: dc-bench <all|run|bytes|env|archive|report|plan|benchmarks|paper|phases|aip|encoding|reorder|budget|budget-counts|budget-report> [options]",
+        "usage: dc-bench <all|run|bytes|env|archive|report|plan|benchmarks|paper|phases|aip|encoding|reorder|budget|budget-counts|budget-report|ceiling-counts|ceiling-report> [options]",
     )?;
     let mut a = Args {
         cmd,
@@ -192,6 +194,8 @@ fn main() -> ExitCode {
         )
         .map(|d| print!("{}", d.markdown(&|_, _| None))),
         "budget-report" => cmd_budget_report(&a),
+        "ceiling-counts" => cmd_ceiling_counts(&a),
+        "ceiling-report" => cmd_ceiling_report(&a),
         "report" => cmd_report(&a),
         "benchmarks" => {
             let out = out_dir(&a);
@@ -570,6 +574,31 @@ fn cmd_budget_counts(a: &Args) -> Result<(), String> {
 /// unpacked), against the frozen pass's strict Ed25519 verification.
 fn cmd_budget_report(a: &Args) -> Result<(), String> {
     let d = dc_bench::budget::load(&out_dir(a).join("exploratory/budget"))?;
+    let strict = dc_bench::report::criterion_median(
+        &root().join("results/criterion"),
+        "ed25519/verify_strict",
+    )
+    .ok_or("no frozen criterion estimate for ed25519/verify_strict (ARTIFACT.md §3)")?;
+    print!("{}", d.markdown(strict, &|_, _| None));
+    Ok(())
+}
+
+/// D-101's counts, into `exploratory/ceiling/work.json`.
+fn cmd_ceiling_counts(a: &Args) -> Result<(), String> {
+    let dir = out_dir(a).join("exploratory/ceiling");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let v = dc_bench::ceiling::counts();
+    fs::write(
+        dir.join("work.json"),
+        serde_json::to_string_pretty(&v).unwrap() + "\n",
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// D-101's block, from `exploratory/ceiling/` (its criterion output
+/// unpacked), against the frozen pass's strict Ed25519 verification.
+fn cmd_ceiling_report(a: &Args) -> Result<(), String> {
+    let d = dc_bench::ceiling::load(&out_dir(a).join("exploratory/ceiling"))?;
     let strict = dc_bench::report::criterion_median(
         &root().join("results/criterion"),
         "ed25519/verify_strict",

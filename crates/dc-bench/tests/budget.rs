@@ -36,3 +36,110 @@ fn every_body_passes_lines_2_and_5() {
         println!("{label}: {} bytes", bytes.len());
     }
 }
+
+#[test]
+#[ignore = "prints D-101's admitted shapes; run with --ignored --nocapture"]
+fn print_admitted_shapes() {
+    let rows = dc_bench::ceiling::admitted();
+    for r in &rows {
+        println!(
+            "{} a{} b{}: rules {} bytes {} fit {} W {}",
+            r["family"],
+            r["atoms"],
+            r["bytes_per_string"],
+            r["max_admitted_rules"],
+            r["scope_bytes_at_max"],
+            r["largest_fitting_rules"],
+            r["work_at_max"]
+        );
+    }
+    println!("{:?}", dc_bench::ceiling::proposed(&rows));
+}
+
+/// A quick, unreported pre-flight of D-101's derivation: each probe's time
+/// per unit, the fixed cost, and every search input against the ceiling
+/// they imply. The measured version is `benches/ceiling.rs`.
+#[test]
+#[ignore = "timing pre-flight; run with --release --ignored --nocapture"]
+fn preflight_ceiling() {
+    use std::time::Instant;
+    let med = |f: &dyn Fn()| {
+        let mut v: Vec<u128> = (0..7)
+            .map(|_| {
+                let t = Instant::now();
+                f();
+                t.elapsed().as_nanos()
+            })
+            .collect();
+        v.sort_unstable();
+        v[3] as f64
+    };
+    let mut worst = (0.0, String::new());
+    for p in dc_bench::ceiling::probes() {
+        let ns = med(&|| {
+            std::hint::black_box(p.run());
+        });
+        let u = ns / p.charge as f64;
+        println!(
+            "{:40} charge {:8} {:10.0} ns {:6.1} ns/unit",
+            p.label, p.charge, ns, u
+        );
+        if u > worst.0 {
+            worst = (u, p.label.clone());
+        }
+    }
+    let mut fixed: f64 = 0.0;
+    for (l, a, b) in dc_bench::ceiling::overhead_inputs() {
+        let ns = med(&|| {
+            std::hint::black_box(dc_policy::contains_within(&a, &b, 0));
+        });
+        println!("overhead {l:40} {ns:10.0} ns");
+        fixed = fixed.max(ns);
+    }
+    let ceiling = dc_policy::DEFAULT_BUDGET as f64 * worst.0 + fixed;
+    println!(
+        "worst {:.1} ns/unit ({}); ceiling {:.2} ms",
+        worst.0,
+        worst.1,
+        ceiling / 1e6
+    );
+    let mut top: Vec<(f64, String)> = dc_bench::ceiling::contains_inputs()
+        .into_iter()
+        .map(|(l, a, b)| {
+            let ns = med(&|| {
+                std::hint::black_box(dc_policy::contains_within(
+                    &a,
+                    &b,
+                    dc_policy::DEFAULT_BUDGET,
+                ));
+            });
+            (ns, l)
+        })
+        .collect();
+    top.sort_by(|a, b| b.0.total_cmp(&a.0));
+    for (ns, l) in top.iter().take(12) {
+        println!(
+            "{l:40} {:8.3} ms {:5.0}% of the ceiling",
+            ns / 1e6,
+            100.0 * ns / ceiling
+        );
+    }
+}
+
+/// D-101: every `Contains` call a verification of the small, medium,
+/// medium-approval and large profiles makes (the ceiling and each link up to
+/// N = 10) stays below an eighth of the default budget.
+#[test]
+fn the_profiles_stay_well_inside_the_budget() {
+    use dc_bench::workload::{Profile, hop_scopes};
+    use dc_policy::{DEFAULT_BUDGET, contains_within};
+    for p in Profile::ALL {
+        let s = hop_scopes(p);
+        let calls = std::iter::once((&s[0], &s[0])).chain((1..s.len()).map(|k| (&s[k - 1], &s[k])));
+        for (a, b) in calls {
+            let w = contains_within(a, b, u64::MAX);
+            assert!(w.answer);
+            assert!(w.work < DEFAULT_BUDGET / 8, "{}: {}", p.label(), w.work);
+        }
+    }
+}

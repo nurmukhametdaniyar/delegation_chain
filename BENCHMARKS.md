@@ -1268,7 +1268,7 @@ A budget on `Contains` caps what a compromised signer can force on one link, wha
 
 ### The work budget on the protocol path
 
-D-100 puts D-99's budget on the protocol path at a default of 65,536 (SPEC §9.6.1): lines 35 and 37 reject when `Contains`'s count passes it, and a verifier refuses to pin a policy whose reflexive check passes it. This exploratory pass, which is not in the frozen plan, measures what the default leaves a compromised signer, and what the budget costs on the headline cells. It changes no measured result.
+D-100 puts D-99's budget on the protocol path at a default of 65,536 (SPEC §9.6.1): lines 35 and 37 reject when `Contains`'s count passes it, and a verifier refuses to pin a policy whose reflexive check passes it. This exploratory pass, which is not in the frozen plan, measures what the default leaves a compromised signer, and what the budget costs on the headline cells. It changes no measured result. It measured D-99's unit; D-101 has since replaced it, and the block after this one measures the new one.
 - **`Contains` at the budget.** Every padding of D-98's search, and paddings that are slow per counted unit, because the unit does not count text lengths, head comparisons or approval comparisons: `contains`, `ends_with` and `under` operands of up to about 1 KiB (`contains`, `suffix`, `under`), string `in` lists whose members are filtered through such atoms (`setcontains`, `setunder`), 31 extra declared parameters (`decl`) and large approval sets (`approvals`). Each at the most rules that fit a body with 4, 8, 16, 24 or 32 atoms a rule, and the frozen generator's worst case at every cell of D-98 that fits. The costliest measured is a lower bound on the ceiling.
 - **Lines 2 and 5.** A delegation body of the medium profile with its scope replaced by one that fills the body: the most atoms, integer literals, text items, declared paths or approvers, or the longest text, NFC text that only a full check confirms, and the longest `under` paths. Line 2 decodes the body and decodes and validates its scope, as the verifier does; line 5 re-encodes it and compares.
 - **How.** `scripts/budget-check.sh`: criterion with ten samples of each input, on M9's machine state and build flags; each call's result is checked. Then D-96's headline cells in three builds: the measured commit, the commit before the budget (`2df8b53`, with D-94 and D-97), and the commit with it.
@@ -1380,4 +1380,14 @@ Line 5's re-encoding, also before any signature, is not in the sum: at most 0.71
 
 **Thermal flags** (the calibration probe or pmset, around each configuration; none re-run): pre-budget run 1: B warm+prefix N=3 medium.
 
+
+### The budget's unit as a bound on work
+
+D-100's measurement found that D-99's unit bounded the count but not the time: text lengths were not counted. D-101 charges every operation of `Contains` so as to bound its work from above (SPEC §9.6.1): strings by length, per 64 bytes compared and per 16 bytes scanned; head and approval comparisons by the strings they compare; and path lookups. Integer charges are D-99's. This exploratory pass, which is not in the frozen plan, derives the ceiling that implies, checks it against a search, and proposes size limits aligned with the budget. It changes no measured result.
+- **The derived ceiling.** Each charged operation class runs alone at the size bounds (`dc_bench::ceiling::probes`); its median time over its charge is its time per unit. The per-link ceiling is the budget times the worst of these, plus the largest fixed per-call cost; per chain, 15 links at N = 16.
+- **The search.** D-100's inputs, and paddings aimed at what the unit newly charges (heads, declared paths and approver names of about 1 KiB), each at the default budget. Every one must stay at or below the derived ceiling; one that does not shows a charge that is wrong.
+- **Size limits.** For the frozen generator's shape and two string-heavy shapes (nested `starts_with` prefixes, and `in` lists, with strings of 16 bytes to 1 KiB), the most rules whose pin-time check, link and child reflexive check stay within the budget, and the encoded size there. The proposed limits are about twice the largest; lines 2 and 5 are timed on bodies filled toward them, and toward the proposed rule limit in today's 64 KiB body.
+- **How.** `scripts/ceiling-check.sh`: criterion with ten samples of each, on M9's machine state and build flags; each call's result is checked. Then D-96's headline cells in the measured build, the build before the budget, and the build with D-101.
+
+_Not run yet: there is no `results/exploratory/ceiling/criterion.tar.zst`._
 

@@ -1,11 +1,13 @@
-//! The work count of `Contains` under a budget (SPEC §9.6.1; D-100, from
-//! D-99's prototype).
+//! The work count of `Contains` under a budget (SPEC §9.6.1; D-100, D-101).
 //!
-//! The unit is one atom literal examined: an atom with a 64-element `in`
-//! list counts 64. SPEC §9.6.1's table says where each check is charged.
-//! The count depends only on the two scopes, so every replica of a verifier
-//! reaches the same total on the same input. String lengths are not
-//! counted.
+//! The unit is one integer literal examined, as in D-99. Every other
+//! operation of the procedure is charged so as to bound its work from
+//! above (D-101): a string by its length, per 64 bytes where it is compared
+//! ([`size`]) and per 16 bytes where it is scanned ([`scan`]); head and
+//! approval comparisons by the strings they compare. SPEC §9.6.1's table
+//! says where each charge is made. The count depends only on the two
+//! scopes, so every replica of a verifier reaches the same total on the
+//! same input.
 //!
 //! Every charge comes before the work it pays for, and a check whose charge
 //! passes the budget skips that work and answers in the sound direction
@@ -15,7 +17,7 @@
 
 use std::cell::Cell;
 
-use crate::ast::{Atom, Operand};
+use crate::ast::{Atom, Literal, Operand};
 
 /// A running count of atom-level checks, against a budget.
 #[derive(Debug)]
@@ -56,11 +58,33 @@ impl Meter {
     }
 }
 
-/// An atom's weight: the literals of its operand.
+/// A compared string's size: 1, and 1 more for every 64 bytes. Equality,
+/// ordering, prefix and suffix tests read each byte at most once, and
+/// cheaply.
+pub fn size(s: &str) -> usize {
+    1 + s.len() / 64
+}
+
+/// A scanned string's size: 1, and 1 more for every 16 bytes. Substring
+/// search and the canonical-path check do several steps per byte.
+pub fn scan(s: &str) -> usize {
+    1 + s.len() / 16
+}
+
+/// A literal's size: 1 for an integer or a boolean, a string's [`size`].
+pub fn literal(l: &Literal) -> usize {
+    match l {
+        Literal::Str(s) => size(s),
+        Literal::Int(_) | Literal::Bool(_) => 1,
+    }
+}
+
+/// An atom's weight: the sizes of its operand's literals. For integers and
+/// booleans, the number of literals (D-99).
 pub(crate) fn weight(a: &Atom) -> usize {
     match &a.operand {
-        Operand::One(_) => 1,
-        Operand::List(l) => l.len().max(1),
+        Operand::One(l) => literal(l),
+        Operand::List(l) => l.iter().map(literal).sum::<usize>().max(1),
     }
 }
 

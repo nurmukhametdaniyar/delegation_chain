@@ -1,8 +1,9 @@
 //! D-100: `Contains` under a work budget (SPEC §9.6.1).
 //!
 //! - The unit: counts worked out by hand from SPEC §9.6.1's table equal the
-//!   implementation's, for one pair of each path type and one pair that runs
-//!   step 3(b) and its skip test. Replicas agree only if every
+//!   implementation's, for one pair of each path type, one with strings long
+//!   enough to cost by length, and one pair that runs step 3(b) and its skip
+//!   test (D-101). Replicas agree only if every
 //!   implementation counts the same way, so these pin the table to the code.
 //! - The boundary: a budget equal to the count answers as the procedure does;
 //!   one less answers false, with the budget run out.
@@ -21,57 +22,77 @@ fn scope(rules: &[&str]) -> Scope {
     Scope::parse(&text.join("\n")).unwrap()
 }
 
-/// (name, S1, S2, W) with W worked out from SPEC §9.6.1's table.
+/// (name, S1, S2, W) with W worked out from SPEC §9.6.1's table (D-101).
+/// Every head here is `o:service:s`, `t`, `a` and one declared path, so
+/// head(r) = 4 and each test costs 1 + 4.
 fn hand_counted() -> Vec<(&'static str, Scope, Scope, u64)> {
+    let x20 = "abcdefghijklmnopqrst";
+    let x70 = format!("0123456789{x20}{}", "0123456789".repeat(4));
     vec![
         (
-            // One test r2 ⊆ r1: 1, then implies(C2 = [x in 1..3], C1 = [x <= 10]).
-            // unsat(C2): n(C2) 1, select x 1, build w(A) 3, int satisfiability
-            // n(F) 3 = 8. Atom x <= 10: select 1, build 3, satisfiability 3,
-            // n(F) 3 again, n(F′)·w(b) 3·1 = 13. W = 1 + 8 + 13.
+            // Test: 5; approvals: 0 + 0. implies(C2 = [x in 1..3], C1 = [x <= 10]).
+            // unsat(C2): paths 1; select and look up x (1 + 1)·1 = 2; build
+            // w(A) 3; n(F) 3: 9. Atom x <= 10: select 2, build 3, satisfiability
+            // 3, n(F) 3 again, n(F′)·w(b) 3·1: 14. W = 5 + 9 + 14.
             "int",
             scope(&["params { x: int } where x <= 10"]),
             scope(&["params { x: int } where x in [1, 2, 3]"]),
-            22,
+            28,
         ),
         (
-            // 1; unsat(C2 = [f == true]): 1 + 1 + build 1 + 0 = 3. Atom
-            // f in [true, false]: select 1, build 1, 2·w(b) = 4. W = 1 + 3 + 6.
+            // 5; unsat(C2 = [f == true]): 1 + 2 + build 1 + 0 = 4. Atom
+            // f in [true, false]: select 2, build 1, 2·w(b) = 4: 7. W = 16.
             "bool",
             scope(&["params { f: bool } where f in [true, false]"]),
             scope(&["params { f: bool } where f == true"]),
-            10,
+            16,
         ),
         (
-            // 1; unsat(C2 = [starts_with "/a/b", ends_with ".txt"]): n(C2) 2,
-            // select 2, build 2, n(P)² + n(S)² = 2: 8. Atom starts_with "/a":
-            // select 2, build 2, satisfiability 2, n(P) + n(S) = 2: 8. W = 17.
+            // 5; unsat(C2 = [starts_with "/a/b", ends_with ".txt"]): paths 2,
+            // select (2 + 1)·1 = 3, build 2, pairs n(P)·z(P) + n(S)·z(S) = 2: 9.
+            // Atom starts_with "/a": select 3, build 2, satisfiability 2, the
+            // operands' scans 1 + 1 and n·(scan("/a") − 1) = 0: 9. W = 23.
             "string, no finite set",
             scope(&["params { s: string } where s starts_with \"/a\""]),
             scope(&["params { s: string } where s starts_with \"/a/b\" and s ends_with \".txt\""]),
-            17,
+            23,
         ),
         (
-            // 1; unsat(C2 = [s in [a, b, c], s starts_with "a"]): 2 + 2 + build
-            // w(A) 4 + n(E)·w(A) 3·4 = 20. Atom s in [a, b]: select 2, build 4,
-            // satisfiability 12, n(E)·w(A) 12 again, n(E′)·w(b) 1·2 = 32.
-            // W = 1 + 20 + 32.
+            // 5; unsat(C2 = [s in [a, b, c], s starts_with "a"]): 2 + 3 + build
+            // w(A) 4 + n(E)·Σ check 3·4 = 21. Atom s in [a, b]: select 3, build
+            // 4, satisfiability 12, admissible again 12, n(E′)·check(b) 1·2 =
+            // 33. W = 5 + 21 + 33.
             "string, finite set",
             scope(&["params { s: string } where s in [\"a\", \"b\"]"]),
             scope(&[
                 "params { s: string } where s in [\"a\", \"b\", \"c\"] and s starts_with \"a\"",
             ]),
-            53,
+            59,
+        ),
+        (
+            // Lengths. 5; unsat(C2 = [contains x70]): 1 + 2 + build w(A) =
+            // size(x70) = 1 + 70/64 = 2, no pairs: 5. Atom contains x20: select
+            // 2, build 2, satisfiability 0, scan(x70) = 1 + 70/16 = 5 and
+            // 1·(scan(x20) − 1) = 1: 10. W = 5 + 5 + 10.
+            "string lengths",
+            scope(&[&format!(
+                "params {{ s: string }} where s contains \"{x20}\""
+            )]),
+            scope(&[&format!(
+                "params {{ s: string }} where s contains \"{x70}\""
+            )]),
+            20,
         ),
         (
             // Reflexivity of the recommended order: an approval rule before an
-            // overlapping permissive one.
-            // r2 = rule 0: test r2 ⊆ rule 0: 1 + implies([x <= 5], [x <= 5])
-            // (unsat 1 + 1 + 1 + 0; atom 1 + 1 + 0 + 0) = 6.
-            // r2 = rule 1: test r2 ⊆ rule 0: 1, approvals fail. Test r2 ⊆
-            // rule 1: 1 + 5 = 6. Step 3(b), r′ = rule 0: 1; unsat([x <= 5,
-            // x <= 10]): 2 + 2 + 2 + 0 = 6; skip test: implies(rule 0's clause,
-            // child rule 0's) = 5, which shadows. 19. W = 6 + 19.
+            // overlapping permissive one. size(o:approver:p) = 1.
+            // r2 = rule 0: test rule 0: 5 + approvals 1 + 1 + implies([x <= 5],
+            // [x <= 5]) (unsat 1 + 2 + 1 + 0; atom 2 + 1 + 0 + 0) 7 = 14.
+            // r2 = rule 1: test rule 0: 5 + approvals 1 + 0, which fail: 6.
+            // Test rule 1: 5 + 0 + 7 = 12. Step 3(b), r′ = rule 0: 5;
+            // unsat([x <= 5, x <= 10]): 2 + 3 + 2 + 0 = 7; skip test: head of
+            // child rule 0, 4, and implies(rule 0's clause, its clause) 7,
+            // which shadows: 23. W = 14 + 6 + 12 + 23.
             "step 3(b) and the skip test",
             scope(&[
                 "params { x: int } where x <= 5 approval requires o:approver:p",
@@ -81,7 +102,7 @@ fn hand_counted() -> Vec<(&'static str, Scope, Scope, u64)> {
                 "params { x: int } where x <= 5 approval requires o:approver:p",
                 "params { x: int } where x <= 10",
             ]),
-            25,
+            55,
         ),
     ]
 }

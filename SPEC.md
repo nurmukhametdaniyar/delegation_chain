@@ -11,6 +11,12 @@ Put this file in the repository root as `SPEC.md`.
 
 ## Changelog
 
+**2026-11-04 — the budget's unit made a sound over-approximation (D-101; P-35).** Chosen by the author after D-100's measurement showed that the unit bounded the count but not the time.
+- **The change (§9.6.1).** Every operation of `Contains` is charged so as to bound its work from above: strings by length (per 64 bytes compared, per 16 bytes scanned), head and approval comparisons by the strings they compare, and path lookups. Integer charges are D-99's. The table and the hand-counted test follow.
+- **The derived ceiling** is the budget times the worst measured time per unit, plus the fixed per-call cost (§9.6.1).
+- **Unchanged.** The decision rule, the default of 65,536, the pin-time check and the replica requirement. No answer within the budget changes.
+- **Size bounds.** D-101 proposes rules-per-scope and per-body limits aligned with the budget; D-21 and D-03 are unchanged until the author adopts them.
+
 **2026-11-02 — a work budget on `Contains` (D-100; P-35).** Chosen by the author from D-99's measured candidates. This runs ahead of paper revision 2026-10-06 (§2).
 - **Why.** After D-94 a compromised agent, which the threat model includes, can still sign scopes that make one `Contains` call cost seconds within D-21's bounds (D-95, D-98). D-21's bounds stay as they are.
 - **The change (§9.6.1).** Lines 35 and 37 run `Contains` under a deterministic work budget B, a verifier configuration parameter (default 65,536), counted in D-99's unit: atom literals examined. A call whose count passes B returns false, and the line rejects with the budget as the reason. Replicas of one logical verifier use the same B. The unit fixes the procedure's order of work, so D-97's memoized skip test is now part of the procedure's definition; its answers are unchanged.
@@ -881,28 +887,31 @@ The verifier runs `Contains` under a **work budget** B, a verifier configuration
   - Lines 35 and 37 call `Contains_B`. When the count passed B, the rejection gives the budget as its reason (§10.2).
 - **Sound.** The budget only turns true into false. Proposition 2's soundness therefore holds for `Contains_B`, and so do the theorems that rest on it. Completeness falls only for pairs whose W exceeds B.
 - **Reflexive only within the budget.** `Contains(P, P)` is true for every P (§9.7), but `Contains_B(P, P)` is false when W(P, P) > B. Hence the pin-time check below.
-- **The unit** is one atom literal examined.
-  - An atom's weight w(a) is its operand's literal count: 1, or the length of an `in` list. For a list of atoms A, w(A) is the sum of the weights, and n(A) the number of atoms.
-  - Text lengths are not counted, so the time per unit varies with the input. D-100's exploratory measurement gives the cost at the default.
+- **The unit** (D-101, replacing D-99's) is one integer literal examined, and every operation of the procedure is charged so as to bound its work from above: a sound over-approximation. The charges are proportional to what each operation reads, so the time per unit has a bound, which D-101's exploratory measurement derives (see the derived ceiling below).
+  - **Sizes.** A string x has a compared size z(x) = 1 + ⌊|x| / 64⌋ and a scanned size y(x) = 1 + ⌊|x| / 16⌋, |x| in bytes. Equality, ordering, prefix, suffix and segment-prefix tests read a byte at most once and cheaply; substring search and the canonical-path check take several steps per byte. An integer or boolean literal has size 1, a string literal its compared size.
+  - **Weights.** An atom's weight w(a) is the sum of its operand's literal sizes: for integers and booleans, the literal count of D-99. For a list of atoms A, w(A) is the sum, and n(A) the number of atoms. For a set of strings X, z(X) and y(X) are the sums of the sizes.
+  - **A rule's head** costs head(r) = z(at) + z(tool) + z(action) + the sum of z(k) over its declared paths k. **An approval set** A costs z(A), the sum over its principals.
+  - **A string atom's check** against one value costs c(a) = y(x) for `contains x`, and w(a) otherwise; and, for a `contains` or `under` atom, y(v) − 1 more for scanning the value v.
+  - **Bounded factors are not charged separately.** Within D-21's bounds a list has at most 64 elements and a declaration 32 paths, so the logarithmic factors of sorting, set building and lookups are at most a small constant. The derived bound on the time per unit covers them.
   - W is the sum of the charges below, made in the order the table gives. The order matters because every loop stops at its first deciding answer.
 
   | Where | Charge |
   |---|---|
-  | Steps 0–2; comparing heads, declarations and approval sets | 0 |
-  | Step 3(a): each test `r2 ⊆ r1`, r1 in S1's order until one subsumes | 1; then, if the heads and declarations agree and the approvals pass, `implies(r2.where, r1.where)` |
-  | Step 3(b): each r′ before r1 | 1; then, if r′ agrees with r2 on head and declaration, `unsat` of r′'s atoms followed by r2's; if that is satisfiable, the skip test, then the approval comparison |
-  | The skip test for r′ | each `implies(r′.where, r2′.where)` its search runs (below) |
-  | `unsat(C)` | n(C); then, for each distinct path of C in byte order, until one is unsatisfiable: n(C) to select the atoms A on that path, then that path's satisfiability check |
-  | `implies(C2, C1)` | `unsat(C2)`, which answers true if C2 is unsatisfiable; then, for each atom b of C1 in order, until one is not implied: n(C2) to select the atoms A of C2 on b's path, then that path's implication check of b |
+  | Steps 0–2 | 0 |
+  | Step 3(a): each test `r2 ⊆ r1`, r1 in S1's order until one subsumes | 1 + head(r2); then, if the heads and declarations agree, z(approval(r1)) + z(approval(r2)); if the approvals pass, `implies(r2.where, r1.where)` |
+  | Step 3(b): each r′ before r1 | 1 + head(r2); then, if r′ agrees with r2 on head and declaration, `unsat` of r′'s atoms followed by r2's; if that is satisfiable, the skip test; if r′ is not skipped, z(approval(r′)) + z(approval(r2)) for the approval comparison |
+  | The skip test for r′ | for each child rule r2′ its search examines (below): head(r2′); then, if r2′ agrees with r′ on head and declaration, `implies(r′.where, r2′.where)` |
+  | `unsat(C)` | the sum of z(path) over C's atoms, for sorting the paths; then, for each distinct path p of C in byte order, until one is unsatisfiable: (n(C) + 1)·z(p) to select the atoms A on p and look up p's type, then p's satisfiability check |
+  | `implies(C2, C1)` | `unsat(C2)`, which answers true if C2 is unsatisfiable; then, for each atom b of C1 in order, until one is not implied: (n(C2) + 1)·z(b's path) to select the atoms A of C2 on that path and look up its type, then that path's implication check of b |
   | Every path check, first | w(A), building the path's constraint from A |
   | int, satisfiability | n(F) if A has `==` or `in` atoms, F being the intersection of their operand sets; else 0 |
   | int, implication of b | the satisfiability check, which answers true if unsatisfiable; then, with F: n(F) again, then n(F′)·w(b), F′ being F's members within A's bounds; without F: w(b) if b is an `in` atom, else 0 |
   | bool, satisfiability | 0 |
   | bool, implication of b | 2·w(b) |
-  | string, satisfiability | with E, as F for strings: n(E)·w(A); without E: n(P)² + n(S)² + n(U)² + n(P)·n(U) |
-  | string, implication of b | the satisfiability check, which answers true if unsatisfiable; then, with E: n(E)·w(A) again, then n(E′)·w(b), E′ being E's members that satisfy every atom of A; without E: n(P) + n(S) + n(K) + n(U) if b's operand is one string, else 0 |
+  | string, satisfiability | with E, as F for strings: n(E)·Σ c(a) over A, plus (n(K) + n(U))·(y(E) − n(E)); without E: n(P)·z(P) + n(S)·z(S) + n(U)·z(U) + n(P)·z(U) |
+  | string, implication of b | the satisfiability check, which answers true if unsatisfiable; then, with E: the charge for E again, then n(E′)·c(b), plus y(E′) − n(E′) if b is a `contains` or `under` atom, E′ being E's members that satisfy every atom of A; without E: y(P ∪ S ∪ K ∪ U) + n(P ∪ S ∪ K ∪ U)·(y(x) − 1) if b's operand is one string x, else 0 |
 
-  P, S, K and U are the operands of A's `starts_with`, `ends_with`, `contains` and `under` atoms.
+  P, S, K and U are the operands of A's `starts_with`, `ends_with`, `contains` and `under` atoms. For integers, booleans and strings shorter than 16 bytes the charges of D-99's atom checks are unchanged; heads, approvals, path lookups and long strings are what D-101 adds.
 - **The skip test's search (D-97, now part of the definition).** For each rule r′ of S1, step 3(b) examines the child rules r2′ in S2's order, each at most once per `Contains` call.
   - It resumes at the first child rule not yet examined for r′, and examines only child rules before the current r2.
   - It stops at the first r2′ that agrees with r′ on head and declaration and has `implies(r′.where, r2′.where)`. That r2′ then skips r′ for every later r2.
@@ -919,6 +928,7 @@ The verifier runs `Contains` under a **work budget** B, a verifier configuration
   - Why: a pinned policy that fails its own reflexive check under the budget would make line 35 reject every session whose scope is the policy itself, the commonest session (paper §6.4 on reflexivity).
   - The check does not bound `Contains(P, S0)` for a session scope S0 inside P, because W depends on S0 too.
 - **The default** is the author's choice (D-100), from D-99's measured candidates. BENCHMARKS.md §8 gives the counts of the workload profiles and the differential oracle, the frozen generator's shapes the default admits, and the cost at the default.
+- **The derived ceiling (D-101).** Every charged operation class is timed at the size bounds, and its worst time per unit taken. The per-link ceiling is B times the largest of these, plus the procedure's fixed per-call cost. It is measured on one machine, so it is exploratory (BENCHMARKS.md §8), but it holds for any input as long as every operation is charged as above. Every input of the search must stay at or below it; one that does not shows a charge that is wrong.
 
 ### 9.7 Required policy tests (in addition to §11)
 

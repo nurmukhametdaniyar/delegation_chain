@@ -1345,3 +1345,35 @@ Decision:
   - **A unit that counts text** (each string comparison or search charged by its operands' length, say) would close the gap between count and time. It would change D-99's unit, so it is the author's decision.
 Why: D-95 and D-98 found that a compromised agent can make one link cost seconds within the size bounds. A budget bounds that work per link whatever the bounds, and it is deterministic, so replicas with the same budget decide alike.
 Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.
+
+## D-101 — The budget's unit as a sound over-approximation of work; its derived ceiling; size limits aligned with it
+Spec section: §9.6.1 (the unit and its table, the derived ceiling), changelog     Paper section: §6.4 (revision 2026-10-06); P-35
+Decision:
+- **Why.** D-100's measurement showed that D-99's unit bounded the count, not the time: text lengths were not counted, and the costliest link found, a string-heavy one within the budget, cost nearly two orders of magnitude more than the costliest integer input. The author chose to make the unit an upper bound on every operation's work, keep integer charges as they are, derive the ceiling from per-class measurements, and align the size bounds with the budget. After this pass the paper states the numbers; no further rounds unless a check fails.
+- **The unit** (SPEC §9.6.1's table, rewritten). Every operation `Contains` performs is charged, before it runs.
+  - **Strings by length.** A compared string costs 1 + ⌊bytes / 64⌋; a scanned one, for substring search and the canonical-path check, 1 + ⌊bytes / 16⌋. The granularities come from an unreported local timing of the primitives: comparisons cost a nanosecond or two per 64 bytes, substring search and the canonical-path check one to two nanoseconds per byte, and an integer literal check tens of nanoseconds. Charging scans per 16 bytes keeps their time per unit near the integer checks'.
+  - **Newly charged:** each rule's head (audience, tool, action, declared paths) at every test and skip-search step; both approval sets at every approval comparison; each path's type lookup; the sort of a conjunction's paths, by their sizes; scanning a value in a `contains` or `under` check.
+  - **Bounded factors are absorbed.** Within D-21's bounds a list has at most 64 elements and a declaration 32 paths, so the logarithmic factors of sorting, set building and B-tree lookups are at most a small constant; the measured time per unit covers them.
+  - **Unchanged:** integer and boolean charges, and those of strings shorter than 16 bytes, except for the new head, approval and lookup charges. The decision rule, the default of 65,536, the pin-time check and the replica requirement are unchanged.
+  - **Implementation.** `dc_policy::meter::{size, scan, literal}`; the charges in `logic.rs` and `contains.rs`. The counted functions (`subsumes_counted`, `implies_counted`, `unsat_counted`, `implies_path_counted`, `unsat_path_counted`) are public, so that the measurement can run each class alone.
+- **Tests.**
+  - `crates/dc-policy/tests/budget.rs`: six pairs counted by hand from the new table, including one with strings long enough to cost by length and one that runs step 3(b) and the skip test; the inclusive boundary; determinism. All six matched the code on the first run.
+  - The security suites of both instantiations pass unchanged: their budget rows compute each chain's count from the code.
+  - The property against the procedure as written (`memo.rs`), and the oracle's assertion (iv).
+  - New in `crates/dc-bench/tests/budget.rs`: every `Contains` call of the small, medium, medium-approval and large profiles stays below an eighth of the default budget. Also there, two ignored helpers: one prints the admitted shapes, one is an unreported timing pre-flight of the derivation.
+  - **Checked against the build before the budget** (`2df8b53`): the oracle's 150,000 answers (seed 56324) are identical line by line, the verifier's budgeted ones here and the procedure's there. Its completeness is unchanged, and no pair or reflexivity check passes the default.
+- **The measurement** (`scripts/ceiling-check.sh`; `dc_bench::ceiling`; exploratory, not in the frozen plan).
+  - **Classes:** 23 probes, each running one charged operation alone at the size bounds through the counted functions, with every rule within a 64 KiB body. Its median time over its charge is its time per unit.
+  - **The fixed per-call cost:** `Contains` with a budget of 0 on the largest scopes.
+  - **The derived ceiling:** per link, the budget times the worst time per unit, plus the largest fixed cost; per chain, 15 links at N = 16 (as D-100).
+  - **The search:** D-100's inputs, and paddings aimed at what the unit newly charges (heads, declared paths and approver names of about 1 KiB). Every input must stay at or below the derived ceiling; one that does not shows a charge that is wrong, and the author's instruction is to fix it and stop.
+  - **Admitted shapes:** for the frozen generator's shape (integers) and two string-heavy shapes (nested `starts_with` prefixes and an `==` value, or an 8-element `in` list, with strings of 16 bytes to 1 KiB), the most rules whose pin-time check, link to a child one tighter, and child reflexive check stay within the budget. The search is within D-21's bounds but not today's body limit, so that the budget decides; the most that fit today's body is reported beside it.
+  - **Proposed limits:** rules per scope twice the most admitted, rounded up to 16; bytes per body twice the largest admitted scope's encoding plus 1 KiB, rounded up to 4 KiB. They are proposals; D-21 and D-03 stay until the author adopts them.
+  - **Lines 2 and 5** on bodies filled toward the proposed limits, and toward the proposed rule limit in today's 64 KiB body. To decode bodies above 64 KiB, `dc_types::decode_body_within` takes the limits as a parameter; the verifier still calls `decode_body`, which passes D-03's.
+  - **The headline cells** as D-96 and D-100: measured, pre-budget and budgeted builds, three runs; the author's 5% stop rule, budgeted against measured.
+- **What the counts already show** (deterministic; the numbers are in `work.json` and BENCHMARKS.md §8 once run).
+  - The workload profiles stay far inside the budget.
+  - The admitted frozen shapes shrink at few atoms a rule, where the new head charges matter most, and hardly at many.
+  - **The budget does not bound bytes as it bounds rules.** With 1 KiB strings, the string-heavy shapes the budget admits reach and pass today's 64 KiB body: their size is limited by D-03, not by the budget. So the proposed body limit, twice the largest admitted scope, comes out above today's, and the measurement reports lines 2 and 5 both under it and under today's 64 KiB with the proposed rule limit.
+Why: a budget whose unit bounds every operation's work gives a ceiling that holds for any input, derived from a few measurements, instead of a ceiling that is only a lower bound from a search.
+Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.

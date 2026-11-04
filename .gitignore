@@ -47,3 +47,7 @@ results/exploratory/contains-cost/criterion/
 results/exploratory/budget/criterion/
 results/exploratory/budget/headline/*/raw/
 results/exploratory/budget/headline/*/aborted/
+# D-101's measurement: as the budget's above.
+results/exploratory/ceiling/criterion/
+results/exploratory/ceiling/headline/*/raw/
+results/exploratory/ceiling/headline/*/aborted/

@@ -25,7 +25,7 @@ use dc_cbor::{INT_MAX, INT_MIN};
 
 use crate::ast::{Atom, Declaration, Literal, Op, Operand, Type};
 use crate::eval::{Leaf, atom_holds};
-use crate::meter::{Meter, weight, weights};
+use crate::meter::{Meter, scan, size, weight, weights};
 use crate::validate::seg_prefix;
 
 fn ints(o: &Operand) -> Vec<i128> {
@@ -258,9 +258,13 @@ impl<'a> StrC<'a> {
     /// every atom yields precisely the satisfying values.
     fn admissible(&self, m: &Meter) -> Option<Vec<&'a str>> {
         let e = self.e.as_ref()?;
-        // Past the budget: the set is ignored, which only weakens the
-        // constraint.
-        if !m.charge(e.len() * weights(&self.atoms)) {
+        // Each member against each atom: the atom's check, and for a
+        // `contains` or `under` atom a scan of the member. Past the budget:
+        // the set is ignored, which only weakens the constraint.
+        let checks: usize = self.atoms.iter().map(|a| check(a)).sum();
+        let scanning = self.k.len() + self.u.len();
+        let extra: usize = e.iter().map(|v| scan(v) - 1).sum();
+        if !m.charge(e.len() * checks + scanning * extra) {
             return None;
         }
         Some(
@@ -283,8 +287,12 @@ impl<'a> StrC<'a> {
         if let Some(a) = self.admissible(m) {
             return a.is_empty();
         }
+        // Each pair compares two operands, at most the shorter's size.
+        let sizes = |v: &[&str]| v.iter().map(|x| size(x)).sum::<usize>();
         let (p, s, u) = (self.p.len(), self.s.len(), self.u.len());
-        if !m.charge(p * p + s * s + u * u + p * u) {
+        if !m.charge(
+            p * sizes(&self.p) + s * sizes(&self.s) + u * sizes(&self.u) + p * sizes(&self.u),
+        ) {
             return false;
         }
         let prefix_compatible = |x: &str, y: &str| x.starts_with(y) || y.starts_with(x);
@@ -321,14 +329,25 @@ impl<'a> StrC<'a> {
         }
         // Finite set: exact (see `admissible`).
         if let Some(a) = self.admissible(m) {
-            return m.charge(a.len() * weight(b)) && a.iter().all(|v| atom_holds(b, &Leaf::Str(v)));
+            let extra: usize = if matches!(b.op, Op::Contains | Op::Under) {
+                a.iter().map(|v| scan(v) - 1).sum()
+            } else {
+                0
+            };
+            return m.charge(a.len() * check(b) + extra)
+                && a.iter().all(|v| atom_holds(b, &Leaf::Str(v)));
         }
         // Without a finite set, `in` and `==` are never implied: the answer
         // `false` is always sound.
         let Some(x) = str_of(&b.operand) else {
             return false;
         };
-        if !m.charge(self.p.len() + self.s.len() + self.k.len() + self.u.len()) {
+        // At most one test of `x` against every operand: a substring search
+        // reads both, every other test less.
+        let all = [&self.p, &self.s, &self.k, &self.u];
+        let n: usize = all.iter().map(|v| v.len()).sum();
+        let scanned: usize = all.iter().flat_map(|v| v.iter()).map(|y| scan(y)).sum();
+        if !m.charge(scanned + n * (scan(x) - 1)) {
             return false;
         }
         match b.op {
@@ -383,9 +402,21 @@ fn path_type(decl: &Declaration, path: &str, atoms: &[&Atom]) -> Option<Type> {
     })
 }
 
-/// The atoms on `path`. Past the budget, none: the unconstrained path.
+/// What testing one string atom against one value costs, apart from
+/// scanning the value: a `contains` operand is scanned, every other
+/// operand compared.
+fn check(a: &Atom) -> usize {
+    match (&a.op, &a.operand) {
+        (Op::Contains, Operand::One(Literal::Str(x))) => scan(x),
+        _ => weight(a),
+    }
+}
+
+/// The atoms on `path`, charging their selection and the lookup of the
+/// path's declared type that follows. Past the budget, none: the
+/// unconstrained path.
 fn on_path<'a>(atoms: &[&'a Atom], path: &str, m: &Meter) -> Vec<&'a Atom> {
-    if !m.charge(atoms.len()) {
+    if !m.charge((atoms.len() + 1) * size(path)) {
         return vec![];
     }
     atoms.iter().copied().filter(|a| a.path == path).collect()
@@ -396,7 +427,8 @@ pub fn unsat_path(ty: Type, atoms: &[&Atom]) -> bool {
     unsat_path_counted(ty, atoms, &Meter::unlimited())
 }
 
-fn unsat_path_counted(ty: Type, atoms: &[&Atom], m: &Meter) -> bool {
+/// [`unsat_path`], charging `m`.
+pub fn unsat_path_counted(ty: Type, atoms: &[&Atom], m: &Meter) -> bool {
     match ty {
         Type::Int => IntC::new(atoms, m).unsat(m),
         Type::Bool => BoolC::new(atoms, m).unsat(),
@@ -409,7 +441,8 @@ pub fn implies_path(ty: Type, atoms: &[&Atom], b: &Atom) -> bool {
     implies_path_counted(ty, atoms, b, &Meter::unlimited())
 }
 
-fn implies_path_counted(ty: Type, atoms: &[&Atom], b: &Atom, m: &Meter) -> bool {
+/// [`implies_path`], charging `m`.
+pub fn implies_path_counted(ty: Type, atoms: &[&Atom], b: &Atom, m: &Meter) -> bool {
     match ty {
         Type::Int => IntC::new(atoms, m).implies(b, m),
         Type::Bool => BoolC::new(atoms, m).implies(b, m),
@@ -424,8 +457,9 @@ pub fn unsat(decl: &Declaration, atoms: &[&Atom]) -> bool {
 }
 
 /// [`unsat`], charging `m`. Paths are checked in byte order.
-pub(crate) fn unsat_counted(decl: &Declaration, atoms: &[&Atom], m: &Meter) -> bool {
-    if !m.charge(atoms.len()) {
+pub fn unsat_counted(decl: &Declaration, atoms: &[&Atom], m: &Meter) -> bool {
+    // Collecting, sorting and deduplicating the paths.
+    if !m.charge(atoms.iter().map(|a| size(&a.path)).sum()) {
         return false;
     }
     let mut paths: Vec<&str> = atoms.iter().map(|a| a.path.as_str()).collect();
@@ -444,7 +478,7 @@ pub fn implies(decl: &Declaration, c2: &[&Atom], c1: &[&Atom]) -> bool {
 }
 
 /// [`implies`], charging `m`.
-pub(crate) fn implies_counted(decl: &Declaration, c2: &[&Atom], c1: &[&Atom], m: &Meter) -> bool {
+pub fn implies_counted(decl: &Declaration, c2: &[&Atom], c1: &[&Atom], m: &Meter) -> bool {
     if unsat_counted(decl, c2, m) {
         return true;
     }

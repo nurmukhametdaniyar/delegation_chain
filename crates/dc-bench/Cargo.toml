@@ -96,3 +96,10 @@ bench = false
 name = "budget_cost"
 harness = false
 bench = false
+
+# Exploratory: D-101's unit, its derived ceiling, and lines 2 and 5 under
+# the proposed size limits. Out of `cargo bench -p dc-bench` like bounds.
+[[bench]]
+name = "ceiling"
+harness = false
+bench = false
