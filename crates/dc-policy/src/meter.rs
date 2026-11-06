@@ -2,9 +2,14 @@
 //!
 //! The unit is one integer literal examined, as in D-99. Every other
 //! operation of the procedure is charged so as to bound its work from
-//! above (D-101): a string by its length, per 64 bytes where it is compared
-//! ([`size`]) and per 16 bytes where it is scanned ([`scan`]); head and
-//! approval comparisons by the strings they compare. SPEC §9.6.1's table
+//! above (D-101, D-102): a string by its length, per 64 bytes where it is
+//! compared ([`size`]), per 8 bytes where it is searched ([`search`]) and
+//! per 4 bytes where it is walked as a path ([`walk`]); head and approval
+//! comparisons by the strings they compare; and each set an `==` or `in`
+//! atom forms ([`SET`]). Each class costs at most about what an integer
+//! literal check costs per unit, so that the integer and set-building
+//! classes, whose probes are purer than any use in the procedure, bound the
+//! time per unit. SPEC §9.6.1's table
 //! says where each charge is made. The count depends only on the two
 //! scopes, so every replica of a verifier reaches the same total on the
 //! same input.
@@ -65,10 +70,17 @@ pub fn size(s: &str) -> usize {
     1 + s.len() / 64
 }
 
-/// A scanned string's size: 1, and 1 more for every 16 bytes. Substring
-/// search and the canonical-path check do several steps per byte.
-pub fn scan(s: &str) -> usize {
-    1 + s.len() / 16
+/// A searched string's size: 1, and 1 more for every 8 bytes. Substring
+/// search does several steps per byte (D-102: per 16 before).
+pub fn search(s: &str) -> usize {
+    1 + s.len() / 8
+}
+
+/// A walked path's size: 1, and 1 more for every 4 bytes. The canonical-path
+/// check splits a value into segments and tests each, the costliest step
+/// per byte of any (D-102: per 16 before).
+pub fn walk(s: &str) -> usize {
+    1 + s.len() / 4
 }
 
 /// A literal's size: 1 for an integer or a boolean, a string's [`size`].
@@ -91,4 +103,19 @@ pub(crate) fn weight(a: &Atom) -> usize {
 /// The total weight of `atoms`.
 pub(crate) fn weights(atoms: &[&Atom]) -> usize {
     atoms.iter().map(|a| weight(a)).sum()
+}
+
+/// What forming one `==` or `in` atom's set costs beyond its literals: the
+/// operand's vector, the set, and its intersection with the sets before it,
+/// each allocated (D-102).
+pub const SET: usize = 4;
+
+/// What building a path's constraint from `atoms` costs: their weights, and
+/// [`SET`] for each `==` or `in` atom (SPEC §9.6.1).
+pub(crate) fn build(atoms: &[&Atom]) -> usize {
+    let sets = atoms
+        .iter()
+        .filter(|a| matches!(a.op, crate::ast::Op::Eq | crate::ast::Op::In))
+        .count();
+    weights(atoms) + SET * sets
 }

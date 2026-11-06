@@ -218,3 +218,14 @@ Reason: D-100 put a work budget on Contains on the protocol path, and the author
 - **Headline runs.** All nine passed M9's machine-state check at their start. The calibration probe flagged one configuration (pre-budget, B warm+prefix, run 1); as in D-77, D-87 and D-96, it was not re-run.
 
 Configurations re-run: none.
+
+## 2026-11-06 — Exploratory run (not pre-registered): D-101's unit, its derived ceiling, and the proposed size limits
+Reason: D-101 made the work budget's unit a sound over-approximation of Contains's work, and the author asked for the ceiling it implies, a search against it, size limits aligned with the budget and their unsigned decoding cost, and the headline cells.
+- **What ran.** `scripts/ceiling-check.sh` at `1126b57`, with `target-cpu=native` as M9: `dc-bench ceiling-counts`, the differential oracle (150,000 pairs, seed 56324), `benches/ceiling.rs`, and the frozen grid's B and D warm+prefix and A and C warm configurations at N = 3, medium, by `dc-bench run` with M9's counts, three runs, in three builds: measured `b175599`, pre-budget `2df8b53` and budgeted `1126b57`, rotating which ran first.
+- **Machine state.** M9's, awaited before the criterion pass and recorded in `results/exploratory/ceiling/env.json` after it; each headline run checked it at its start (its run metadata). Nothing monitored the machine during the criterion pass.
+- **Where the results go.** `BENCHMARKS.md` §8 (exploratory) only. Criterion's output is `results/exploratory/ceiling/criterion.tar.zst`, pinned by its `.sha256`; the headline runs' raw data are archived under `results/exploratory/ceiling/headline/<build>/archive/`, each pinned by its `MANIFEST.sha256`.
+- **The record after the criterion pass** reads not idle: `XprotectService` at 32% CPU, load average 2.6. Nothing monitored the machine during the pass. As before, it reads `dirty` because `dc-bench env` counts the run's own untracked output directory.
+- **Headline runs.** All nine passed M9's machine-state check at their start, with 1-minute load averages close to its 2.0 limit (1.66–1.98). The calibration probe flagged two configurations (pre-budget, B warm+prefix, run 2; pre-budget, C warm, run 3); as before, not re-run.
+- **The derived ceiling's check failed** (D-101's run notes; D-102).
+
+Configurations re-run: none.

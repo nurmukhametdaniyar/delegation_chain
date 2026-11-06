@@ -22,9 +22,10 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 use dc_policy::logic::{implies_path_counted, unsat_counted, unsat_path_counted};
-use dc_policy::meter::Meter;
+use dc_policy::meter::{Meter, search, size, walk};
 use dc_policy::{
-    Atom, DEFAULT_BUDGET, Rule, Scope, ScopeForm, Type, contains_within, subsumes_counted,
+    Atom, DEFAULT_BUDGET, Leaf, Rule, Scope, ScopeForm, Type, atom_holds, contains_within,
+    subsumes_counted,
 };
 use serde_json::{Value, json};
 
@@ -209,6 +210,20 @@ pub fn probes() -> Vec<Probe> {
     v.push(probe("int-implies", "interval-in64", move |m| {
         implies_path_counted(Type::Int, &refs(&range), &b.atoms[0], m)
     }));
+    // Set-forming atoms of one literal: each builds a set and intersects it
+    // with the previous one, for a charge of one.
+    for (name, atom) in [("eq32", "x == 0"), ("in1x32", "x in [0]")] {
+        let r = on("x", "int", &vec![atom.to_owned(); 32]);
+        v.push(probe("int-build", name, move |m| {
+            unsat_path_counted(Type::Int, &refs(&r), m)
+        }));
+    }
+    for (name, atom) in [("eq32", "s == \"a\""), ("in1x32", "s in [\"a\"]")] {
+        let r = on("s", "string", &vec![atom.to_owned(); 32]);
+        v.push(probe("str-build", name, move |m| {
+            unsat_path_counted(Type::String, &refs(&r), m)
+        }));
+    }
     let bools = on("f", "bool", &vec!["f in [true, false]".to_owned(); 32]);
     v.push(probe("bool", "implies32", move |m| {
         implies_path_counted(Type::Bool, &refs(&bools), &bools.atoms[0], m)
@@ -238,6 +253,48 @@ pub fn probes() -> Vec<Probe> {
     let under = on("s", "string", &under);
     v.push(probe("str-admissible", "under8x1021", move |m| {
         unsat_path_counted(Type::String, &refs(&under), m)
+    }));
+    // The scans alone (D-102): one value against one atom, as the
+    // admissible set's filter and the implication with a set run them, for
+    // that check's charge: the atom's check and the value's scan. Nothing
+    // cheaper is mixed in, so these bound their class from above.
+    let one = |atom: String| on("s", "string", &[atom]).atoms[0].clone();
+    let value = format!("{}/m000", "/a".repeat(508));
+    let q = "/a".repeat(500);
+    let under_atom = one(format!("s under \"{q}\""));
+    let charge = (size(&q) + walk(&value) - 1) as u64;
+    v.push(Probe {
+        class: "scan",
+        label: "scan/under1000-in1021".into(),
+        charge,
+        run: Box::new(move || atom_holds(&under_atom, &Leaf::Str(&value))),
+    });
+    let hay = format!("{}000", "a".repeat(1016));
+    for (name, x) in [
+        ("contains-hit1016-in1019", "a".repeat(1016)),
+        ("contains-miss501-in1019", format!("{}b", "a".repeat(500))),
+    ] {
+        let atom = one(format!("s contains \"{x}\""));
+        let charge = (search(&x) + search(&hay) - 1) as u64;
+        let hay = hay.clone();
+        v.push(Probe {
+            class: "scan",
+            label: format!("scan/{name}"),
+            charge,
+            run: Box::new(move || atom_holds(&atom, &Leaf::Str(&hay))),
+        });
+    }
+    // The same with 16 members, so that building the constraint is a
+    // smaller share of the charge.
+    let paths16 = (0..16)
+        .map(|k| format!("\"{}/m{k:03}\"", "/a".repeat(508)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut under16 = vec![format!("s in [{paths16}]")];
+    under16.extend((1..32).map(|k| format!("s under \"{}\"", "/a".repeat(508 - k))));
+    let under16 = on("s", "string", &under16);
+    v.push(probe("str-admissible", "under16x1021", move |m| {
+        unsat_path_counted(Type::String, &refs(&under16), m)
     }));
     let pairs =
         |atom: &dyn Fn(usize) -> String| on("s", "string", &(0..32).map(atom).collect::<Vec<_>>());

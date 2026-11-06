@@ -22,7 +22,8 @@ fn scope(rules: &[&str]) -> Scope {
     Scope::parse(&text.join("\n")).unwrap()
 }
 
-/// (name, S1, S2, W) with W worked out from SPEC §9.6.1's table (D-101).
+/// (name, S1, S2, W) with W worked out from SPEC §9.6.1's table (D-101,
+/// D-102).
 /// Every head here is `o:service:s`, `t`, `a` and one declared path, so
 /// head(r) = 4 and each test costs 1 + 4.
 fn hand_counted() -> Vec<(&'static str, Scope, Scope, u64)> {
@@ -32,20 +33,22 @@ fn hand_counted() -> Vec<(&'static str, Scope, Scope, u64)> {
         (
             // Test: 5; approvals: 0 + 0. implies(C2 = [x in 1..3], C1 = [x <= 10]).
             // unsat(C2): paths 1; select and look up x (1 + 1)·1 = 2; build
-            // w(A) 3; n(F) 3: 9. Atom x <= 10: select 2, build 3, satisfiability
-            // 3, n(F) 3 again, n(F′)·w(b) 3·1: 14. W = 5 + 9 + 14.
+            // w(A) 3 and one set 4 = 7; n(F) 3: 13. Atom x <= 10: select 2,
+            // build 7, satisfiability 3, n(F) 3 again, n(F′)·w(b) 3·1: 18.
+            // W = 5 + 13 + 18.
             "int",
             scope(&["params { x: int } where x <= 10"]),
             scope(&["params { x: int } where x in [1, 2, 3]"]),
-            28,
+            36,
         ),
         (
-            // 5; unsat(C2 = [f == true]): 1 + 2 + build 1 + 0 = 4. Atom
-            // f in [true, false]: select 2, build 1, 2·w(b) = 4: 7. W = 16.
+            // 5; unsat(C2 = [f == true]): 1 + 2 + build 1 + 4 (a set) + 0 = 8.
+            // Atom f in [true, false]: select 2, build 5, 2·w(b) = 4: 11.
+            // W = 5 + 8 + 11.
             "bool",
             scope(&["params { f: bool } where f in [true, false]"]),
             scope(&["params { f: bool } where f == true"]),
-            16,
+            24,
         ),
         (
             // 5; unsat(C2 = [starts_with "/a/b", ends_with ".txt"]): paths 2,
@@ -59,21 +62,21 @@ fn hand_counted() -> Vec<(&'static str, Scope, Scope, u64)> {
         ),
         (
             // 5; unsat(C2 = [s in [a, b, c], s starts_with "a"]): 2 + 3 + build
-            // w(A) 4 + n(E)·Σ check 3·4 = 21. Atom s in [a, b]: select 3, build
-            // 4, satisfiability 12, admissible again 12, n(E′)·check(b) 1·2 =
-            // 33. W = 5 + 21 + 33.
+            // w(A) 4 and one set 4 + n(E)·Σ check 3·4 = 25. Atom s in [a, b]:
+            // select 3, build 8, satisfiability 12, admissible again 12,
+            // n(E′)·check(b) 1·2 = 37. W = 5 + 25 + 37.
             "string, finite set",
             scope(&["params { s: string } where s in [\"a\", \"b\"]"]),
             scope(&[
                 "params { s: string } where s in [\"a\", \"b\", \"c\"] and s starts_with \"a\"",
             ]),
-            59,
+            67,
         ),
         (
             // Lengths. 5; unsat(C2 = [contains x70]): 1 + 2 + build w(A) =
             // size(x70) = 1 + 70/64 = 2, no pairs: 5. Atom contains x20: select
-            // 2, build 2, satisfiability 0, scan(x70) = 1 + 70/16 = 5 and
-            // 1·(scan(x20) − 1) = 1: 10. W = 5 + 5 + 10.
+            // 2, build 2, satisfiability 0, search(x70) = 1 + 70/8 = 9 and
+            // 1·(search(x20) − 1) = 2: 15. W = 5 + 5 + 15.
             "string lengths",
             scope(&[&format!(
                 "params {{ s: string }} where s contains \"{x20}\""
@@ -81,7 +84,7 @@ fn hand_counted() -> Vec<(&'static str, Scope, Scope, u64)> {
             scope(&[&format!(
                 "params {{ s: string }} where s contains \"{x70}\""
             )]),
-            20,
+            25,
         ),
         (
             // Reflexivity of the recommended order: an approval rule before an

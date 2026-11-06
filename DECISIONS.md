@@ -1375,5 +1375,27 @@ Decision:
   - The workload profiles stay far inside the budget.
   - The admitted frozen shapes shrink at few atoms a rule, where the new head charges matter most, and hardly at many.
   - **The budget does not bound bytes as it bounds rules.** With 1 KiB strings, the string-heavy shapes the budget admits reach and pass today's 64 KiB body: their size is limited by D-03, not by the budget. So the proposed body limit, twice the largest admitted scope, comes out above today's, and the measurement reports lines 2 and 5 both under it and under today's 64 KiB with the proposed rule limit.
+- **Run (2026-11-06),** by the author at `1126b57` with `scripts/ceiling-check.sh`. The archives verify; all nine headline runs passed M9's machine-state check at their start (BENCH_LOG.md). BENCHMARKS.md §8 has the results; in summary:
+  - **The check failed.** One search input, a string `in` list of 1 KiB paths filtered through `under` atoms, runs above the derived ceiling: its median and 95% interval lie above the ceiling, and its time per unit lies above the worst probe's interval, so the gap is not noise. By the author's rule a charge is wrong; D-102 fixes it, and this run stays as it is.
+  - **Diagnosis.** Two causes, found by comparing each input family's time per unit at the budget with its class's probe.
+    - Sets formed from `==` and `in` atoms with few literals cost several times any other class per unit: each allocates an operand vector, a set and an intersection, and was charged only its literals. The probes had no such atoms. The search found families above their probes (one-literal integer and string lists, and 16-element lists), diluted below the ceiling by the cheap selection units that come with every constraint built. This is the wrong charge.
+    - The scan probes (`contains`, `under` against a set) also spend a few percent of their units on building the constraint, which is cheap, so they understate their class by about that much. An input dominated by the worst class then sits at or just above the ceiling. That is how the input that failed passed it.
+  - **Everything else held.** The headline cells do not move (well within 5%); the oracle's completeness is unchanged and no pair passes the budget; the profiles stay far inside it.
 Why: a budget whose unit bounds every operation's work gives a ceiling that holds for any input, derived from a few measurements, instead of a ceiling that is only a lower bound from a search.
+Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.
+
+## D-102 — Set-forming atoms charged; searches and path walks charged finer
+Spec section: §9.6.1 (sizes, the table, the derived ceiling), changelog     Paper section: §6.4; P-35
+Decision:
+- **Why.** D-101's run failed the author's check: a search input passed the derived ceiling, so a charge was wrong (D-101's run notes).
+- **Sets.** Building a path's constraint costs w(A) + 4·s(A), s(A) being the number of A's `==` and `in` atoms. Each of those forms a set, which allocates an operand vector, the set and its intersection with the sets before it, whatever its literals. The 4 comes from an unreported local timing of one-literal sets against the integer probes, so that such an atom costs about what an integer literal check costs per unit. Literal charges are unchanged.
+- **Searches and path walks.** Substring search is charged per 8 bytes (`meter::search`) and the canonical-path check per 4 (`meter::walk`), instead of both per 16 (D-101's `scan`).
+  - These had the highest time per unit of any class: the path check about twice the integer classes in D-101's run.
+  - Timed alone, warm, the `under` check costs no more per unit than the composite probe that filters a set through it, which in turn costs a little less than the input that failed. So no probe of these classes bounds their use in the procedure. Whichever class costs most per unit sets the ceiling, and an input made mostly of it sits at the ceiling within a few percent.
+  - The integer and set-building classes do not have that problem: in the procedure every constraint built comes with a selection charge that is cheaper per unit, so their probes, which build constraints alone, bound their use.
+  - So searches and walks are now charged finely enough to cost well below those classes per unit (in an unreported local timing, under half), and the integer and set-building classes set the ceiling. Strings shorter than 4 bytes keep D-101's charges.
+- **The derivation.** Unchanged in form: the budget times the worst probe's median time per unit, plus the largest fixed cost. New probes: sets of one literal (integers and strings, `==` and `in`); the `under` and `contains` checks alone, one value against one atom, for that check's charge; `under` against 16 members.
+- **Tests.** The hand-counted test (four of its pairs change by the table: three with `==` or `in` atoms, and the one with long `contains` operands); the security suites, whose rows compute their counts from the code; the property and determinism tests; the oracle, the profiles' test and CI.
+- **The measurement.** `scripts/ceiling-check.sh --name ceiling2`, into `results/exploratory/ceiling2/`, as D-101's. BENCHMARKS.md §8 renders it after D-101's run, which stays as it was.
+Why: the author's rule for a failed check; each fix addresses a measured cause.
 Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.

@@ -11,6 +11,11 @@ Put this file in the repository root as `SPEC.md`.
 
 ## Changelog
 
+**2026-11-06 — set-forming atoms charged; searches and path walks charged finer (D-102).** D-101's measurement found a search input above the derived ceiling, so a charge was wrong (the author's rule).
+- **Sets.** Each `==` or `in` atom costs 4 more when a path's constraint is built, for the allocations every set needs whatever its literals; one-literal sets had cost several times any other class per unit.
+- **Searches and walks.** Substring search is charged per 8 bytes and the canonical-path check per 4, instead of both per 16. Those classes had cost the most per unit, and in the procedure they cost a little more per unit than any probe of them, so an input made mostly of them sat at the ceiling. Now they cost well below the integer and set-building classes, whose probes bound their use in the procedure.
+- **The hand-counted test** follows; the derivation gains probes of one-literal sets and of the scan checks alone (BENCHMARKS.md §8).
+
 **2026-11-04 — the budget's unit made a sound over-approximation (D-101; P-35).** Chosen by the author after D-100's measurement showed that the unit bounded the count but not the time.
 - **The change (§9.6.1).** Every operation of `Contains` is charged so as to bound its work from above: strings by length (per 64 bytes compared, per 16 bytes scanned), head and approval comparisons by the strings they compare, and path lookups. Integer charges are D-99's. The table and the hand-counted test follow.
 - **The derived ceiling** is the budget times the worst measured time per unit, plus the fixed per-call cost (§9.6.1).
@@ -888,10 +893,11 @@ The verifier runs `Contains` under a **work budget** B, a verifier configuration
 - **Sound.** The budget only turns true into false. Proposition 2's soundness therefore holds for `Contains_B`, and so do the theorems that rest on it. Completeness falls only for pairs whose W exceeds B.
 - **Reflexive only within the budget.** `Contains(P, P)` is true for every P (§9.7), but `Contains_B(P, P)` is false when W(P, P) > B. Hence the pin-time check below.
 - **The unit** (D-101, replacing D-99's) is one integer literal examined, and every operation of the procedure is charged so as to bound its work from above: a sound over-approximation. The charges are proportional to what each operation reads, so the time per unit has a bound, which D-101's exploratory measurement derives (see the derived ceiling below).
-  - **Sizes.** A string x has a compared size z(x) = 1 + ⌊|x| / 64⌋ and a scanned size y(x) = 1 + ⌊|x| / 16⌋, |x| in bytes. Equality, ordering, prefix, suffix and segment-prefix tests read a byte at most once and cheaply; substring search and the canonical-path check take several steps per byte. An integer or boolean literal has size 1, a string literal its compared size.
+  - **Sizes.** A string x has a compared size z(x) = 1 + ⌊|x| / 64⌋, a searched size y(x) = 1 + ⌊|x| / 8⌋ and a walked size p(x) = 1 + ⌊|x| / 4⌋, |x| in bytes. Equality, ordering, prefix, suffix and segment-prefix tests read a byte at most once and cheaply; substring search takes several steps per byte; the canonical-path check, which splits a value into segments and tests each, the most. An integer or boolean literal has size 1, a string literal its compared size. (D-101 charged both search and the path check at 1 + ⌊|x| / 16⌋; D-102 set these sizes so that no class costs more per unit than the integer and set-building ones.)
   - **Weights.** An atom's weight w(a) is the sum of its operand's literal sizes: for integers and booleans, the literal count of D-99. For a list of atoms A, w(A) is the sum, and n(A) the number of atoms. For a set of strings X, z(X) and y(X) are the sums of the sizes.
   - **A rule's head** costs head(r) = z(at) + z(tool) + z(action) + the sum of z(k) over its declared paths k. **An approval set** A costs z(A), the sum over its principals.
-  - **A string atom's check** against one value costs c(a) = y(x) for `contains x`, and w(a) otherwise; and, for a `contains` or `under` atom, y(v) − 1 more for scanning the value v.
+  - **A string atom's check** against one value costs c(a) = y(x) for `contains x`, and w(a) otherwise; and y(v) − 1 more for searching the value v in a `contains` check, p(v) − 1 for walking it in an `under` check.
+  - **Forming a set** from an `==` or `in` atom costs 4 more than its literals: the operand's vector, the set and its intersection with the sets before it are each allocated, whatever the literals (D-102).
   - **Bounded factors are not charged separately.** Within D-21's bounds a list has at most 64 elements and a declaration 32 paths, so the logarithmic factors of sorting, set building and lookups are at most a small constant. The derived bound on the time per unit covers them.
   - W is the sum of the charges below, made in the order the table gives. The order matters because every loop stops at its first deciding answer.
 
@@ -903,15 +909,15 @@ The verifier runs `Contains` under a **work budget** B, a verifier configuration
   | The skip test for r′ | for each child rule r2′ its search examines (below): head(r2′); then, if r2′ agrees with r′ on head and declaration, `implies(r′.where, r2′.where)` |
   | `unsat(C)` | the sum of z(path) over C's atoms, for sorting the paths; then, for each distinct path p of C in byte order, until one is unsatisfiable: (n(C) + 1)·z(p) to select the atoms A on p and look up p's type, then p's satisfiability check |
   | `implies(C2, C1)` | `unsat(C2)`, which answers true if C2 is unsatisfiable; then, for each atom b of C1 in order, until one is not implied: (n(C2) + 1)·z(b's path) to select the atoms A of C2 on that path and look up its type, then that path's implication check of b |
-  | Every path check, first | w(A), building the path's constraint from A |
+  | Every path check, first | w(A) + 4·s(A), building the path's constraint from A; s(A) is the number of A's `==` and `in` atoms, each of which forms a set (D-102) |
   | int, satisfiability | n(F) if A has `==` or `in` atoms, F being the intersection of their operand sets; else 0 |
   | int, implication of b | the satisfiability check, which answers true if unsatisfiable; then, with F: n(F) again, then n(F′)·w(b), F′ being F's members within A's bounds; without F: w(b) if b is an `in` atom, else 0 |
   | bool, satisfiability | 0 |
   | bool, implication of b | 2·w(b) |
-  | string, satisfiability | with E, as F for strings: n(E)·Σ c(a) over A, plus (n(K) + n(U))·(y(E) − n(E)); without E: n(P)·z(P) + n(S)·z(S) + n(U)·z(U) + n(P)·z(U) |
-  | string, implication of b | the satisfiability check, which answers true if unsatisfiable; then, with E: the charge for E again, then n(E′)·c(b), plus y(E′) − n(E′) if b is a `contains` or `under` atom, E′ being E's members that satisfy every atom of A; without E: y(P ∪ S ∪ K ∪ U) + n(P ∪ S ∪ K ∪ U)·(y(x) − 1) if b's operand is one string x, else 0 |
+  | string, satisfiability | with E, as F for strings: n(E)·Σ c(a) over A, plus n(K)·(y(E) − n(E)) and n(U)·(p(E) − n(E)); without E: n(P)·z(P) + n(S)·z(S) + n(U)·z(U) + n(P)·z(U) |
+  | string, implication of b | the satisfiability check, which answers true if unsatisfiable; then, with E: the charge for E again, then n(E′)·c(b), plus y(E′) − n(E′) if b is a `contains` atom or p(E′) − n(E′) if an `under` atom, E′ being E's members that satisfy every atom of A; without E: y(P ∪ S ∪ K ∪ U) + n(P ∪ S ∪ K ∪ U)·(y(x) − 1) if b's operand is one string x, else 0 |
 
-  P, S, K and U are the operands of A's `starts_with`, `ends_with`, `contains` and `under` atoms. For integers, booleans and strings shorter than 16 bytes the charges of D-99's atom checks are unchanged; heads, approvals, path lookups and long strings are what D-101 adds.
+  P, S, K and U are the operands of A's `starts_with`, `ends_with`, `contains` and `under` atoms. For integers, booleans and strings shorter than 4 bytes the charges of D-99's atom checks are unchanged, apart from D-102's sets; heads, approvals, path lookups, long strings and sets are what D-101 and D-102 add.
 - **The skip test's search (D-97, now part of the definition).** For each rule r′ of S1, step 3(b) examines the child rules r2′ in S2's order, each at most once per `Contains` call.
   - It resumes at the first child rule not yet examined for r′, and examines only child rules before the current r2.
   - It stops at the first r2′ that agrees with r′ on head and declaration and has `implies(r′.where, r2′.where)`. That r2′ then skips r′ for every later r2.
@@ -928,7 +934,7 @@ The verifier runs `Contains` under a **work budget** B, a verifier configuration
   - Why: a pinned policy that fails its own reflexive check under the budget would make line 35 reject every session whose scope is the policy itself, the commonest session (paper §6.4 on reflexivity).
   - The check does not bound `Contains(P, S0)` for a session scope S0 inside P, because W depends on S0 too.
 - **The default** is the author's choice (D-100), from D-99's measured candidates. BENCHMARKS.md §8 gives the counts of the workload profiles and the differential oracle, the frozen generator's shapes the default admits, and the cost at the default.
-- **The derived ceiling (D-101).** Every charged operation class is timed at the size bounds, and its worst time per unit taken. The per-link ceiling is B times the largest of these, plus the procedure's fixed per-call cost. It is measured on one machine, so it is exploratory (BENCHMARKS.md §8), but it holds for any input as long as every operation is charged as above. Every input of the search must stay at or below it; one that does not shows a charge that is wrong.
+- **The derived ceiling (D-101, D-102).** Every charged operation class is timed at the size bounds, and its worst time per unit taken. The sizes are set so that the classes that bound it are the integer and set-building ones, whose probes are purer than any use of them in the procedure, where they always come with cheaper selection units (D-102). The per-link ceiling is B times the largest of these, plus the procedure's fixed per-call cost. It is measured on one machine, so it is exploratory (BENCHMARKS.md §8), but it holds for any input as long as every operation is charged as above. Every input of the search must stay at or below it; one that does not shows a charge that is wrong.
 
 ### 9.7 Required policy tests (in addition to §11)
 

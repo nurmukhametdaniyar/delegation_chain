@@ -373,3 +373,13 @@ D-100's measurement found that D-99's unit bounded the count but not the time: t
 
 {{ceilingcheck}}
 
+### The budget's unit after its failed check
+
+D-101's run failed its own check: an input of the search passed the derived ceiling, so by the author's rule a charge was wrong. D-102 makes two changes.
+- **Sets.** Each `==` or `in` atom costs 4 more when a path's constraint is built, for the allocations every set needs whatever its literals. Sets of one literal had cost several times any other class per unit, and no probe had them.
+- **Searches and path walks.** Substring search is charged per 8 bytes and the canonical-path check per 4, instead of both per 16. They had cost the most per unit, and no probe of them bounds their use in the procedure, so an input made mostly of them sat at the ceiling. Now the integer and set-building classes, whose probes do bound their use, set the ceiling.
+
+The derivation gains probes of one-literal sets and of the scan checks alone. Everything else is as in D-101's block. This exploratory pass is not in the frozen plan and changes no measured result.
+
+{{ceilingcheck2}}
+

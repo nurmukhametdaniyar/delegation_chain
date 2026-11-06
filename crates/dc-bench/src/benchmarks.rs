@@ -86,8 +86,10 @@ pub struct Doc {
     pub(crate) contains_cost: Option<contains_cost::Data>,
     /// The work budget on the protocol path (D-100), once unpacked.
     pub(crate) budget: Option<budget::Data>,
-    /// D-101's unit and its derived ceiling, once unpacked.
+    /// D-101's unit and its derived ceiling, once unpacked: its first run,
+    /// and D-102's after the fix.
     pub(crate) ceiling: Option<ceiling::Data>,
+    pub(crate) ceiling2: Option<ceiling::Data>,
     /// `docs/paper-sections.json` (D-86), when the results directory sits
     /// in the repository.
     pub(crate) sections: Option<Value>,
@@ -179,12 +181,16 @@ impl Doc {
         } else {
             None
         };
-        let cdir101 = results.join("exploratory/ceiling");
-        let ceiling = if cdir101.join("criterion.tar.zst").exists() {
-            Some(ceiling::load(&cdir101)?)
-        } else {
-            None
+        let ceiling_in = |name: &str| -> Result<Option<ceiling::Data>, String> {
+            let d = results.join("exploratory").join(name);
+            if d.join("criterion.tar.zst").exists() {
+                Ok(Some(ceiling::load(&d)?))
+            } else {
+                Ok(None)
+            }
         };
+        let ceiling = ceiling_in("ceiling")?;
+        let ceiling2 = ceiling_in("ceiling2")?;
         let rdir = results.join("exploratory/reorder");
         let reorder = if rdir.join("reordered/archive/MANIFEST.sha256").exists() {
             Some(reorder::load(&rdir, reorder::REORDER)?)
@@ -217,6 +223,7 @@ impl Doc {
             contains_cost,
             budget,
             ceiling,
+            ceiling2,
             sections,
             revision: std::cell::Cell::new(Revision::Checked),
         })
@@ -914,13 +921,23 @@ impl Doc {
                 }),
                 None => "_Not run yet: there is no `results/exploratory/budget/criterion.tar.zst`._".into(),
             },
-            // D-101's unit and its derived ceiling.
-            ["ceilingcheck"] => match &self.ceiling {
-                Some(d) => d.markdown(self.crit("ed25519/verify_strict")?, &|arm, state| {
-                    self.row(arm, state, 3, "medium").ok().map(|r| r.pooled.median)
-                }),
-                None => "_Not run yet: there is no `results/exploratory/ceiling/criterion.tar.zst`._".into(),
-            },
+            // D-101's unit and its derived ceiling: the first run, and
+            // D-102's after the fix.
+            [key @ ("ceilingcheck" | "ceilingcheck2")] => {
+                let (data, dir) = if *key == "ceilingcheck" {
+                    (&self.ceiling, "ceiling")
+                } else {
+                    (&self.ceiling2, "ceiling2")
+                };
+                match data {
+                    Some(d) => d.markdown(self.crit("ed25519/verify_strict")?, &|arm, state| {
+                        self.row(arm, state, 3, "medium").ok().map(|r| r.pooled.median)
+                    }),
+                    None => format!(
+                        "_Not run yet: there is no `results/exploratory/{dir}/criterion.tar.zst`._"
+                    ),
+                }
+            }
             // The reorder check (D-96), from its three builds' archives.
             ["reorder"] => match &self.reorder {
                 Some(d) => d.markdown(&|arm, state| {

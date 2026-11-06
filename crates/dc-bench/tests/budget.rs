@@ -143,3 +143,35 @@ fn the_profiles_stay_well_inside_the_budget() {
         }
     }
 }
+
+/// Unreported: the scan probes against the composite probes they bound,
+/// each timed over a warm loop.
+#[test]
+#[ignore = "timing pre-flight; run with --release --ignored --nocapture"]
+fn preflight_scan_probes_warm() {
+    use std::time::Instant;
+    for p in dc_bench::ceiling::probes() {
+        if !(p.label.starts_with("scan/") || p.label.starts_with("str-admissible/")) {
+            continue;
+        }
+        for _ in 0..50 {
+            std::hint::black_box(p.run());
+        }
+        let n = if p.label.starts_with("scan/") {
+            20_000
+        } else {
+            200
+        };
+        let t = Instant::now();
+        for _ in 0..n {
+            std::hint::black_box(p.run());
+        }
+        let ns = t.elapsed().as_nanos() as f64 / n as f64;
+        println!(
+            "{:40} {:10.0} ns {:6.1} ns/unit",
+            p.label,
+            ns,
+            ns / p.charge as f64
+        );
+    }
+}

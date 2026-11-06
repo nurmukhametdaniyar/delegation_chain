@@ -1389,5 +1389,186 @@ D-100's measurement found that D-99's unit bounded the count but not the time: t
 - **Size limits.** For the frozen generator's shape and two string-heavy shapes (nested `starts_with` prefixes, and `in` lists, with strings of 16 bytes to 1 KiB), the most rules whose pin-time check, link and child reflexive check stay within the budget, and the encoded size there. The proposed limits are about twice the largest; lines 2 and 5 are timed on bodies filled toward them, and toward the proposed rule limit in today's 64 KiB body.
 - **How.** `scripts/ceiling-check.sh`: criterion with ten samples of each, on M9's machine state and build flags; each call's result is checked. Then D-96's headline cells in the measured build, the build before the budget, and the build with D-101.
 
-_Not run yet: there is no `results/exploratory/ceiling/criterion.tar.zst`._
+**Each charged operation class at the size bounds,** run alone; worst time per unit first:
+
+| Probe | Charge | Median (µs) | ns per unit |
+|---|---|---|---|
+| str-admissible/under8x1021 | 21213 | 690.34 | 32.5 |
+| str-admissible/contains8x1019 | 32904 | 717.37 | 21.8 |
+| int-build/lists32x64 | 2112 | 32.77 | 15.5 |
+| int-build/bounds32 | 32 | 0.40 | 12.6 |
+| int-implies/interval-in64 | 66 | 0.78 | 11.9 |
+| str-implies/set-contains8x1019 | 3184 | 25.42 | 8.0 |
+| bool/implies32 | 68 | 0.45 | 6.7 |
+| int-implies/set64x64 | 6272 | 34.32 | 5.5 |
+| select/short64 | 2208 | 10.02 | 4.5 |
+| head/short32 | 36 | 0.16 | 4.4 |
+| approvals/merge3000 | 6005 | 18.93 | 3.2 |
+| approvals/lookup188of3000 | 3193 | 9.16 | 2.9 |
+| str-sets/30x2x963 | 2880 | 8.08 | 2.8 |
+| test/short256 | 1280 | 2.31 | 1.8 |
+| select/long64 | 34368 | 55.69 | 1.6 |
+| head/long32 | 561 | 0.69 | 1.2 |
+| test/long56 | 1120 | 1.29 | 1.2 |
+| approvals/long56 | 1797 | 1.28 | 0.7 |
+| str-pairs/suffix32 | 16896 | 9.45 | 0.6 |
+| str-pairs/under32 | 16896 | 9.25 | 0.5 |
+| str-pairs/prefix32 | 16896 | 9.21 | 0.5 |
+| str-implies/prefix32 | 20876 | 9.26 | 0.4 |
+| str-implies/contains31 | 4371 | 0.77 | 0.2 |
+
+**The fixed per-call cost,** `Contains` with a budget of 0 on the largest scopes (µs):
+
+| Input | Median |
+|---|---|
+| decl8/r143_a4 | 0.07 |
+| bounds/r256_a4 | 0.07 |
+| approvals16/r200_a4 | 0.07 |
+| head1000/r21_a4 | 0.03 |
+| longapprovals32/r1_a4 | 0.02 |
+
+**The derived ceiling** at the default budget (65536): 65536 × 32.5 ns (str-admissible/under8x1021) + 0.07 µs (decl8/r143_a4), per link; per chain, the 15 links at N = 16 whose child a compromised agent signs.
+
+| | Per link (ms) | Per chain (ms) | Per link ÷ one strict Ed25519 verification |
+|---|---|---|---|
+| Derived ceiling | 2.13 | 32.0 | 103 |
+| Worst input found: setunder4x1016/r2_a24 | 2.16 [2.15, 2.17] | 32.4 | 105 |
+
+**The search:** 301 inputs at the default budget, the costliest at 101% of the derived ceiling. **1 pass it, so a charge is wrong:** setunder4x1016/r2_a24 (2.16 ms).
+
+The ten costliest inputs (ms):
+
+| Input | W | Median [95% CI] |
+|---|---|---|
+| setunder4x1016/r2_a24 | over the budget | 2.16 [2.15, 2.17] |
+| setunder4x1016/r3_a16 | over the budget | 2.13 [2.11, 2.17] |
+| setunder8x1016/r1_a32 | over the budget | 1.96 [1.93, 2.02] |
+| setunder4x1016/r1_a32 | over the budget | 1.95 [1.88, 1.97] |
+| setunder4x1016/r6_a8 | over the budget | 1.90 [1.88, 1.93] |
+| setunder8x1016/r2_a24 | over the budget | 1.89 [1.89, 1.92] |
+| setunder16x1016/r1_a24 | over the budget | 1.89 [1.88, 1.94] |
+| setunder8x1016/r3_a16 | over the budget | 1.78 [1.77, 1.81] |
+| intlist1/r256_a32 | over the budget | 1.77 [1.76, 1.79] |
+| setunder16x1016/r2_a16 | over the budget | 1.74 [1.69, 1.76] |
+
+**Admitted shapes:** the most rules whose pin-time check, link to a child one tighter and child reflexive check stay within the budget, within D-21's bounds but whatever the body size, and the policy's encoded size there (counts, not timings). The last column is the most that fit today's 64 KiB body:
+
+| Shape | Atoms per rule | String bytes | Most rules admitted | Scope bytes | W (pin, link, child) | Most that fit today's body |
+|---|---|---|---|---|---|---|
+| frozen | 1 | — | 55 | 3612 | 63635, 63635, 63635 | 256 |
+| frozen | 2 | — | 45 | 3312 | 64890, 64890, 64890 | 256 |
+| frozen | 4 | — | 31 | 2772 | 63488, 63488, 63488 | 256 |
+| frozen | 8 | — | 18 | 2183 | 59004, 59004, 59004 | 256 |
+| frozen | 16 | — | 11 | 2524 | 58916, 58916, 58916 | 256 |
+| frozen | 32 | — | 5 | 2280 | 52140, 52140, 52140 | 141 |
+| string-prefix | 1 | 16 | 55 | 4461 | 63635, 63635, 63635 | 256 |
+| string-prefix | 4 | 16 | 28 | 4038 | 59990, 61208, 62426 | 256 |
+| string-prefix | 8 | 16 | 17 | 3881 | 59653, 60724, 61795 | 256 |
+| string-prefix | 16 | 16 | 11 | 4845 | 63426, 64416, 65406 | 141 |
+| string-prefix | 32 | 16 | 5 | 4375 | 54535, 55000, 55465 | 71 |
+| string-prefix | 1 | 64 | 51 | 6636 | 65229, 65229, 65229 | 256 |
+| string-prefix | 4 | 64 | 24 | 8166 | 51828, 58812, 62196 | 188 |
+| string-prefix | 8 | 64 | 15 | 9305 | 52410, 58815, 61860 | 102 |
+| string-prefix | 16 | 64 | 10 | 12245 | 57925, 62995, 64765 | 52 |
+| string-prefix | 32 | 64 | 5 | 12215 | 57435, 60510, 61725 | 26 |
+| string-prefix | 1 | 256 | 41 | 13249 | 62607, 62607, 62607 | 199 |
+| string-prefix | 4 | 256 | 17 | 18858 | 53499, 57018, 58701 | 57 |
+| string-prefix | 8 | 256 | 11 | 23732 | 53328, 56793, 58410 | 29 |
+| string-prefix | 16 | 256 | 7 | 30084 | 47194, 49735, 50596 | 14 |
+| string-prefix | 32 | 256 | 4 | 34353 | 51070, 53070, 53830 | 7 |
+| string-prefix | 1 | 1024 | 27 | 29463 | 62883, 62883, 62883 | 59 |
+| string-prefix | 4 | 1024 | 10 | 41845 | 57215, 58445, 59015 | 15 |
+| string-prefix | 8 | 1024 | 7 | 58161 | 63154, 64575, 65212 | 7 |
+| string-prefix | 16 | 1024 | 5 | 83005 | 63425, 64760, 65195 | 3 |
+| string-prefix | 32 | 1024 | 3 | 99587 | 61890, 63045, 63456 | 1 |
+| string-list | 1 | 16 | 19 | 3824 | 60553, 60553, 60553 | 256 |
+| string-list | 8 | 16 | 13 | 4529 | 60177, 60814, 61451 | 181 |
+| string-list | 1 | 64 | 14 | 8307 | 63364, 63364, 63364 | 108 |
+| string-list | 8 | 64 | 10 | 10835 | 53885, 56755, 58085 | 59 |
+| string-list | 1 | 256 | 9 | 19238 | 65457, 65457, 65457 | 30 |
+| string-list | 8 | 256 | 7 | 27802 | 60536, 61957, 62594 | 16 |
+
+**Proposed limits:** at most 112 rules a scope (twice the 55 admitted at most, rounded up to a multiple of 16) and 200704 bytes a body (twice the largest admitted scope's 99587 bytes, plus 1 KiB for the body's other fields, rounded up to 4 KiB), against D-21's 256 rules and D-03's 65536 bytes. D-21's other bounds stay. Not adopted: the author decides.
+
+**Lines 2 and 5 under the proposed limits,** each body filled toward them (ms):
+
+| Body | Rules | Bytes | Line 2 | Line 5 |
+|---|---|---|---|---|
+| strlists | 46 | 198690 | 5.02 [4.99, 5.07] | 2.38 |
+| strlists-nfc-maybe | 16 | 195161 | 3.13 [3.11, 3.15] | 2.10 |
+| intlists | 56 | 198842 | 1.99 [1.98, 2.00] | 0.95 |
+| approvals | 1 | 199828 | 1.87 [1.86, 1.91] | 0.34 |
+| text-nfc-maybe | 7 | 199138 | 1.35 [1.33, 1.36] | 1.23 |
+| under-paths | 7 | 198945 | 0.67 [0.66, 0.68] | 0.13 |
+| params | 112 | 70826 | 0.57 [0.57, 0.58] | 0.14 |
+| atoms | 112 | 22106 | 0.44 [0.44, 0.45] | 0.22 |
+| text-ascii | 7 | 199331 | 0.15 [0.15, 0.15] | 0.13 |
+
+**Unsigned decoding per chain** under the proposed limits, the 16 scope bodies at N = 16, before any signature: line 2 80.3 ms (strlists), line 5 38.1 ms (strlists), both 118 ms; 5737 strict Ed25519 verifications.
+
+**Lines 2 and 5 under the proposed rule limit and today's 64 KiB body,** each body filled toward them (ms):
+
+| Body | Rules | Bytes | Line 2 | Line 5 |
+|---|---|---|---|---|
+| strlists | 14 | 60577 | 1.51 [1.50, 1.52] | 0.72 |
+| strlists-nfc-maybe | 5 | 61093 | 0.97 [0.96, 0.98] | 0.65 |
+| intlists | 18 | 64017 | 0.63 [0.63, 0.63] | 0.31 |
+| approvals | 1 | 64646 | 0.56 [0.56, 0.57] | 0.11 |
+| params | 102 | 64516 | 0.52 [0.51, 0.52] | 0.13 |
+| atoms | 112 | 22106 | 0.44 [0.44, 0.45] | 0.22 |
+| text-nfc-maybe | 2 | 64069 | 0.43 [0.42, 0.43] | 0.40 |
+| under-paths | 2 | 64007 | 0.21 [0.21, 0.22] | 0.0411 |
+| text-ascii | 2 | 64131 | 0.0468 [0.0466, 0.0470] | 0.0411 |
+
+**Unsigned decoding per chain** under the proposed rule limit and today's 64 KiB body, the 16 scope bodies at N = 16, before any signature: line 2 24.2 ms (strlists), line 5 11.5 ms (strlists), both 35.7 ms; 1730 strict Ed25519 verifications.
+
+**Legitimate inputs.** The workload profiles' largest `Contains` counts: large 4406, medium 158, medium-approval 158, small 13, against the budget of 65536. The differential oracle (150000 pairs, seed 56324): completeness 0.9197 without a budget and 0.9197 at the default; 0 well-formed pairs and 0 reflexivity checks pass the budget; the largest counts are 607 (pairs) and 1238 (reflexivity); soundness violations: 0.
+
+**The headline cells** with D-101's unit, against the measured build:
+
+| Build | Commit | Archives | Samples per cell and run |
+|---|---|---|---|
+| measured | `b175599` | 12 | 10000 |
+| pre-budget | `2df8b53` | 12 | 10000 |
+| budgeted | `1126b57` | 12 | 10000 |
+
+**Medians** (µs; N = 3, medium; pooled over the three runs):
+
+| Cell | M9 (frozen) | measured | pre-budget | budgeted | budgeted ÷ measured | budgeted ÷ pre-budget |
+|---|---|---|---|---|---|---|
+| B warm+prefix | 580 | 580 | 580 | 580 | +0.1% | +0.1% |
+| D warm+prefix | 26.4 | 26.5 | 26.5 | 26.6 | +0.5% | +0.3% |
+| A warm | 1144 | 1143 | 1142 | 1145 | +0.2% | +0.3% |
+| C warm | 109 | 109 | 110 | 110 | +0.3% | +0.0% |
+
+**Ratios** (pooled medians; each run's ratio in brackets):
+
+| Ratio | measured | pre-budget | budgeted |
+|---|---|---|---|
+| B / D, warm+prefix | 21.92 [21.95, 21.95, 21.84] | 21.89 [21.99, 21.84, 21.62] | 21.83 [21.79, 21.88, 21.80] |
+| A / C, warm | 10.46 [10.40, 10.47, 10.44] | 10.41 [10.42, 10.33, 10.42] | 10.44 [10.43, 10.44, 10.45] |
+
+**Each run's median** (µs):
+
+| Cell | measured | pre-budget | budgeted |
+|---|---|---|---|
+| B warm+prefix | 580, 581, 580 | 582, 581, 573 | 580, 581, 580 |
+| D warm+prefix | 26.4, 26.5, 26.5 | 26.5, 26.6, 26.5 | 26.6, 26.5, 26.6 |
+| A warm | 1134, 1143, 1144 | 1143, 1143, 1133 | 1143, 1144, 1146 |
+| C warm | 109, 109, 110 | 110, 111, 109 | 110, 110, 110 |
+
+**The largest move**, budgeted against measured, is +0.5% (D warm+prefix): within the 5% at which the author asked for a stop.
+
+**Thermal flags** (the calibration probe or pmset, around each configuration; none re-run): pre-budget run 2: B warm+prefix N=3 medium; pre-budget run 3: C warm N=3 medium.
+
+
+### The budget's unit after its failed check
+
+D-101's run failed its own check: an input of the search passed the derived ceiling, so by the author's rule a charge was wrong. D-102 makes two changes.
+- **Sets.** Each `==` or `in` atom costs 4 more when a path's constraint is built, for the allocations every set needs whatever its literals. Sets of one literal had cost several times any other class per unit, and no probe had them.
+- **Searches and path walks.** Substring search is charged per 8 bytes and the canonical-path check per 4, instead of both per 16. They had cost the most per unit, and no probe of them bounds their use in the procedure, so an input made mostly of them sat at the ceiling. Now the integer and set-building classes, whose probes do bound their use, set the ceiling.
+
+The derivation gains probes of one-literal sets and of the scan checks alone. Everything else is as in D-101's block. This exploratory pass is not in the frozen plan and changes no measured result.
+
+_Not run yet: there is no `results/exploratory/ceiling2/criterion.tar.zst`._
 

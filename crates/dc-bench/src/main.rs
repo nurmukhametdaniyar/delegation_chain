@@ -17,8 +17,8 @@
 //! dc-bench budget [--out DIR]                       D-99's work counts
 //! dc-bench budget-counts [--out DIR]                D-100's counts under the default budget
 //! dc-bench budget-report [--mode M] [--out DIR]     prints D-100's block of BENCHMARKS.md §8
-//! dc-bench ceiling-counts [--out DIR]               D-101's counts, admitted shapes and proposed limits
-//! dc-bench ceiling-report [--mode M] [--out DIR]    prints D-101's block of BENCHMARKS.md §8
+//! dc-bench ceiling-counts [--out DIR] [--name N]    D-101's counts, admitted shapes and proposed limits
+//! dc-bench ceiling-report [--mode M] [--out DIR] [--name N]   prints D-101's or D-102's block of BENCHMARKS.md §8
 //! ```
 //!
 //! `scripts/reorder-check.sh` runs the reorder check's three builds (D-96);
@@ -83,6 +83,9 @@ struct Args {
     /// `paper`: draw every figure to fit a column this many inches wide
     /// (D-93).
     figure_width: Option<f64>,
+    /// `ceiling-counts` and `ceiling-report`: the directory under
+    /// `exploratory/` (default `ceiling`; D-101, D-102).
+    name: Option<String>,
 }
 
 fn parse() -> Result<Args, String> {
@@ -105,6 +108,7 @@ fn parse() -> Result<Args, String> {
         map: None,
         paper_dir: None,
         figure_width: None,
+        name: None,
     };
     while let Some(flag) = it.next() {
         let mut val = || it.next().ok_or(format!("{flag} needs a value"));
@@ -131,6 +135,7 @@ fn parse() -> Result<Args, String> {
             "--aip-dir" => a.aip_dir = Some(PathBuf::from(val()?)),
             "--map" => a.map = Some(PathBuf::from(val()?)),
             "--paper-dir" => a.paper_dir = Some(PathBuf::from(val()?)),
+            "--name" => a.name = Some(val()?),
             "--figure-width" => {
                 let v = val()?;
                 match v.parse::<f64>() {
@@ -585,7 +590,9 @@ fn cmd_budget_report(a: &Args) -> Result<(), String> {
 
 /// D-101's counts, into `exploratory/ceiling/work.json`.
 fn cmd_ceiling_counts(a: &Args) -> Result<(), String> {
-    let dir = out_dir(a).join("exploratory/ceiling");
+    let dir = out_dir(a)
+        .join("exploratory")
+        .join(a.name.as_deref().unwrap_or("ceiling"));
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let v = dc_bench::ceiling::counts();
     fs::write(
@@ -598,7 +605,11 @@ fn cmd_ceiling_counts(a: &Args) -> Result<(), String> {
 /// D-101's block, from `exploratory/ceiling/` (its criterion output
 /// unpacked), against the frozen pass's strict Ed25519 verification.
 fn cmd_ceiling_report(a: &Args) -> Result<(), String> {
-    let d = dc_bench::ceiling::load(&out_dir(a).join("exploratory/ceiling"))?;
+    let d = dc_bench::ceiling::load(
+        &out_dir(a)
+            .join("exploratory")
+            .join(a.name.as_deref().unwrap_or("ceiling")),
+    )?;
     let strict = dc_bench::report::criterion_median(
         &root().join("results/criterion"),
         "ed25519/verify_strict",

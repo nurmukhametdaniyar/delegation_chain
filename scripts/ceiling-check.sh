@@ -35,11 +35,14 @@
 # running the script again starts over. Once criterion's output or a
 # headline run exists, the script refuses to overwrite it.
 #
-# Usage: scripts/ceiling-check.sh [--dry] [--wait MINUTES]
+# Usage: scripts/ceiling-check.sh [--dry] [--wait MINUTES] [--name NAME]
 #   --dry       criterion's shortest times and 10-iteration headline runs,
 #               under results/dry-run/; no machine-state requirement. Its
 #               numbers are never reported.
 #   --wait M    how long to wait for an idle machine, each time (default 10).
+#   --name N    the directory under results/exploratory/ and
+#               target/exploratory/ (default `ceiling`, D-101's first run;
+#               `ceiling2` is D-102's).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root=$(pwd)
@@ -47,6 +50,7 @@ root=$(pwd)
 dry=0
 mode=full
 wait_min=10
+name=ceiling
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry)
@@ -57,17 +61,21 @@ while [[ $# -gt 0 ]]; do
       wait_min="${2:?--wait needs a number of minutes}"
       shift
       ;;
+    --name)
+      name="${2:?--name needs a directory name}"
+      shift
+      ;;
     *)
-      echo "usage: scripts/ceiling-check.sh [--dry] [--wait MINUTES]" >&2
+      echo "usage: scripts/ceiling-check.sh [--dry] [--wait MINUTES] [--name NAME]" >&2
       exit 2
       ;;
   esac
   shift
 done
-out=results/exploratory/ceiling
+out=results/exploratory/$name
 root_out=results
 if [[ $dry == 1 ]]; then
-  out=results/dry-run/exploratory/ceiling
+  out=results/dry-run/exploratory/$name
   root_out=results/dry-run
 fi
 
@@ -75,7 +83,7 @@ if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
   echo "ceiling-check: commit first; the budgeted build is HEAD" >&2
   exit 1
 fi
-if ! grep -q 'pub fn scan' crates/dc-policy/src/meter.rs; then
+if ! grep -q 'pub fn size' crates/dc-policy/src/meter.rs; then
   echo "ceiling-check: HEAD does not have D-101's unit" >&2
   exit 1
 fi
@@ -97,7 +105,7 @@ commit_of() {
     budgeted) git rev-parse HEAD ;;
   esac
 }
-wt_of() { echo "$root/target/exploratory/ceiling/src-$1"; }
+wt_of() { echo "$root/target/exploratory/$name/src-$1"; }
 cells=(--only "B warm+prefix N=3 medium" --only "D warm+prefix N=3 medium"
   --only "A warm N=3 medium" --only "C warm N=3 medium")
 
@@ -119,7 +127,7 @@ for b in "${builds[@]}"; do
 done
 
 echo "== 1 of 4: the counts (deterministic)"
-./target/release/dc-bench ceiling-counts --out "$root_out"
+./target/release/dc-bench ceiling-counts --out "$root_out" --name "$name"
 echo "== 2 of 4: the differential oracle, 150,000 pairs (test statistics)"
 DC_ORACLE_CASES=150000 DC_ORACLE_LOGIC_CASES=150000 DC_ORACLE_SEED=56324 \
   DC_ORACLE_REPORT="$abs_out/oracle.json" \
@@ -195,7 +203,7 @@ done
 if [[ $dry == 0 ]]; then
   {
     echo
-    echo "## $(date -u +%Y-%m-%d) — Exploratory run (not pre-registered): D-101's unit, its derived ceiling, and the proposed size limits"
+    echo "## $(date -u +%Y-%m-%d) — Exploratory run (not pre-registered): the budget's unit, its derived ceiling, and the proposed size limits ($name)"
     echo "Reason: D-101 made the work budget's unit a sound over-approximation of Contains's work, and the author asked for the ceiling it implies, a search against it, size limits aligned with the budget and their unsigned decoding cost, and the headline cells."
     echo "- **What ran.** \`scripts/ceiling-check.sh\` at \`$(git rev-parse --short HEAD)\`, with \`target-cpu=native\` as M9: \`dc-bench ceiling-counts\`, the differential oracle (150,000 pairs, seed 56324), \`benches/ceiling.rs\`, and the frozen grid's B and D warm+prefix and A and C warm configurations at N = 3, medium, by \`dc-bench run\` with M9's counts, three runs, in three builds: measured \`$(commit_of measured)\`, pre-budget \`$(commit_of pre-budget)\` and budgeted \`$(git rev-parse --short HEAD)\`, rotating which ran first."
     echo "- **Machine state.** M9's, awaited before the criterion pass and recorded in \`$out/env.json\` after it; each headline run checked it at its start (its run metadata). Nothing monitored the machine during the criterion pass."
@@ -204,4 +212,4 @@ if [[ $dry == 0 ]]; then
     echo "Configurations re-run: none."
   } >> BENCH_LOG.md
 fi
-echo "ceiling-check: done; \`dc-bench ceiling-report$([[ $dry == 1 ]] && echo ' --mode dry')\` prints D-101's block, headline comparison included"
+echo "ceiling-check: done; \`dc-bench ceiling-report --name $name$([[ $dry == 1 ]] && echo ' --mode dry')\` prints this run's block, headline comparison included"

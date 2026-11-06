@@ -25,7 +25,7 @@ use dc_cbor::{INT_MAX, INT_MIN};
 
 use crate::ast::{Atom, Declaration, Literal, Op, Operand, Type};
 use crate::eval::{Leaf, atom_holds};
-use crate::meter::{Meter, scan, size, weight, weights};
+use crate::meter::{Meter, build, search, size, walk, weight};
 use crate::validate::seg_prefix;
 
 fn ints(o: &Operand) -> Vec<i128> {
@@ -93,7 +93,7 @@ impl IntC {
             set: None,
         };
         // Past the budget: the unconstrained path.
-        if !m.charge(weights(atoms)) {
+        if !m.charge(build(atoms)) {
             return c;
         }
         for a in atoms {
@@ -177,7 +177,7 @@ impl BoolC {
     fn new(atoms: &[&Atom], m: &Meter) -> Self {
         let mut allowed = [true, true];
         // Past the budget: the unconstrained path.
-        if !m.charge(weights(atoms)) {
+        if !m.charge(build(atoms)) {
             return BoolC { allowed };
         }
         for a in atoms {
@@ -228,7 +228,7 @@ impl<'a> StrC<'a> {
             u: vec![],
         };
         // Past the budget: the unconstrained path.
-        if !m.charge(weights(atoms)) {
+        if !m.charge(build(atoms)) {
             return c;
         }
         c.atoms = atoms.to_vec();
@@ -259,12 +259,13 @@ impl<'a> StrC<'a> {
     fn admissible(&self, m: &Meter) -> Option<Vec<&'a str>> {
         let e = self.e.as_ref()?;
         // Each member against each atom: the atom's check, and for a
-        // `contains` or `under` atom a scan of the member. Past the budget:
-        // the set is ignored, which only weakens the constraint.
+        // `contains` atom a search of the member, for an `under` atom a walk
+        // of it. Past the budget: the set is ignored, which only weakens the
+        // constraint.
         let checks: usize = self.atoms.iter().map(|a| check(a)).sum();
-        let scanning = self.k.len() + self.u.len();
-        let extra: usize = e.iter().map(|v| scan(v) - 1).sum();
-        if !m.charge(e.len() * checks + scanning * extra) {
+        let searched: usize = e.iter().map(|v| search(v) - 1).sum();
+        let walked: usize = e.iter().map(|v| walk(v) - 1).sum();
+        if !m.charge(e.len() * checks + self.k.len() * searched + self.u.len() * walked) {
             return None;
         }
         Some(
@@ -329,10 +330,10 @@ impl<'a> StrC<'a> {
         }
         // Finite set: exact (see `admissible`).
         if let Some(a) = self.admissible(m) {
-            let extra: usize = if matches!(b.op, Op::Contains | Op::Under) {
-                a.iter().map(|v| scan(v) - 1).sum()
-            } else {
-                0
+            let extra: usize = match b.op {
+                Op::Contains => a.iter().map(|v| search(v) - 1).sum(),
+                Op::Under => a.iter().map(|v| walk(v) - 1).sum(),
+                _ => 0,
             };
             return m.charge(a.len() * check(b) + extra)
                 && a.iter().all(|v| atom_holds(b, &Leaf::Str(v)));
@@ -346,8 +347,8 @@ impl<'a> StrC<'a> {
         // reads both, every other test less.
         let all = [&self.p, &self.s, &self.k, &self.u];
         let n: usize = all.iter().map(|v| v.len()).sum();
-        let scanned: usize = all.iter().flat_map(|v| v.iter()).map(|y| scan(y)).sum();
-        if !m.charge(scanned + n * (scan(x) - 1)) {
+        let searched: usize = all.iter().flat_map(|v| v.iter()).map(|y| search(y)).sum();
+        if !m.charge(searched + n * (search(x) - 1)) {
             return false;
         }
         match b.op {
@@ -403,11 +404,11 @@ fn path_type(decl: &Declaration, path: &str, atoms: &[&Atom]) -> Option<Type> {
 }
 
 /// What testing one string atom against one value costs, apart from
-/// scanning the value: a `contains` operand is scanned, every other
-/// operand compared.
+/// searching or walking the value: a `contains` operand is searched, every
+/// other operand compared.
 fn check(a: &Atom) -> usize {
     match (&a.op, &a.operand) {
-        (Op::Contains, Operand::One(Literal::Str(x))) => scan(x),
+        (Op::Contains, Operand::One(Literal::Str(x))) => search(x),
         _ => weight(a),
     }
 }
