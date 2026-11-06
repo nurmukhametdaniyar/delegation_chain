@@ -1570,5 +1570,184 @@ D-101's run failed its own check: an input of the search passed the derived ceil
 
 The derivation gains probes of one-literal sets and of the scan checks alone. Everything else is as in D-101's block. This exploratory pass is not in the frozen plan and changes no measured result.
 
-_Not run yet: there is no `results/exploratory/ceiling2/criterion.tar.zst`._
+**Each charged operation class at the size bounds,** run alone; worst time per unit first:
+
+| Probe | Charge | Median (µs) | ns per unit |
+|---|---|---|---|
+| int-build/lists32x64 | 2240 | 33.08 | 14.8 |
+| int-build/bounds32 | 32 | 0.41 | 12.8 |
+| int-implies/interval-in64 | 66 | 0.77 | 11.6 |
+| scan/contains-hit1016-in1019 | 255 | 2.90 | 11.4 |
+| int-build/in1x32 | 161 | 1.80 | 11.2 |
+| str-admissible/contains8x1019 | 64284 | 710.60 | 11.1 |
+| str-build/in1x32 | 192 | 2.11 | 11.0 |
+| int-build/eq32 | 161 | 1.75 | 10.8 |
+| str-build/eq32 | 192 | 2.05 | 10.7 |
+| scan/contains-miss501-in1019 | 190 | 2.00 | 10.5 |
+| scan/under1000-in1021 | 271 | 2.75 | 10.1 |
+| str-admissible/under8x1021 | 68833 | 679.24 | 9.9 |
+| str-admissible/under16x1021 | 139217 | 1341.82 | 9.6 |
+| str-implies/set-contains8x1019 | 4204 | 24.98 | 5.9 |
+| int-implies/set64x64 | 6400 | 34.12 | 5.3 |
+| select/short64 | 2208 | 9.43 | 4.3 |
+| head/short32 | 36 | 0.15 | 4.1 |
+| approvals/merge3000 | 6005 | 19.14 | 3.2 |
+| approvals/lookup188of3000 | 3193 | 9.26 | 2.9 |
+| str-sets/30x2x963 | 3000 | 7.99 | 2.7 |
+| bool/implies32 | 196 | 0.46 | 2.3 |
+| test/short256 | 1280 | 2.18 | 1.7 |
+| select/long64 | 34368 | 55.66 | 1.6 |
+| head/long32 | 561 | 0.69 | 1.2 |
+| test/long56 | 1120 | 1.29 | 1.2 |
+| approvals/long56 | 1797 | 1.28 | 0.7 |
+| str-pairs/suffix32 | 16896 | 9.53 | 0.6 |
+| str-pairs/under32 | 16896 | 9.21 | 0.5 |
+| str-pairs/prefix32 | 16896 | 9.18 | 0.5 |
+| str-implies/prefix32 | 24872 | 9.20 | 0.4 |
+| str-implies/contains31 | 8215 | 0.77 | 0.1 |
+
+**The fixed per-call cost,** `Contains` with a budget of 0 on the largest scopes (µs):
+
+| Input | Median |
+|---|---|
+| bounds/r256_a4 | 0.08 |
+| decl8/r143_a4 | 0.07 |
+| approvals16/r200_a4 | 0.07 |
+| head1000/r21_a4 | 0.03 |
+| longapprovals32/r1_a4 | 0.02 |
+
+**The derived ceiling** at the default budget (65536): 65536 × 14.8 ns (int-build/lists32x64) + 0.08 µs (bounds/r256_a4), per link; per chain, the 15 links at N = 16 whose child a compromised agent signs.
+
+| | Per link (ms) | Per chain (ms) | Per link ÷ one strict Ed25519 verification |
+|---|---|---|---|
+| Derived ceiling | 0.97 | 14.5 | 47 |
+| Worst input found: xlist16/r129_a24 | 0.90 [0.87, 0.90] | 13.4 | 43 |
+
+**The search:** 301 inputs at the default budget, the costliest at 92% of the derived ceiling. None passes it.
+
+The ten costliest inputs (ms):
+
+| Input | W | Median [95% CI] |
+|---|---|---|
+| xlist16/r129_a24 | over the budget | 0.90 [0.87, 0.90] |
+| xlist16/r96_a32 | over the budget | 0.89 [0.89, 0.91] |
+| xlist7/r162_a32 | over the budget | 0.81 [0.80, 0.82] |
+| xlist64/r19_a32 | over the budget | 0.80 [0.80, 0.80] |
+| xlist16/r194_a16 | over the budget | 0.78 [0.78, 0.79] |
+| intlist16/r96_a32 | over the budget | 0.78 [0.77, 0.79] |
+| xlist8/r150_a32 | over the budget | 0.77 [0.76, 0.77] |
+| xlist64/r26_a24 | over the budget | 0.76 [0.76, 0.77] |
+| xlist7/r213_a24 | over the budget | 0.76 [0.75, 0.77] |
+| setcontains4x1016/r2_a24 | over the budget | 0.76 [0.76, 0.76] |
+
+**Admitted shapes:** the most rules whose pin-time check, link to a child one tighter and child reflexive check stay within the budget, within D-21's bounds but whatever the body size, and the policy's encoded size there (counts, not timings). The last column is the most that fit today's 64 KiB body:
+
+| Shape | Atoms per rule | String bytes | Most rules admitted | Scope bytes | W (pin, link, child) | Most that fit today's body |
+|---|---|---|---|---|---|---|
+| frozen | 1 | — | 47 | 3084 | 64155, 64155, 64155 | 256 |
+| frozen | 2 | — | 40 | 2942 | 64080, 64080, 64080 | 256 |
+| frozen | 4 | — | 29 | 2592 | 62292, 62292, 62292 | 256 |
+| frozen | 8 | — | 18 | 2183 | 61596, 61596, 61596 | 256 |
+| frozen | 16 | — | 11 | 2524 | 59884, 59884, 59884 | 256 |
+| frozen | 32 | — | 5 | 2280 | 52340, 52340, 52340 | 141 |
+| string-prefix | 1 | 16 | 47 | 3813 | 64155, 64155, 64155 | 256 |
+| string-prefix | 4 | 16 | 26 | 3750 | 59241, 60294, 61347 | 256 |
+| string-prefix | 8 | 16 | 16 | 3653 | 56792, 57744, 58696 | 256 |
+| string-prefix | 16 | 16 | 10 | 4405 | 55005, 55830, 56655 | 141 |
+| string-prefix | 32 | 16 | 5 | 4375 | 55665, 56130, 56595 | 71 |
+| string-prefix | 1 | 64 | 44 | 5726 | 64064, 64064, 64064 | 256 |
+| string-prefix | 4 | 64 | 22 | 7485 | 53515, 59389, 62227 | 188 |
+| string-prefix | 8 | 64 | 14 | 8685 | 53123, 58709, 61355 | 102 |
+| string-prefix | 16 | 64 | 9 | 11021 | 53145, 57276, 58707 | 52 |
+| string-prefix | 32 | 64 | 4 | 9773 | 39602, 41602, 42362 | 26 |
+| string-prefix | 1 | 256 | 38 | 12280 | 65360, 65360, 65360 | 199 |
+| string-prefix | 4 | 256 | 15 | 16640 | 55050, 57795, 59100 | 57 |
+| string-prefix | 8 | 256 | 10 | 21575 | 57275, 60145, 61475 | 29 |
+| string-prefix | 16 | 256 | 7 | 30084 | 61026, 63567, 64428 | 14 |
+| string-prefix | 32 | 256 | 4 | 34353 | 61118, 63118, 63878 | 7 |
+| string-prefix | 1 | 1024 | 26 | 28372 | 63752, 63752, 63752 | 59 |
+| string-prefix | 4 | 1024 | 8 | 33477 | 51236, 52028, 52388 | 15 |
+| string-prefix | 8 | 1024 | 5 | 41545 | 46385, 47120, 47435 | 7 |
+| string-prefix | 16 | 1024 | 4 | 66405 | 60930, 61806, 62082 | 3 |
+| string-prefix | 32 | 1024 | 2 | 66393 | 40769, 41309, 41477 | 1 |
+| string-list | 1 | 16 | 19 | 3824 | 63441, 63441, 63441 | 256 |
+| string-list | 8 | 16 | 13 | 4529 | 62803, 63440, 64077 | 181 |
+| string-list | 1 | 64 | 14 | 8307 | 64932, 64932, 64932 | 108 |
+| string-list | 8 | 64 | 10 | 10835 | 57765, 60635, 61965 | 59 |
+| string-list | 1 | 256 | 8 | 17101 | 52800, 52800, 52800 | 30 |
+| string-list | 8 | 256 | 6 | 23831 | 50085, 51135, 51597 | 16 |
+
+**Proposed limits:** at most 96 rules a scope (twice the 47 admitted at most, rounded up to a multiple of 16) and 135168 bytes a body (twice the largest admitted scope's 66405 bytes, plus 1 KiB for the body's other fields, rounded up to 4 KiB), against D-21's 256 rules and D-03's 65536 bytes. D-21's other bounds stay. Not adopted: the author decides.
+
+**Lines 2 and 5 under the proposed limits,** each body filled toward them (ms):
+
+| Body | Rules | Bytes | Line 2 | Line 5 |
+|---|---|---|---|---|
+| strlists | 31 | 133950 | 3.40 [3.38, 3.44] | 1.61 |
+| strlists-nfc-maybe | 11 | 134221 | 2.18 [2.17, 2.19] | 1.46 |
+| intlists | 37 | 131430 | 1.28 [1.28, 1.29] | 0.64 |
+| approvals | 1 | 134278 | 1.21 [1.20, 1.22] | 0.23 |
+| text-nfc-maybe | 5 | 134192 | 0.91 [0.90, 0.92] | 0.84 |
+| params | 96 | 60730 | 0.50 [0.50, 0.50] | 0.13 |
+| under-paths | 5 | 134062 | 0.45 [0.45, 0.46] | 0.0863 |
+| atoms | 96 | 18970 | 0.38 [0.38, 0.38] | 0.19 |
+| text-ascii | 5 | 133291 | 0.10 [0.10, 0.10] | 0.0863 |
+
+**Unsigned decoding per chain** under the proposed limits, the 16 scope bodies at N = 16, before any signature: line 2 54.4 ms (strlists), line 5 25.8 ms (strlists), both 80.2 ms; 3884 strict Ed25519 verifications.
+
+**Lines 2 and 5 under the proposed rule limit and today's 64 KiB body,** each body filled toward them (ms):
+
+| Body | Rules | Bytes | Line 2 | Line 5 |
+|---|---|---|---|---|
+| strlists | 14 | 60577 | 1.56 [1.52, 1.58] | 0.71 |
+| strlists-nfc-maybe | 5 | 61093 | 1.00 [0.99, 1.00] | 0.66 |
+| intlists | 18 | 64017 | 0.62 [0.62, 0.62] | 0.38 |
+| approvals | 1 | 64646 | 0.57 [0.57, 0.58] | 0.11 |
+| params | 96 | 60730 | 0.50 [0.49, 0.50] | 0.13 |
+| text-nfc-maybe | 2 | 64069 | 0.44 [0.43, 0.44] | 0.40 |
+| atoms | 96 | 18970 | 0.37 [0.37, 0.38] | 0.19 |
+| under-paths | 2 | 64007 | 0.22 [0.21, 0.23] | 0.0414 |
+| text-ascii | 2 | 64131 | 0.0477 [0.0475, 0.0478] | 0.0418 |
+
+**Unsigned decoding per chain** under the proposed rule limit and today's 64 KiB body, the 16 scope bodies at N = 16, before any signature: line 2 25.0 ms (strlists), line 5 11.4 ms (strlists), both 36.4 ms; 1763 strict Ed25519 verifications.
+
+**Legitimate inputs.** The workload profiles' largest `Contains` counts: large 4656, medium 176, medium-approval 176, small 13, against the budget of 65536. The differential oracle (150000 pairs, seed 56324): completeness 0.9197 without a budget and 0.9197 at the default; 0 well-formed pairs and 0 reflexivity checks pass the budget; the largest counts are 773 (pairs) and 1574 (reflexivity); soundness violations: 0.
+
+**The headline cells** with D-101's unit, against the measured build:
+
+| Build | Commit | Archives | Samples per cell and run |
+|---|---|---|---|
+| measured | `b175599` | 12 | 10000 |
+| pre-budget | `2df8b53` | 12 | 10000 |
+| budgeted | `7f1f149` | 12 | 10000 |
+
+**Medians** (µs; N = 3, medium; pooled over the three runs):
+
+| Cell | M9 (frozen) | measured | pre-budget | budgeted | budgeted ÷ measured | budgeted ÷ pre-budget |
+|---|---|---|---|---|---|---|
+| B warm+prefix | 580 | 570 | 569 | 564 | -0.9% | -0.9% |
+| D warm+prefix | 26.4 | 26.2 | 25.5 | 24.3 | -7.2% | -4.6% |
+| A warm | 1144 | 1117 | 1118 | 1105 | -1.1% | -1.2% |
+| C warm | 109 | 108 | 108 | 106 | -2.4% | -2.6% |
+
+**Ratios** (pooled medians; each run's ratio in brackets):
+
+| Ratio | measured | pre-budget | budgeted |
+|---|---|---|---|
+| B / D, warm+prefix | 21.76 [21.96, 22.25, 23.35] | 22.37 [21.75, 23.36, 23.18] | 23.23 [23.16, 23.19, 23.13] |
+| A / C, warm | 10.33 [10.43, 10.38, 10.52] | 10.31 [10.37, 10.44, 10.49] | 10.46 [10.46, 10.39, 10.56] |
+
+**Each run's median** (µs):
+
+| Cell | measured | pre-budget | budgeted |
+|---|---|---|---|
+| B warm+prefix | 579, 568, 563 | 579, 565, 567 | 566, 570, 555 |
+| D warm+prefix | 26.4, 25.5, 24.1 | 26.6, 24.2, 24.5 | 24.5, 24.6, 24.0 |
+| A warm | 1133, 1107, 1113 | 1134, 1104, 1118 | 1105, 1113, 1099 |
+| C warm | 109, 107, 106 | 109, 106, 107 | 106, 107, 104 |
+
+**The largest move**, budgeted against measured, is -7.2% (D warm+prefix): beyond the 5% at which the author asked for a stop.
+
+**Thermal flags** (the calibration probe or pmset, around each configuration; none re-run): pre-budget run 1: A warm N=3 medium; pre-budget run 2: A warm N=3 medium; pre-budget run 2: D warm+prefix N=3 medium; pre-budget run 2: B warm+prefix N=3 medium; pre-budget run 2: C warm N=3 medium; budgeted run 3: C warm N=3 medium.
+
 

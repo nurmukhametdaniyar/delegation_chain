@@ -1397,5 +1397,14 @@ Decision:
 - **The derivation.** Unchanged in form: the budget times the worst probe's median time per unit, plus the largest fixed cost. New probes: sets of one literal (integers and strings, `==` and `in`); the `under` and `contains` checks alone, one value against one atom, for that check's charge; `under` against 16 members.
 - **Tests.** The hand-counted test (four of its pairs change by the table: three with `==` or `in` atoms, and the one with long `contains` operands); the security suites, whose rows compute their counts from the code; the property and determinism tests; the oracle, the profiles' test and CI.
 - **The measurement.** `scripts/ceiling-check.sh --name ceiling2`, into `results/exploratory/ceiling2/`, as D-101's. BENCHMARKS.md §8 renders it after D-101's run, which stays as it was.
+- **Run (2026-11-06),** by the author at `7f1f149` with `scripts/ceiling-check.sh --name ceiling2`. The archives verify; all nine headline runs passed M9's machine-state check at their start (BENCH_LOG.md). BENCHMARKS.md §8 has the results; in summary:
+  - **The derived ceiling holds.** The integer constraint-building probe has the worst time per unit, as intended; no search input passes the ceiling it gives, and the costliest is close below it.
+  - **The admitted shapes and proposed limits** follow from the counts. With 1 KiB strings the budget still admits scopes larger than today's 64 KiB body, so the proposed body limit is above it; lines 2 and 5 are reported both under it and under the proposed rule limit with today's body.
+  - **The oracle and the profiles hold:** completeness unchanged, no pair over the budget, the profiles far inside it.
+  - **The headline cells: the author's 5% stop rule fired.** D warm+prefix, budgeted against measured, moved by more than 5%, and faster. Three observations, none of which changes the rule's verdict:
+    - A prefix-cache hit runs no `Contains`.
+    - The measured build's own D warm+prefix medians fall from run to run by more than the move. Most of the pooled move comes from the run in which the budgeted build ran last; in the other two runs the builds are within a few percent.
+    - The calibration probe flagged six configurations, against two in D-101's run, and the record after the criterion pass shows XProtect still running.
+  - **Stopped here,** as the author asked; nothing changed after the run.
 Why: the author's rule for a failed check; each fix addresses a measured cause.
 Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.
