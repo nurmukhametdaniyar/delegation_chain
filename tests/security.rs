@@ -1510,7 +1510,7 @@ fn scope_size_bounds_d21() {
     let atoms: Vec<String> = (0..33).map(|i| format!("amount <= {i}")).collect();
     let list: Vec<String> = (0..65).map(|i| format!("\"a{i}\"")).collect();
     let cases = [
-        (rule.repeat(257), "more than 256 rules"),
+        (rule.repeat(97), "more than 96 rules"),
         (
             format!(
                 "{head} params {{ amount: int }} where {}",
@@ -1800,10 +1800,10 @@ fn phase_ordering_count_ops() {
     );
 }
 
-/// A scope at D-21's size bounds: 256 rules, the first with 32 declared
-/// parameters (one a path of depth 8), 32 atoms, a 64-element `in` list and
-/// a 1,024-byte string; the rest are 255 one-atom transfer rules. Well
-/// formed, and its body stays under D-03's 64 KiB.
+/// A scope at D-21's size bounds: 96 rules (D-103), the first with 32
+/// declared parameters (one a path of depth 8), 32 atoms, a 64-element `in`
+/// list and a 1,024-byte string; the rest are 95 one-atom transfer rules.
+/// Well formed, and its body stays under D-03's 64 KiB.
 fn scope_at_bounds() -> Scope {
     let mut params = vec![
         "amount: int".to_owned(),
@@ -1826,7 +1826,7 @@ fn scope_at_bounds() -> Scope {
         params.join(", "),
         atoms.join(" and ")
     )];
-    for i in 1..256 {
+    for i in 1..dc_policy::validate::MAX_RULES {
         rules.push(format!(
             "allow at=orgb:service:payments tool=payments action=transfer \
              params {{ amount: int, to_account: string }} where amount <= {i}"

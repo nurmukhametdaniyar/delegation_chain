@@ -368,8 +368,8 @@ fn well_formedness_rules() {
 #[test]
 fn size_limits_d21() {
     let rule = "allow at=v:service:v tool=t action=a\n";
-    assert!(Scope::parse(&rule.repeat(256)).is_ok());
-    assert!(malformed(&rule.repeat(257)).contains("more than 256 rules"));
+    assert!(Scope::parse(&rule.repeat(96)).is_ok());
+    assert!(malformed(&rule.repeat(97)).contains("more than 96 rules"));
     let many: Vec<String> = (0..33).map(|i| format!("p{i}: int")).collect();
     assert!(
         malformed(&format!(

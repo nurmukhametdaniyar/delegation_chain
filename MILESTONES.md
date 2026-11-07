@@ -671,3 +671,10 @@ The author asked for three follow-ups.
 - **The measurement, run (2026-11-06, `1126b57`).** `scripts/ceiling-check.sh`: each charged class at the size bounds and the fixed cost, which give the derived ceiling; the search against it; the admitted shapes and proposed size limits; lines 2 and 5 under them; the oracle; the headline cells. **The check failed:** one input passed the derived ceiling. The headline cells did not move; the oracle and the profiles held. With 1 KiB strings the budget admits scopes beyond today's 64 KiB body, so the proposed body limit is above today's.
 - **D-102, built, not run.** The wrong charge: sets formed by `==` and `in` atoms, now 4 more each. Substring search is charged per 8 bytes and the canonical-path check per 4, so that the integer and set-building classes, whose probes bound their use in the procedure, set the ceiling. New probes of one-literal sets and of the scan checks alone. `scripts/ceiling-check.sh --name ceiling2` measures it into its own directory; D-101's run stays as recorded.
 - **D-102, run (2026-11-06, `7f1f149`).** The derived ceiling holds against the whole search; the oracle and the profiles hold. The headline check's 5% stop rule fired on D warm+prefix (a speed-up, within the measured build's own run-to-run drift); stopped for the author's decision.
+
+## The budget as adopted (2026-11-07)
+
+- **D-103.** At most 96 rules per scope (D-21 said 256); the 64 KiB body limit kept, so that for string-heavy scopes the body limit binds rather than the budget. Spec, tests and the earlier exploratory constructions follow; CI passes.
+- **The headline check, re-run: built, not run.** `scripts/headline-rerun.sh` re-runs D-96's four cells in three builds on a quieter machine (load average below 1.0, XprotectService idle, before each run), beside D-102's stopped run, which stays recorded with its analysis within each run.
+- **BENCHMARKS.md §8, "The budget as adopted":** the numbers the paper cites, generated from D-102's run; the headline row fills in once the re-run exists. P-35 lists the paper's locations.
+

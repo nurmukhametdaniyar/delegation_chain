@@ -94,7 +94,10 @@ pub fn contains_inputs() -> Vec<(String, Scope, Scope)> {
 /// [`ATOMS`] atoms a rule.
 pub fn contains_inputs_for(pads: &[Pad]) -> Vec<(String, Scope, Scope)> {
     let mut v = vec![];
-    for (rules, atoms) in COST_CELLS {
+    for (rules, atoms) in COST_CELLS
+        .into_iter()
+        .filter(|c| crate::bounds::constructible(c.0))
+    {
         let (p, c) = (
             frozen_worst(rules, atoms, 1000),
             frozen_worst(rules, atoms, 999),
@@ -136,7 +139,7 @@ fn fills() -> Vec<Fill> {
         // The most atoms: 32 small bounds a rule.
         Fill {
             label: "atoms",
-            max: 256,
+            max: dc_policy::validate::MAX_RULES,
             text: |n| {
                 let a: Vec<String> = (0..32).map(|k| format!("x <= {k}")).collect();
                 rules_of(&format!("{SHORT_HEAD} where {}", a.join(" and ")), n)
@@ -145,7 +148,7 @@ fn fills() -> Vec<Fill> {
         // The most literals: 64-element integer lists.
         Fill {
             label: "intlists",
-            max: 256,
+            max: dc_policy::validate::MAX_RULES,
             text: |n| {
                 let l: Vec<String> = (0..64).map(|v| v.to_string()).collect();
                 let a = vec![format!("x in [{}]", l.join(", ")); 32];
@@ -156,7 +159,7 @@ fn fills() -> Vec<Fill> {
         // with acute exists), but only a full check shows it.
         Fill {
             label: "strlists-nfc-maybe",
-            max: 256,
+            max: dc_policy::validate::MAX_RULES,
             text: |n| {
                 let l: Vec<String> = (0..64).map(|v| format!("\"{v}q\u{301}\"")).collect();
                 let a = vec![format!("s in [{}]", l.join(", ")); 32];
@@ -166,7 +169,7 @@ fn fills() -> Vec<Fill> {
         // The most text items: 64-element lists of one-letter strings.
         Fill {
             label: "strlists",
-            max: 256,
+            max: dc_policy::validate::MAX_RULES,
             text: |n| {
                 let l: Vec<String> = (0..64)
                     .map(|v| format!("\"{}\"", (b'a' + (v % 26) as u8) as char))
@@ -178,7 +181,7 @@ fn fills() -> Vec<Fill> {
         // The most declared paths: 32 a rule, 8 segments deep.
         Fill {
             label: "params",
-            max: 256,
+            max: dc_policy::validate::MAX_RULES,
             text: |n| {
                 let p: Vec<String> = (0..32)
                     .map(|k| format!("a.b.c.d.e.f.g.p{k:02}: int"))
@@ -241,7 +244,7 @@ fn text_atoms(n: usize, text: &str) -> String {
 
 /// Every line-2 input: (label, a scope that fills a body).
 pub fn body_scopes() -> Vec<(String, Scope)> {
-    body_scopes_within(256, dc_cbor::MAX_BODY_SIZE)
+    body_scopes_within(dc_policy::validate::MAX_RULES, dc_cbor::MAX_BODY_SIZE)
 }
 
 /// The rules of a scope (0 for `allow all` and `deny all`).
@@ -381,7 +384,7 @@ fn admitted() -> serde_json::Value {
         .map(|atoms| {
             let mut admitted = vec![];
             let mut largest_fitting = 0;
-            for rules in 1..=256 {
+            for rules in 1..=dc_policy::validate::MAX_RULES {
                 let (p, c) = (
                     frozen_worst(rules, atoms, 1000),
                     frozen_worst(rules, atoms, 999),

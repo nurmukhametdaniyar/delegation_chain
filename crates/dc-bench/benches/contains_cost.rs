@@ -17,8 +17,8 @@ use std::time::{Duration, Instant};
 
 use criterion::{BenchmarkId, Criterion, SamplingMode, black_box, criterion_group, criterion_main};
 use dc_bench::bounds::{
-    COST_CELLS, Pad, RUNNERS_UP, SWEEP_BOUNDS, WORST_FOUND, fits, frozen_worst, max_rules, padded,
-    search_pads,
+    COST_CELLS, Pad, RUNNERS_UP, SWEEP_BOUNDS, WORST_FOUND, constructible, fits, frozen_worst,
+    max_rules, padded, search_pads,
 };
 use dc_policy::{Scope, contains};
 
@@ -47,7 +47,7 @@ fn bench(c: &mut Criterion) {
             });
         }
     };
-    for (rules, atoms) in COST_CELLS {
+    for (rules, atoms) in COST_CELLS.into_iter().filter(|c| constructible(c.0)) {
         let id = format!("r{rules}_a{atoms}");
         pair(
             "frozen-worst".into(),

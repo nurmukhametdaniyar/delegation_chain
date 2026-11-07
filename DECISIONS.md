@@ -168,6 +168,7 @@ Decision: At most 256 rules per scope, 32 params per rule, 32 atoms per rule, 64
 Why: This bounds `Evaluate` and `Contains` on input the sender chooses. The Q8 sizes (up to 64 rules, 8 atoms) are within the limits.
 Affects benchmarks: no
 Paper status (revision 2026-09-29): consistent. §6.1 says implementations bound scope size and that "those bounds belong in a normative specification", so the values stay ours.
+Revised (2026-11-07): at most 96 rules per scope, by D-103.
 
 ## D-22 — `under` includes equality
 Spec section: §9.3     Paper section: §6.1 ("q is a prefix of it segment by segment")
@@ -1405,6 +1406,22 @@ Decision:
     - A prefix-cache hit runs no `Contains`.
     - The measured build's own D warm+prefix medians fall from run to run by more than the move. Most of the pooled move comes from the run in which the budgeted build ran last; in the other two runs the builds are within a few percent.
     - The calibration probe flagged six configurations, against two in D-101's run, and the record after the criterion pass shows XProtect still running.
-  - **Stopped here,** as the author asked; nothing changed after the run.
+  - **Stopped here,** as the author asked; nothing changed after the run. The author then asked for the four cells to be re-run on a quieter machine and reported beside this run (D-103).
 Why: the author's rule for a failed check; each fix addresses a measured cause.
 Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.
+
+## D-103 — Size limits aligned with the budget; the headline check re-run; the budget as adopted
+Spec section: §9.3 (D-21 revised), §11.2, changelog     Paper section: §6.1, §6.4; P-35
+Decision:
+- **Rules per scope: at most 96** (D-21 said 256). D-102's run proposed it: about twice the most rules the default budget admits in any shape measured, rounded up to a multiple of 16. `dc_policy::validate::MAX_RULES`; the size tests (`size_limits_d21`, `scope_size_bounds_d21`) and the at-the-bounds scope of `unsigned_chain_does_no_policy_work` follow.
+- **Bytes per body: 64 KiB, kept** (D-03). The default budget admits string-heavy scopes slightly larger than a body: 66,405 bytes at 4 rules × 16 atoms of 1 KiB strings, in D-102's run. So there the body limit binds rather than the budget, by design. D-102's proposal of twice that would have doubled the unsigned decoding cost.
+- **Unsigned decoding at these limits.** Lines 2 and 5 run before any signature. At 96 rules and 64 KiB, D-102's run measured 36.4 ms per chain at N = 16 for both lines over the 16 scope bodies (BENCHMARKS.md §8). It grows with the bytes received.
+- **Earlier exploratory constructions** (D-95, D-98, D-99, D-100) built scopes of up to 256 rules. They now skip cells above 96 and stop their searches there (`bounds::constructible`), so that their code still runs; their archived results stand.
+- **The headline check, re-run.** D-102's check stopped on the 5% rule. The run stays recorded as it is, with the stop and the analysis within each run (BENCH_LOG.md; BENCHMARKS.md §8, generated: `reorder::Data::within_runs`).
+  - `scripts/headline-rerun.sh` re-runs D-96's four cells in the same three builds' roles, with the budgeted build at the commit with D-103. Its unit is D-102's; it adds the rule limit, which no headline cell's scope comes near.
+  - Before each of the nine runs it waits until the 1-minute load average is below 1.0 and XprotectService below 1% CPU, besides M9's machine state, and says what keeps the machine busy.
+  - Results go to `results/exploratory/ceiling2/headline-rerun/`, rendered beside the stopped run. If a cell again moves by more than 5%, the author's instruction is to stop and report.
+- **The budget as adopted** (BENCHMARKS.md §8, generated from D-102's run and the re-run): the budget, the limits, the derived ceiling per link and per chain, the worst input found (over the whole search, and within 96 rules), the admitted shapes, the unsigned decoding cost, the oracle's completeness, the profiles' largest count, and the headline check. These are the numbers the paper cites.
+Why: the author's choice after D-102's run: limits about twice what the budget admits, except where the body limit already binds below that.
+Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.
+

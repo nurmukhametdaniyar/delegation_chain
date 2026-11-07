@@ -18,7 +18,7 @@
 use std::time::{Duration, Instant};
 
 use criterion::{BenchmarkId, Criterion, SamplingMode, black_box, criterion_group, criterion_main};
-use dc_bench::bounds::{CELLS, SHORT_HEAD, alternating, fits, frozen_worst};
+use dc_bench::bounds::{CELLS, SHORT_HEAD, alternating, constructible, fits, frozen_worst};
 use dc_policy::contains;
 
 /// `iters` calls of `f`, timed one by one; each must return true.
@@ -41,7 +41,7 @@ fn bench(c: &mut Criterion) {
         .sample_size(10)
         .warm_up_time(Duration::from_secs(1))
         .measurement_time(Duration::from_secs(10));
-    for (rules, atoms) in CELLS {
+    for (rules, atoms) in CELLS.into_iter().filter(|c| constructible(c.0)) {
         let id = format!("r{rules}_a{atoms}");
         let (parent, child) = (
             frozen_worst(rules, atoms, 1000),

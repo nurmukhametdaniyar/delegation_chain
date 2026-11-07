@@ -25,7 +25,7 @@ The deposit is a snapshot of this repository at the commit its description names
 | `Contains` after D-97 and the prototype work budget (D-98, D-99): criterion's output, the atom-level counts, the oracle under budgets, the search's ranking, and the machine record | `results/exploratory/contains-cost/` (`criterion.tar.zst` with its `.sha256`, `work.json`, `oracle-budget.json`, `search.txt`, `env.json`) |
 | The work budget on the protocol path (D-100): criterion's output for `Contains` at the default budget and lines 2 and 5, the counts, the oracle's report, the machine record, and the headline check's three builds as archives with their manifests | `results/exploratory/budget/` (`criterion.tar.zst` with its `.sha256`, `work.json`, `oracle.json`, `env.json`, `headline/<build>/archive/`, `headline/<build>/env.json`) |
 | D-101's unit: criterion's output for each charged class, the fixed cost, the search and lines 2 and 5 under the proposed limits, the counts, the oracle's report, the machine record, and the headline check's three builds as archives with their manifests | `results/exploratory/ceiling/` (`criterion.tar.zst` with its `.sha256`, `work.json`, `oracle.json`, `env.json`, `headline/<build>/archive/`, `headline/<build>/env.json`) |
-| D-102's run of the same, once measured | `results/exploratory/ceiling2/`, as `ceiling/` |
+| D-102's run of the same, and the re-run of its headline cells (D-103) | `results/exploratory/ceiling2/`, as `ceiling/`, and `ceiling2/headline-rerun/<build>/` (`archive/`, `env.json`) with `quiet.log` |
 | Bytes on the wire (Q2), memory (Q10), the machine records | `results/bytes.json`, `results/memory.json`, `results/env.json`, `results/env-resume.json` |
 | M9's console log: the safety-valve abort and the three refused resumes that BENCHMARKS.md §7 cites | `results/logs/m9.log` |
 | The generated summary, document and paper artifacts | `results/summary.{md,json}`, `BENCHMARKS.md`, `paper/` |
@@ -76,7 +76,7 @@ for b in measured pre-budget budgeted; do (cd results/exploratory/budget/headlin
 (cd results/exploratory/ceiling && shasum -a 256 -c criterion.tar.zst.sha256)
 zstd -dc results/exploratory/ceiling/criterion.tar.zst | tar -x -C results/exploratory/ceiling
 for b in measured pre-budget budgeted; do (cd results/exploratory/ceiling/headline/$b/archive && shasum -a 256 -c MANIFEST.sha256); done
-# and the same for results/exploratory/ceiling2/ once D-102's run exists.
+# and the same for results/exploratory/ceiling2/, and for its headline-rerun/ once it exists.
 ```
 
 The generators check every archive themselves and refuse to run on a missing manifest or a mismatch. They also refuse to run without criterion's output, rather than write a summary without its micro-benchmark section.
@@ -189,7 +189,14 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
   scripts/ceiling-check.sh
   ```
 
-  It writes `results/exploratory/ceiling/` and appends a `BENCH_LOG.md` entry; `dc-bench ceiling-report` prints its BENCHMARKS.md block. Its run was at `1126b57`, D-101's unit. D-102's run is `scripts/ceiling-check.sh --name ceiling2`, into `results/exploratory/ceiling2/` (`dc-bench ceiling-report --name ceiling2`). `--wait MINUTES` waits longer for an idle machine (default 10); while it waits it names what keeps the machine busy. An attempt that stops before measuring can simply be run again. `--dry` checks the pipeline under `results/dry-run/`.
+  It writes `results/exploratory/ceiling/` and appends a `BENCH_LOG.md` entry; `dc-bench ceiling-report` prints its BENCHMARKS.md block. Its run was at `1126b57`, D-101's unit. D-102's run is `scripts/ceiling-check.sh --name ceiling2`, into `results/exploratory/ceiling2/` (`dc-bench ceiling-report --name ceiling2`).
+- **The headline cells re-run (D-103).** D-96's four cells in three builds, three runs, each run started only once the 1-minute load average is below 1.0 and XprotectService is idle, besides M9's machine state; about half an hour once the machine is quiet.
+
+  ```sh
+  scripts/headline-rerun.sh --wait 30
+  ```
+
+  It writes `results/exploratory/ceiling2/headline-rerun/` and appends a `BENCH_LOG.md` entry. `--wait MINUTES` waits longer for an idle machine (default 10); while it waits it names what keeps the machine busy. An attempt that stops before measuring can simply be run again. `--dry` checks the pipeline under `results/dry-run/`.
 
 ## 6. Packing a deposit
 

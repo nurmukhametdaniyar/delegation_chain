@@ -48,7 +48,7 @@ fn alternating_scopes_pass_every_link() {
 /// checked to pass, as it did before D-97.
 #[test]
 fn memoized_contains_agrees_on_the_bounds_constructions() {
-    use dc_bench::bounds::{CELLS, SHORT_HEAD, fits, frozen_worst};
+    use dc_bench::bounds::{CELLS, SHORT_HEAD, constructible, fits, frozen_worst};
     use dc_policy::{Scope, contains, contains_unmemoized};
 
     for rules in [8, 16, 32] {
@@ -76,7 +76,7 @@ fn memoized_contains_agrees_on_the_bounds_constructions() {
         }
     }
     if std::env::var("DC_BOUNDS_FULL").is_ok_and(|v| v == "1") {
-        for (rules, atoms) in CELLS {
+        for (rules, atoms) in CELLS.into_iter().filter(|c| constructible(c.0)) {
             let x = alternating(SHORT_HEAD, "x", rules, atoms, true);
             let y = alternating(SHORT_HEAD, "x", rules, atoms, false);
             assert!(fits(&x) && fits(&y));

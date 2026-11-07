@@ -338,7 +338,7 @@ pub fn probes() -> Vec<Probe> {
     // ---- Step 3(a)'s scan, through `contains_within`: every test fails at
     // the head, the tool differing in its last byte.
     for (name, rules, tail) in [
-        ("short256", 256, String::new()),
+        ("short96", dc_policy::validate::MAX_RULES, String::new()),
         ("long56", 56, "a".repeat(990)),
     ] {
         let tool = |end: char| {
@@ -366,7 +366,7 @@ pub fn contains_inputs() -> Vec<(String, Scope, Scope)> {
 /// largest heads and approval sets.
 pub fn overhead_inputs() -> Vec<(String, Scope, Scope)> {
     let keep = [
-        "bounds/r256_a4",
+        "bounds/",
         "approvals16/",
         "head1000/",
         "decl8/",
@@ -498,7 +498,7 @@ fn admitted_rules(s: Shape) -> (usize, usize) {
         if !pred(1) {
             return 0;
         }
-        let (mut lo, mut hi) = (1usize, 256usize);
+        let (mut lo, mut hi) = (1usize, dc_policy::validate::MAX_RULES);
         while lo < hi {
             let mid = (lo + hi).div_ceil(2);
             if pred(mid) {
@@ -645,6 +645,9 @@ pub struct Data {
     work: Value,
     oracle: Value,
     pub headline: Option<reorder::Data>,
+    /// The headline check re-run on a quieter machine, beside the stopped
+    /// one (D-103), once archived.
+    pub headline_rerun: Option<reorder::Data>,
 }
 
 pub fn load(dir: &Path) -> Result<Data, String> {
@@ -656,17 +659,20 @@ pub fn load(dir: &Path) -> Result<Data, String> {
         ));
     }
     let need = |f: &str| read_json(&dir.join(f)).ok_or_else(|| format!("no {}/{f}", dir.display()));
-    let hdir = dir.join("headline");
-    let headline = if hdir.join("budgeted/archive/MANIFEST.sha256").exists() {
-        Some(reorder::load(&hdir, reorder::BUDGET)?)
-    } else {
-        None
+    let three = |sub: &str| -> Result<Option<reorder::Data>, String> {
+        let hdir = dir.join(sub);
+        if hdir.join("budgeted/archive/MANIFEST.sha256").exists() {
+            Ok(Some(reorder::load(&hdir, reorder::BUDGET)?))
+        } else {
+            Ok(None)
+        }
     };
     Ok(Data {
         est,
         work: need("work.json")?,
         oracle: need("oracle.json")?,
-        headline,
+        headline: three("headline")?,
+        headline_rerun: three("headline-rerun")?,
     })
 }
 
@@ -918,6 +924,173 @@ impl Data {
         match &self.headline {
             Some(h) => w.push_str(&h.markdown(m9)),
             None => w.push_str("_Not run yet: there is no verified archive under `results/exploratory/ceiling/headline/`._\n"),
+        }
+        let stopped = self
+            .headline
+            .as_ref()
+            .is_some_and(|h| h.largest_move().1.abs() > reorder::THRESHOLD);
+        if stopped && let Some(h) = &self.headline {
+            w.push_str("\n**The stop, within each run.** The budgeted build against the measured one in the same run, the builds in the order they ran, and the measured build's own spread from run to run. A move that is no larger than that spread, and comes from one run, is the machine's drift during the session rather than a change between builds; the rule stopped the check all the same, and the cells were re-run (D-103).\n\n");
+            w.push_str(&h.within_runs());
+        }
+        match &self.headline_rerun {
+            Some(h) => {
+                w.push_str("\n**The headline cells, re-run** beside the stopped run, on a quieter machine: before each of the nine runs, a 1-minute load average below 1.0 and XprotectService idle, besides M9's machine state (D-103):\n\n");
+                w.push_str(&h.markdown(m9));
+            }
+            None if stopped => w.push_str(
+                "\n_Not re-run yet: there is no verified archive under `headline-rerun/`._\n",
+            ),
+            None => {}
+        }
+        w
+    }
+
+    /// BENCHMARKS.md §8's block for the budget as adopted (D-103): the
+    /// numbers the paper cites, from this measurement (D-102's run).
+    pub fn final_markdown(&self, strict: f64) -> String {
+        let mut w = String::new();
+        let x = |ns: f64| format!("{:.0}", ns / strict);
+        let budget = self.work["default_budget"].as_u64().unwrap_or(0);
+        let rules = dc_policy::validate::MAX_RULES;
+        let proposed = self.work["proposed"]["rules"].as_u64().unwrap_or(0) as usize;
+        writeln!(
+            w,
+            "| Item | Value |\n|---|---|\n| Work budget per `Contains` call | {budget} units |\n| Rules per scope | at most {rules} |\n| Bytes per body | at most {} |",
+            dc_cbor::MAX_BODY_SIZE
+        )
+        .unwrap();
+        if let (Some((u, uk, f, _)), Some(c)) = (self.derivation(), self.ceiling()) {
+            writeln!(
+                w,
+                "| Derived ceiling per link | {} ms ({budget} × {u:.1} ns, {uk}, + {:.2} µs); {} strict Ed25519 verifications |\n| Derived ceiling per chain (N = 16, {LINKS} links) | {} ms |",
+                ms(c),
+                f / 1e3,
+                x(c),
+                ms(LINKS as f64 * c)
+            )
+            .unwrap();
+            let all = self.of("contains");
+            if let Some((k, m, _)) = all.first() {
+                writeln!(
+                    w,
+                    "| Worst input found ({} searched, up to 256 rules; a lower bound) | {k}: {} ms, {:.0}% of the ceiling |",
+                    all.len(),
+                    ms(*m),
+                    100.0 * m / c
+                )
+                .unwrap();
+            }
+            // The rule count of a label `…/rN_aM`.
+            let rules_of = |k: &str| -> Option<usize> {
+                k.rsplit('/')
+                    .next()?
+                    .strip_prefix('r')?
+                    .split('_')
+                    .next()?
+                    .parse()
+                    .ok()
+            };
+            if let Some((k, m, _)) = all
+                .iter()
+                .find(|e| rules_of(e.0).is_some_and(|r| r <= rules))
+            {
+                writeln!(
+                    w,
+                    "| Worst input found within {rules} rules | {k}: {} ms, {:.0}% of the ceiling |",
+                    ms(*m),
+                    100.0 * m / c
+                )
+                .unwrap();
+            }
+        }
+        if let Some(rows) = self.work["admitted"].as_array() {
+            let frozen: Vec<String> = rows
+                .iter()
+                .filter(|r| r["family"] == "frozen")
+                .map(|r| {
+                    let a = r["atoms"].as_u64().unwrap_or(0);
+                    format!(
+                        "{a} atom{}: {}",
+                        if a == 1 { "" } else { "s" },
+                        r["max_admitted_rules"]
+                    )
+                })
+                .collect();
+            writeln!(
+                w,
+                "| Admitted, the frozen generator's shape (most rules) | {} |",
+                frozen.join("; ")
+            )
+            .unwrap();
+            if let Some(big) = rows
+                .iter()
+                .filter(|r| r["family"] != "frozen")
+                .max_by_key(|r| r["scope_bytes_at_max"].as_u64().unwrap_or(0))
+            {
+                writeln!(
+                    w,
+                    "| Largest admitted scope, string-heavy | {} bytes: {} rules × {} atoms of {}-byte strings ({}); larger than a body, so there the body limit binds |",
+                    big["scope_bytes_at_max"],
+                    big["max_admitted_rules"],
+                    big["atoms"],
+                    big["bytes_per_string"],
+                    big["family"].as_str().unwrap_or("?")
+                )
+                .unwrap();
+            }
+        }
+        let (l2, l5) = (self.of("line2-64k"), self.of("line5-64k"));
+        if let (Some(a), Some(b)) = (l2.first(), l5.first()) {
+            let n = SCOPE_BODIES as f64;
+            writeln!(
+                w,
+                "| Unsigned decoding per chain at these limits (lines 2 and 5, {SCOPE_BODIES} scope bodies, N = 16) | {} ms ({} + {}), {} strict Ed25519 verifications; it grows with the bytes received |",
+                ms(n * (a.1 + b.1)),
+                ms(n * a.1),
+                ms(n * b.1),
+                x(n * (a.1 + b.1))
+            )
+            .unwrap();
+        }
+        if proposed != rules {
+            writeln!(
+                w,
+                "\n_The bodies above were filled to {proposed} rules, not {rules}._"
+            )
+            .unwrap();
+        }
+        let o = &self.oracle;
+        let wb = &o["work_budget"];
+        writeln!(
+            w,
+            "| Differential oracle ({} pairs) | completeness {:.4} at the budget ({:.4} without); soundness violations {}; pairs over the budget {} |",
+            o["contains"]["cases"],
+            wb["completeness_overall_at_default_budget"]["completeness"].as_f64().unwrap_or(f64::NAN),
+            o["contains"]["completeness_overall"]["completeness"].as_f64().unwrap_or(f64::NAN),
+            o["contains"]["soundness_violations"],
+            wb["exhausted_at_default_budget"]["wellformed_pairs"]
+        )
+        .unwrap();
+        let profiles = self.work["profiles_max_work"]
+            .as_object()
+            .map(|m| m.values().filter_map(Value::as_u64).max().unwrap_or(0))
+            .unwrap_or(0);
+        writeln!(
+            w,
+            "| Largest `Contains` count of the workload profiles | {profiles} |"
+        )
+        .unwrap();
+        let mv = |h: &reorder::Data| {
+            let (cell, m) = h.largest_move();
+            format!("{:+.1}% ({cell})", 100.0 * m)
+        };
+        if let Some(h) = &self.headline {
+            writeln!(w, "| Headline cells, largest move against the measured build | {}; stopped by the 5% rule |", mv(h)).unwrap();
+        }
+        match &self.headline_rerun {
+            Some(h) => writeln!(w, "| Headline cells, re-run | {} |", mv(h)).unwrap(),
+            None => writeln!(w, "| Headline cells, re-run | not run yet |").unwrap(),
         }
         w
     }

@@ -52,3 +52,5 @@ results/exploratory/budget/headline/*/aborted/
 results/exploratory/ceiling*/criterion/
 results/exploratory/ceiling*/headline/*/raw/
 results/exploratory/ceiling*/headline/*/aborted/
+results/exploratory/ceiling*/headline-rerun/*/raw/
+results/exploratory/ceiling*/headline-rerun/*/aborted/

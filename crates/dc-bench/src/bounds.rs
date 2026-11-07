@@ -26,6 +26,13 @@ pub const BODY_SPARE: usize = 1024;
 /// The shortest well-formed rule head, so that the most atoms fit a body.
 pub const SHORT_HEAD: &str = "allow at=o:service:s tool=t action=a params { x: int }";
 
+/// Can a scope of `rules` rules be built? Since D-103 a scope has at most
+/// 96 rules; cells of earlier measurements above that are skipped, and
+/// their archived results stand.
+pub fn constructible(rules: usize) -> bool {
+    rules <= dc_policy::validate::MAX_RULES
+}
+
 /// Does a body carrying `s` stay within D-03's 64 KiB, with `BODY_SPARE`
 /// bytes to spare?
 pub fn fits(s: &Scope) -> bool {
@@ -423,7 +430,7 @@ pub fn max_rules(pad: Pad, atoms: usize) -> Option<usize> {
     if !ok(1) {
         return None;
     }
-    let (mut lo, mut hi) = (1usize, 256usize);
+    let (mut lo, mut hi) = (1usize, dc_policy::validate::MAX_RULES);
     while lo < hi {
         let mid = (lo + hi).div_ceil(2);
         if ok(mid) {
@@ -461,7 +468,7 @@ pub fn work_counts() -> serde_json::Value {
         })
         .collect();
     let mut inputs = serde_json::Map::new();
-    for (rules, atoms) in COST_CELLS {
+    for (rules, atoms) in COST_CELLS.into_iter().filter(|c| constructible(c.0)) {
         let id = format!("r{rules}_a{atoms}");
         let (p, c) = (
             frozen_worst(rules, atoms, 1000),

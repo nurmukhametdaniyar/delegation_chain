@@ -236,6 +236,55 @@ impl Data {
             .expect("cells")
     }
 
+    /// The order the builds ran in run `r`: the builds rotated by r − 1.
+    fn order(&self, r: usize) -> Vec<&'static str> {
+        let b = self.check.builds;
+        (0..3).map(|i| b[(i + r - 1) % 3]).collect()
+    }
+
+    /// Each cell's new ÷ base within each run, and the base build's own
+    /// spread across runs: what separates a change between builds from the
+    /// machine's drift during the session (D-102's stopped check).
+    pub fn within_runs(&self) -> String {
+        let mut w = String::new();
+        let [base, _, new] = self.check.builds;
+        let (m, n) = (self.build(base), self.build(new));
+        let pct = |x: f64| format!("{:+.1}%", 100.0 * x);
+        let runs: Vec<usize> = m.per_run(CELLS[0].0, CELLS[0].1).keys().copied().collect();
+        let head: Vec<String> = runs
+            .iter()
+            .map(|r| format!("Run {r} ({})", self.order(*r).join(", ")))
+            .collect();
+        writeln!(
+            w,
+            "| Cell | {} | {base}'s own spread across runs |\n|---|{}---|",
+            head.join(" | "),
+            "---|".repeat(runs.len())
+        )
+        .unwrap();
+        for (arm, state) in CELLS {
+            let (mr, nr) = (m.per_run(arm, state), n.per_run(arm, state));
+            let cells: Vec<String> = runs
+                .iter()
+                .map(|r| match (mr.get(r), nr.get(r)) {
+                    (Some(a), Some(b)) => pct(b / a - 1.0),
+                    _ => "—".into(),
+                })
+                .collect();
+            let (lo, hi) = mr
+                .values()
+                .fold((f64::MAX, f64::MIN), |(lo, hi), v| (lo.min(*v), hi.max(*v)));
+            writeln!(
+                w,
+                "| {arm} {state} | {} | {} |",
+                cells.join(" | "),
+                pct(hi / lo - 1.0)
+            )
+            .unwrap();
+        }
+        w
+    }
+
     /// The tables of BENCHMARKS.md §8's block for the check (D-96, D-100).
     /// `m9` gives M9's pooled median for a cell (arm, state) at N = 3,
     /// medium, in ns.

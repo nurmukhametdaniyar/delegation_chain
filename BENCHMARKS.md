@@ -1750,4 +1750,37 @@ The ten costliest inputs (ms):
 
 **Thermal flags** (the calibration probe or pmset, around each configuration; none re-run): pre-budget run 1: A warm N=3 medium; pre-budget run 2: A warm N=3 medium; pre-budget run 2: D warm+prefix N=3 medium; pre-budget run 2: B warm+prefix N=3 medium; pre-budget run 2: C warm N=3 medium; budgeted run 3: C warm N=3 medium.
 
+**The stop, within each run.** The budgeted build against the measured one in the same run, the builds in the order they ran, and the measured build's own spread from run to run. A move that is no larger than that spread, and comes from one run, is the machine's drift during the session rather than a change between builds; the rule stopped the check all the same, and the cells were re-run (D-103).
+
+| Cell | Run 1 (measured, pre-budget, budgeted) | Run 2 (pre-budget, budgeted, measured) | Run 3 (budgeted, measured, pre-budget) | measured's own spread across runs |
+|---|---|---|---|---|
+| B warm+prefix | -2.2% | +0.3% | -1.4% | +2.8% |
+| D warm+prefix | -7.3% | -3.8% | -0.5% | +9.3% |
+| A warm | -2.5% | +0.5% | -1.2% | +2.3% |
+| C warm | -2.8% | +0.4% | -1.6% | +2.7% |
+
+_Not re-run yet: there is no verified archive under `headline-rerun/`._
+
+
+### The budget as adopted
+
+D-103 adopts what D-101 and D-102 measured, with limits aligned to the budget: at most 96 rules per scope, and the body limit kept at 64 KiB. The default budget admits string-heavy scopes slightly larger than a body, so there the body limit, not the budget, binds, by design; the unsigned decoding cost below grows with the bytes received. These are the numbers the paper cites, from D-102's run and the re-run of its headline cells, all exploratory and generated from `results/exploratory/ceiling2/`.
+
+| Item | Value |
+|---|---|
+| Work budget per `Contains` call | 65536 units |
+| Rules per scope | at most 96 |
+| Bytes per body | at most 65536 |
+| Derived ceiling per link | 0.97 ms (65536 × 14.8 ns, int-build/lists32x64, + 0.08 µs); 47 strict Ed25519 verifications |
+| Derived ceiling per chain (N = 16, 15 links) | 14.5 ms |
+| Worst input found (301 searched, up to 256 rules; a lower bound) | xlist16/r129_a24: 0.90 ms, 92% of the ceiling |
+| Worst input found within 96 rules | xlist16/r96_a32: 0.89 ms, 92% of the ceiling |
+| Admitted, the frozen generator's shape (most rules) | 1 atom: 47; 2 atoms: 40; 4 atoms: 29; 8 atoms: 18; 16 atoms: 11; 32 atoms: 5 |
+| Largest admitted scope, string-heavy | 66405 bytes: 4 rules × 16 atoms of 1024-byte strings (string-prefix); larger than a body, so there the body limit binds |
+| Unsigned decoding per chain at these limits (lines 2 and 5, 16 scope bodies, N = 16) | 36.4 ms (25.0 + 11.4), 1763 strict Ed25519 verifications; it grows with the bytes received |
+| Differential oracle (150000 pairs) | completeness 0.9197 at the budget (0.9197 without); soundness violations 0; pairs over the budget 0 |
+| Largest `Contains` count of the workload profiles | 4656 |
+| Headline cells, largest move against the measured build | -7.2% (D warm+prefix); stopped by the 5% rule |
+| Headline cells, re-run | not run yet |
+
 

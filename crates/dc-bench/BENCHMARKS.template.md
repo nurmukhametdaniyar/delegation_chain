@@ -383,3 +383,9 @@ The derivation gains probes of one-literal sets and of the scan checks alone. Ev
 
 {{ceilingcheck2}}
 
+### The budget as adopted
+
+D-103 adopts what D-101 and D-102 measured, with limits aligned to the budget: at most 96 rules per scope, and the body limit kept at 64 KiB. The default budget admits string-heavy scopes slightly larger than a body, so there the body limit, not the budget, binds, by design; the unsigned decoding cost below grows with the bytes received. These are the numbers the paper cites, from D-102's run and the re-run of its headline cells, all exploratory and generated from `results/exploratory/ceiling2/`.
+
+{{budgetfinal}}
+

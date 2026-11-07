@@ -7,8 +7,9 @@ use dc_types::{Kind, is_identifier};
 use crate::ast::{Literal, Op, Operand, Rule, ScopeForm, Type};
 use crate::error::{PolicyError, malformed};
 
-/// Size limits (D-21).
-pub const MAX_RULES: usize = 256;
+/// Size limits (D-21). Rules per scope: 96 since D-103, about twice the
+/// most the default work budget admits in any shape measured; 256 before.
+pub const MAX_RULES: usize = 96;
 pub const MAX_PARAMS: usize = 32;
 pub const MAX_ATOMS: usize = 32;
 pub const MAX_LIST: usize = 64;
@@ -81,7 +82,7 @@ pub(crate) fn validate_form(form: &ScopeForm) -> Result<(), PolicyError> {
                 return malformed("a rule list must have at least one rule");
             }
             if rules.len() > MAX_RULES {
-                return malformed(format!("more than {MAX_RULES} rules (D-21)"));
+                return malformed(format!("more than {MAX_RULES} rules (D-21, D-103)"));
             }
             rules.iter().try_for_each(validate_rule)
         }

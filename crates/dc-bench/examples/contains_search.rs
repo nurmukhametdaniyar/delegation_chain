@@ -22,7 +22,7 @@ fn main() {
                 println!("{} {atoms} - larger than a body at 2 rules", pad.label());
                 continue;
             }
-            let (mut lo, mut hi) = (2usize, 256usize);
+            let (mut lo, mut hi) = (2usize, dc_policy::validate::MAX_RULES);
             while lo < hi {
                 let mid = (lo + hi).div_ceil(2);
                 if ok(mid) { lo = mid } else { hi = mid - 1 }

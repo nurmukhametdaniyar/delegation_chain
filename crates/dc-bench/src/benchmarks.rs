@@ -938,6 +938,11 @@ impl Doc {
                     ),
                 }
             }
+            // The budget as adopted (D-103), from D-102's run.
+            ["budgetfinal"] => match &self.ceiling2 {
+                Some(d) => d.final_markdown(self.crit("ed25519/verify_strict")?),
+                None => "_Not run yet: there is no `results/exploratory/ceiling2/criterion.tar.zst`._".into(),
+            },
             // The reorder check (D-96), from its three builds' archives.
             ["reorder"] => match &self.reorder {
                 Some(d) => d.markdown(&|arm, state| {
