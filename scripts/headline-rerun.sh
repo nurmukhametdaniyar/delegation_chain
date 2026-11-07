@@ -64,8 +64,10 @@ if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
   echo "headline-rerun: commit first; the budgeted build is HEAD" >&2
   exit 1
 fi
-if [[ $dry == 0 && -e "$out" ]]; then
-  echo "headline-rerun: $out exists; refusing to overwrite measured data" >&2
+# Only a run's data blocks a rerun: an attempt that never got a quiet
+# machine leaves an empty directory, and running again starts over.
+if [[ $dry == 0 ]] && compgen -G "$out/*/raw" >/dev/null; then
+  echo "headline-rerun: $out holds measured runs; refusing to overwrite them" >&2
   exit 1
 fi
 rm -rf "$out"
@@ -125,7 +127,9 @@ print(", ".join(dict.fromkeys(why)))
   rm -rf "$env_dir"
 }
 
-# Waits up to $wait_min minutes for a quiet machine; logs the check.
+# Waits up to $wait_min minutes for a quiet machine; logs the check. Right
+# after the builds, Spotlight indexes the new build trees and XProtect scans
+# the new binaries, so the first wait is the longest.
 await_quiet() {
   [[ $dry == 1 ]] && return 0
   local why
