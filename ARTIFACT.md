@@ -1,6 +1,6 @@
 # Artifact: reproducing the DelegationChain benchmark's figures and tables
 
-This repository is the reference implementation of DelegationChain (paper revision 2026-10-06, published separately) and the benchmark of whether BLS aggregation is a net benefit once caching is accounted for. The paper's IEEE Access version describes the specification at `840e4e2`, with Algorithm 2 in D-94's order and the work budget of D-100 to D-103; its Supplementary Material, Section S12, reports the exploratory measurements from D-96 on, and §5's table lists their commits. This file explains how to regenerate, from the archived raw measurements:
+This repository is the reference implementation of DelegationChain (paper revision 2026-10-06, published separately) and the benchmark of whether BLS aggregation is a net benefit once caching is accounted for. The paper's IEEE Access version describes the specification at tag v0.1.2: Algorithm 2 in D-94's order, the work budget of D-100 to D-103, and the MCP binding of D-104 (SPEC §10.6). Its Supplementary Material, Section S12, reports the exploratory measurements from D-96 on, and §5's table lists their commits. This file explains how to regenerate, from the archived raw measurements:
 - every figure and table in the paper's evaluation;
 - `BENCHMARKS.md`;
 - the results summary.
