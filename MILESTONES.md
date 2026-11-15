@@ -679,3 +679,10 @@ The author asked for three follow-ups.
 - **The headline check, re-run: built (2026-11-07).** `scripts/headline-rerun.sh` re-runs D-96's four cells in three builds on a quieter machine (load average below 1.0, XprotectService idle, before each run), beside D-102's stopped run, which stays recorded with its analysis within each run.
 - **BENCHMARKS.md §8, "The budget as adopted":** the numbers the paper cites, generated from D-102's run; the headline row fills in once the re-run exists. P-35 lists the paper's locations.
 
+## The MCP binding (2026-11-15)
+
+- **D-104.** The author's decisions for Part D: the chain travels in `tools/call` `params._meta` under `io.github.nurmukhametdaniyar/delegationchain`, as unpadded base64url; this matches MCP revision 2026-07-28's `_meta` key format. B_N's tool is `params.name` and its action `call`. Numbers must be integer literals in the CBOR range, and strings NFC; nothing is normalized.
+  - **Spec.** SPEC §10.6 (new) states the binding, its rules, the request size bound and a worked example: the medium profile, with rule 1 at `action=call`. §2 has a new open exception, and P-36 lists the paper's locations and the rules as implemented.
+  - **Code.** `dc_verifier::mcp` holds a strict JSON parser and base64url codec written by hand, the arguments mapping, and `Verifier::verify_mcp_call(request, t)`, which checks tool, action and arguments against B_N before Verify. Verify is unchanged. No new crate and no new dependency.
+  - **Tests.** `tests/mcp_binding.rs` (13 tests, in both instantiations) and the module's unit tests (4). The security suite and the paper's security table are unchanged.
+  - **Two readings the decisions left open (D-104).** Depth is counted in B_N's terms, so the arguments nest at most 15 levels. D3, D4, duplicate keys and depth cover the whole request, not only the arguments.

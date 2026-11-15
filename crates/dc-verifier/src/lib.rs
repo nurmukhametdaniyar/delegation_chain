@@ -10,6 +10,7 @@
 //! their hash. Both are filled during verification. Only line 50's nonce
 //! insert changes a later decision.
 
+pub mod mcp;
 mod nonce;
 #[cfg(feature = "variant-prefix-cache")]
 mod prefix;
@@ -32,6 +33,7 @@ use dc_types::{
 };
 
 pub use dc_crypto::ops::OpCounts;
+pub use mcp::McpReject;
 pub use nonce::{NonceCache, nonce_key};
 #[cfg(feature = "variant-prefix-cache")]
 pub use prefix::{Path, PrefixVerifier};

@@ -22,6 +22,12 @@ pub fn is_nfc_deep(v: &Value) -> bool {
     }
 }
 
+/// True if `s` is NFC. The MCP binding checks every string and key of a
+/// request with it and never normalizes (SPEC §10.6, D-104).
+pub fn is_nfc_str(s: &str) -> bool {
+    is_nfc(s)
+}
+
 fn nfc(s: &str) -> String {
     if is_nfc(s) {
         s.to_owned()

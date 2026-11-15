@@ -1426,3 +1426,45 @@ Decision:
 Why: the author's choice after D-102's run: limits about twice what the budget admits, except where the body limit already binds below that.
 Affects benchmarks: no measured result changes. BENCHMARKS.md §8 only.
 
+
+## D-104 — An MCP binding: the chain in `_meta`, the arguments as the parameter map, checked before Verify
+Spec section: §10.6 (new), §11.5 (new), §1, §2, §3.1, §3.2, §10.1, changelog     Paper section: §2.1, §2.3, §4.1, §4.4, §9.1; P-36
+Decision:
+- **The author's decisions.**
+  - **D1.** The chain travels in `tools/call` `params._meta` under `io.github.nurmukhametdaniyar/delegationchain`, as unpadded base64url over the envelope's canonical encoding.
+    - Checked against the `_meta` key format of MCP revision 2026-07-28. The prefix's labels (`io`, `github`, `nurmukhametdaniyar`) each start with a letter and end with a letter or digit. The second label is neither `modelcontextprotocol` nor `mcp`. The name `delegationchain` begins and ends with an alphanumeric character. No difference was found.
+  - **D2.** `B_N.tool = params.name`, and `B_N.action` is the constant `call`.
+  - **D3.** Any JSON number that is not an integer literal, without fraction or exponent, within [−2⁶⁴, 2⁶⁴ − 1], makes the request malformed; so does `-0`.
+  - **D4.** Any string or object key that is not NFC makes the request malformed. Nothing is normalized.
+  - **The rest.** The mapping, the malformed cases, the size question, and `verify_mcp_call`'s five steps, as the author gave them: steps 1–4 run before Verify, each mismatch with its own reason, and Algorithms 1 and 2 are unchanged.
+- **Implementation choices.** These are open points the decisions left; SPEC §10.6 states each.
+  - **Depth is counted as D-02 counts it in B_N.**
+    - The arguments are the parameter map at depth 2 inside the body map. So "nesting deeper than 16" means the arguments nest at most 15 levels, themselves included.
+    - In the request, whose object is depth 1, the limit is 17, for every container.
+    - Counting the arguments object as depth 1 would admit 16 levels that no body can carry: the encoder refuses them, and a test shows it. "Depth 16 accepted, 17 rejected" therefore holds in B_N's terms. In the arguments' own terms it is 15 and 16.
+  - **D3, D4, duplicate keys, invalid Unicode and depth cover the whole request,** not only the arguments.
+    - D3 and D4 say "any JSON number" and "any string or object key".
+    - A duplicate `name` or `method` is the classic place where two parsers read one request differently.
+    - So a fraction in `id`, or in another `_meta` entry, makes the request malformed.
+  - **A strict JSON-RPC shape.**
+    - `jsonrpc` is `"2.0"`, `id` is a string or an integer, and `method` is a string; `params` is an object and `params.name` a string.
+    - `params.arguments` is an object when present. `null` is malformed, not absent.
+    - `_meta` is an object, and the D1 value a string.
+    - Other members are ignored. MCP's required per-request `_meta` entries are the server's to check.
+  - **Reading B_N.** A chain whose envelope or last body does not decode as an invocation body is rejected before Verify (`NoInvocation`). Verify would reject it at line 2 or 7.
+  - **The base64url checks' order.** Padding, whitespace and other characters are rejected as they are met. Then a length of 1 modulo 4 is rejected, then non-zero trailing bits.
+  - **The total size.** At most 1,947,584 bytes, checked before parsing: ⌈4E/3⌉ + 6 × 64 KiB + 64 KiB, where E is the envelope's decoding limit (SPEC §10.6 gives the terms).
+  - **The comparison.** `Canon(A)` is compared with `Params::canonical_bytes` of B_N's parameters, which normalizes them to NFC. Line 5 rejects a body whose parameters are not NFC.
+- **Placement.**
+  - `dc_verifier::mcp` holds the parser, the base64url codec, the mapping, `McpReject`, and `Verifier::verify_mcp_call` and `verify_mcp_call_counted`.
+  - `dc_cbor::nfc::is_nfc_str` is new.
+  - No new crate and no new dependency. The parser and the codec are written by hand, as the CBOR codec is (SPEC §3.2). `serde_json` keeps the last of two equal keys and reads −2⁶⁴ as a float.
+- **Not included.** JSON-RPC error codes and an MCP SDK (SPEC §10.6 says both). The only client-side helper is `encode_base64url`.
+- **Consequences recorded in SPEC §10.6.**
+  - Policies for MCP tools name `action=call`; the paper's §6.2 rules (`action=transfer`) would deny them.
+  - An MCP tool name outside the identifier grammar cannot be bound.
+  - Parameters holding byte strings cannot be sent.
+  - A server must parse integers exactly; a double holds them only up to 2⁵³.
+  - A retried call needs a new invocation body.
+Why: the author's choice (D1–D4, the mapping and the order). The implementation choices are the narrowest reading that keeps D-02 and D-03 as they are and gives every JSON parser one reading of an accepted request.
+Affects benchmarks: no. `verify_at` and Algorithms 1 and 2 are unchanged. The binding is a separate entry point that no benchmark calls.

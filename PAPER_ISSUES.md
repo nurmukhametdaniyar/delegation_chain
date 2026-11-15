@@ -435,3 +435,43 @@ Suggested fix to the paper:
 - §9.3, "Containment completeness": a change to step 3(a) must come with its charges in the unit's table.
 Severity: clarity (a denial-of-service cost within the threat model; soundness is unaffected)
 Status: open in revision 2026-10-06. SPEC.md runs ahead of the paper (SPEC §2, D-100).
+
+## P-36 — The paper has no MCP binding
+Paper location: §2.1 ("The host requests a tool invocation by sending a JSON-RPC message specifying the tool name and parameter values"); §2.3 (UCAN "lacks … MCP transport binding"); §4.1 (the verifier is "the receiving tool or MCP server"); §4.4 (parameter binding over a CBOR map); §9.1 ("We target MCP rather than Web3 transport") (revision 2026-10-06)
+Problem:
+- The paper targets MCP, and counts the lack of an MCP transport binding against UCAN. But it does not say:
+  - how a chain travels in an MCP request;
+  - which request fields B_N's tool, action and parameters correspond to;
+  - how JSON arguments become §4.4's CBOR parameter map.
+- Without these rules, two implementations can bind different values. JSON has floats, duplicate keys, text that is not NFC and lone surrogates, and §4.4's map admits none of them. So a server could run a tool on arguments other than those the chain signs.
+Evidence: SPEC §10.6 and `tests/mcp_binding.rs` (D-104).
+What the implementation does: D-104, SPEC §10.6. The entry point `verify_mcp_call(request, t)` checks the request against B_N, then runs Verify unchanged.
+Suggested fix to the paper: state the binding, with these rules as implemented.
+- **The chain.** `params._meta["io.github.nurmukhametdaniyar/delegationchain"]` is a string: the envelope's canonical encoding in unpadded base64url (RFC 4648 §5).
+  - The decoder rejects `=`, whitespace and any character outside `A–Z a–z 0–9 - _`, then a length of 1 modulo 4, then non-zero unused bits in the last character.
+  - The key follows MCP revision 2026-07-28's `_meta` key format.
+- **The tool and action.** `B_N.tool = params.name`, compared as strings, and `B_N.action = "call"`. So policies for MCP tools name `action=call`.
+- **The audience.** Line 8 makes `B_N.aud` the verifier's own service identifier.
+- **Malformed requests.** The whole request is parsed as RFC 8259 JSON. It is malformed if:
+  - it is larger than 1,947,584 bytes;
+  - it is not UTF-8, or not one JSON value with only whitespace around it;
+  - any number in it is not an integer literal without fraction or exponent within [−2⁶⁴, 2⁶⁴ − 1], or is `-0`;
+  - any string or key in it is not NFC after unescaping (nothing is normalized);
+  - a `\u` escape is a lone surrogate;
+  - an object in it has two equal keys after unescaping;
+  - a container in it is deeper than 17, which keeps the arguments within D-02's 16 levels in B_N;
+  - `jsonrpc` is not `"2.0"`, `id` is not a string or an integer, `method` is not a string, `params` is not an object, `params.name` is not a string, `params.arguments` is present but not an object, `_meta` is not an object, or the chain is not a string;
+  - the arguments' canonical encoding is larger than 64 KiB.
+- **Other rejections.** A method other than `tools/call` is rejected, and so is a request with no chain under the key.
+- **The mapping.** An absent `arguments` is `{}`. Objects become maps with text keys, arrays become arrays, and integers, strings, `true`, `false` and `null` map to themselves.
+- **The order.** Before Verify, in this order:
+  1. parse the request;
+  2. decode the chain;
+  3. map the arguments;
+  4. read B_N from the envelope (a chain without a readable invocation body is rejected), then require `B_N.tool = params.name`, `B_N.action = call` and `Canon(B_N.params) = Canon(arguments)` byte for byte, each with its own reason.
+  So a mismatched request consumes no nonce and costs no signature check. Then run Verify, with Algorithms 1 and 2 unchanged.
+- **The server's part.** The server passes the verifier the request's bytes as received, and runs the tool only on an accepted request, with the name and arguments of those bytes. It must parse integers exactly: an IEEE double holds them only up to 2⁵³.
+- **Limits.** Parameters that hold byte strings, and MCP tool names outside the identifier grammar, cannot be sent. A retried call needs a new invocation.
+- **No codes and no SDK.** The binding defines no JSON-RPC error codes and assumes no MCP SDK.
+Severity: interoperability (without a binding, two implementations, or a verifier and the server's own parser, can read different values from one request; the protocol is unaffected)
+Status: open in revision 2026-10-06. SPEC.md runs ahead of the paper (SPEC §2, D-104).

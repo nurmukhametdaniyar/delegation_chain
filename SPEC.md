@@ -11,6 +11,12 @@ Put this file in the repository root as `SPEC.md`.
 
 ## Changelog
 
+**2026-11-15 — an MCP binding (D-104; P-36).** The author's decisions on carrying a chain in an MCP `tools/call` request. This runs ahead of paper revision 2026-10-06, which has no binding (§2).
+- **The binding (§10.6, new).** The chain travels in `params._meta` under `io.github.nurmukhametdaniyar/delegationchain`, as unpadded base64url over the envelope's canonical encoding. B_N's tool is `params.name` and its action the constant `call`; its parameter map is `params.arguments`, mapped by fixed rules. The request is parsed strictly: a number that is not an integer literal in the CBOR range, a string or key that is not NFC, invalid Unicode, a duplicate key, nesting beyond D-02 or a size beyond the limits makes it malformed. Nothing is normalized.
+- **One entry point,** `Verifier::verify_mcp_call(request, t)`. It checks B_N's tool, action and parameters against the request before Verify, each with its own typed reason, so a mismatched request costs no signature check and consumes no nonce. Then Verify runs; Algorithms 1 and 2 are unchanged.
+- **Not included.** No JSON-RPC error codes, no MCP SDK, no new crate and no new dependency (§3.2).
+- **Tests (§11.5)** in `tests/mcp_binding.rs`; the security suite and the paper's security table are unchanged. Nothing measured changes.
+
 **2026-11-07 — size limits aligned with the budget (D-103).** At most 96 rules per scope (D-21 said 256), about twice the most the default budget admits in any shape D-102 measured. The 64 KiB body limit (D-03) is kept: the budget admits string-heavy scopes slightly larger than a body, so there the body limit binds, by design. §9.3 states both, and that unsigned decoding at lines 2 and 5 grows with the bytes received; §11.2's size rows follow.
 
 **2026-11-06 — set-forming atoms charged; searches and path walks charged finer (D-102).** D-101's measurement found a search input above the derived ceiling, so a charge was wrong (the author's rule).
@@ -157,7 +163,7 @@ Read these before writing any code. They override anything that seems locally co
 
 ### Non-goals
 
-Production hardening, network transport, MCP integration, a transparency log, persistence, HSM integration, post-quantum migration, and a normative wire specification. The encodings here are one reasonable instantiation, not a standard.
+Production hardening, network transport, MCP integration beyond the binding of §10.6 (no MCP SDK, server or JSON-RPC error codes), a transparency log, persistence, HSM integration, post-quantum migration, and a normative wire specification. The encodings here are one reasonable instantiation, not a standard.
 
 ---
 
@@ -179,6 +185,8 @@ If this spec contradicts the paper, the paper wins. Log the contradiction as a `
 
 **Exception (agreed 2026-11-02, open).** This spec runs ahead of paper revision 2026-10-06 on `Contains`'s work budget and the pin-time check (§9.6.1; D-100, P-35). Until the paper states them, this spec takes precedence on both.
 
+**Exception (agreed 2026-11-15, open).** This spec runs ahead of paper revision 2026-10-06 with an MCP binding (§10.6; D-104, P-36), which the paper does not define. Until the paper states one, §10.6 is the binding.
+
 ---
 
 ## 3. Repository and toolchain
@@ -199,7 +207,7 @@ delegationchain/
     dc-policy/      policy AST, text parser/printer, validation, evaluate, contains (§9)
     dc-registry/    in-memory registry, PoP, certificates, revocation, policy store (§6)
     dc-chain/       issuer, signing service, agent, approval service, chain builder (§8)
-    dc-verifier/    Algorithms 1–2, caches, nonce cache, clock (§10)
+    dc-verifier/    Algorithms 1–2, caches, nonce cache, clock, MCP binding (§10)
     dc-baselines/   VARIANT arms: BLS-individual, Ed25519, prefix caches, Biscuit (§12)
     dc-bench/       harness binary, workload generators, criterion benches, report generator (§13)
   tests/            workspace-level security suite (§11)
@@ -230,6 +238,8 @@ Pin exact versions in `Cargo.lock`, and record every version that affects a meas
 | Output             | `serde`, `serde_json`, `csv` |                                                                                   |
 
 Do **not** use `ciborium`, `serde_cbor` or `minicbor` for protocol structures. Their decoders do not enforce canonical form, and canonicity is a security property here (Algorithm 1 line 5). Write the small codec in §4.
+
+For the same reason the MCP binding (§10.6) parses requests and decodes base64url with its own code in `dc-verifier`, not `serde_json` or a base64 crate: a JSON library keeps the last of two equal keys, reads `1.0` as an integer or −2⁶⁴ as a float, and a lenient base64 decoder gives one byte string several encodings. The binding adds no dependency (D-104).
 
 ### 3.3 Build profile
 
@@ -995,6 +1005,7 @@ pub struct Verifier<S: ChainScheme, R: Resolver, P: PolicyStore, C: Clock> {
 
 pub fn verify(&self, chain: &[u8]) -> Result<Accepted, Reject>;
 pub fn pin(&self, org: &str, hash: [u8; 32]) -> Result<(), PinError>;  // the pin-time check (§9.6.1)
+pub fn verify_mcp_call(&self, request: &[u8], t: u64) -> Result<Accepted, McpReject>;  // §10.6
 ```
 
 ### 10.2 Algorithms 1–2, line by line
@@ -1068,6 +1079,121 @@ Add a separate feature `phase-timing` that records per-phase nanoseconds, for th
 | warm+prefix | populated         | populated    | prefix links cached | populated (arms B, D only) |
 
 "Warm" uses only the caches the paper describes (§5.4). "warm+prefix" is a **VARIANT**.
+
+### 10.6 MCP binding (D-104; ahead of the paper, P-36)
+
+An MCP tool invocation is a JSON-RPC 2.0 `tools/call` request (MCP specification, revision 2026-07-28). This section binds such a request to the chain it carries. The code is `dc_verifier::mcp`; the tests are in §11.5.
+
+**What the request binds.**
+- **The chain (D1).** `params._meta["io.github.nurmukhametdaniyar/delegationchain"]` is a JSON string: the unpadded base64url (RFC 4648 §5) of the envelope's canonical encoding (§7.5).
+  - The key follows revision 2026-07-28's `_meta` key format: a prefix of dot-separated labels, each starting with a letter and ending with a letter or digit, then `/`, then a name that begins and ends with an alphanumeric character.
+  - The prefix is reverse DNS, and its second label is neither `modelcontextprotocol` nor `mcp`, which are reserved.
+- **The tool and action (D2).** `B_N.tool = params.name`, compared as strings, and `B_N.action = "call"`, a constant.
+  - So a policy rule for an MCP tool names `action=call`.
+  - An MCP tool whose name is not an identifier (§9.1) cannot be invoked through the binding. MCP's names also allow `.`, and a leading digit or `_`.
+- **The parameters.** `Canon(B_N.params) = Canon(A)`, byte for byte, where A is `params.arguments` mapped as below.
+- **The audience** is not part of the binding. Line 8 requires `B_N.aud` to be the verifier's own service identifier, so a server's verifier is configured with the server's.
+
+**Malformed requests (D3, D4).** The verifier parses the whole request as RFC 8259 JSON, with its own parser. The request is malformed if:
+1. it is larger than 1,947,584 bytes (see "Size"). This is checked before parsing.
+2. it is not UTF-8, or not one JSON value with only whitespace around it (space, tab, line feed, carriage return). A byte-order mark is not whitespace.
+3. a number anywhere in it is not an integer literal within [−2⁶⁴, 2⁶⁴ − 1], or is `-0`. An integer literal is `-?(0|[1-9][0-9]*)`, with no fraction or exponent. So `1.0`, `1e3`, `1E3`, `0.5` and `-0` are malformed (D3).
+4. a string or object key anywhere in it is not NFC after unescaping. Nothing is normalized (D4).
+5. a `\u` escape is a lone surrogate: a high surrogate not followed by a `\u` low surrogate, or a low surrogate on its own.
+6. an object anywhere in it has two equal keys, compared after unescaping.
+7. a container in it is deeper than 17, the request object being depth 1.
+   - The arguments object is at depth 3 in the request. In B_N it is the parameter map inside the body map, at depth 2.
+   - So this is D-02's limit of 16 on B_N: the arguments nest at most 15 levels, themselves included. A deeper map does not fit in a body.
+8. its shape is wrong (below), or `Canon(A)` is larger than 64 KiB (D-03).
+
+Rules 3 to 7 cover the whole request, not only the arguments, so that any two JSON parsers read an accepted request alike (but see "Integers" below).
+
+**The request's shape,** read in this order. Other members of the request, of `params` and of `_meta` are ignored, MCP's own `_meta` entries among them.
+1. The request is an object, `jsonrpc` is `"2.0"`, `id` is a string or an integer, and `method` is a string. Otherwise the request is malformed.
+2. `method` is `"tools/call"`. Otherwise `NotToolsCall`.
+3. `params` is an object, `params.name` a string, and `params.arguments`, if present, an object. Otherwise malformed. An absent `arguments` is the empty object; `null` is not.
+4. `params._meta` is present and has the D1 key. Otherwise `MissingChain`. `_meta` must be an object and the key's value a string; otherwise malformed.
+
+**The chain's encoding: strict unpadded base64url.** Every rejection here is `ChainEncoding`.
+- Character by character: `=` rejects (padding); space, tab, line feed and carriage return reject (whitespace); so does any other character outside `A–Z a–z 0–9 - _`.
+- Then a length of 1 modulo 4 rejects.
+- Then any unused bit set in the last character rejects (non-canonical trailing bits).
+- So each byte string has exactly one accepted encoding.
+
+**The arguments mapping.** Objects become maps with text keys, arrays become arrays, integers integers, strings text, and `true`, `false` and `null` map to themselves.
+- Every check was made in parsing. So A is a parameter map within §4.1 and §4.3: text keys at every level, NFC text, integers in the CBOR range, and no floats, tags or byte strings.
+- Parameter maps that hold byte strings cannot be sent, since JSON has none.
+- `Canon(A)` is A's canonical encoding (§4.2).
+
+**`verify_mcp_call(request, t)`,** in this order:
+1. Parse the request and read its shape (above).
+2. Decode the chain.
+3. Map the arguments. Reject if `Canon(A)` is over 64 KiB.
+4. Read B_N, then compare.
+   - Decode the envelope (§7.5) and its last body, under the body's own `kind` (as line 2 does). If either fails, or the body is not an invocation body, reject with `NoInvocation`. Verify would reject that chain at line 2 or 7.
+   - Reject if `B_N.tool ≠ params.name` (`ToolMismatch`), then if `B_N.action ≠ "call"` (`ActionNotCall`), then if `Canon(B_N.params) ≠ Canon(A)` (`ArgumentsMismatch`).
+   - `Canon(B_N.params)` is §4.3's, NFC-normalized. Parameters that are not NFC pass here only if they normalize to A, and line 5 then rejects them.
+5. Run Verify on the chain at t: Algorithms 1 and 2, unchanged (Appendix A).
+
+Steps 1–4 do no signature check, resolution, policy-store lookup, `Contains` or `Evaluate`, and touch no cache. So a request they reject consumes no nonce and costs no signature check. §11.5 shows this with `count-ops`.
+
+**Results** are typed: `Result<Accepted, McpReject>`.
+- `McpReject` is one of `Malformed(reason)`, `NotToolsCall`, `MissingChain`, `ChainEncoding(reason)`, `NoInvocation(reason)`, `ToolMismatch`, `ActionNotCall`, `ArgumentsMismatch` or `Verify(Reject)`. The last carries Verify's line.
+- **The binding assigns no JSON-RPC error codes.** How a server reports a rejection is its own choice.
+- **It integrates no MCP SDK.** The server passes the verifier the request's bytes as received. It runs the tool only on an accepted request, with the name and arguments of those same bytes.
+
+**Size.** A request is bounded before parsing at ⌈4E/3⌉ + 6 × 64 KiB + 64 KiB = 1,947,584 bytes. E = 1,116,624 bytes is the envelope's decoding limit: 17 bodies of 64 KiB, with framing and signatures (§7.5). The three terms are:
+- the largest envelope in base64url;
+- six bytes of JSON for each byte of the largest `Canon(A)`. That is the most JSON without whitespace needs per byte of CBOR: `\u0061` for a one-byte character, or `false,` for one byte;
+- 64 KiB for everything else.
+
+So a request fits if its chain is written without escapes, its arguments without whitespace, and everything outside the chain's string and the arguments' value takes at most 64 KiB. Parsing is linear in the request, and recurses at most 17 deep. The decoded chain and the arguments are then held to their own limits (D-03, D-16).
+
+**Integers.** D3 admits the whole CBOR range. A JSON parser that reads numbers as IEEE doubles, as JavaScript's does, holds integers exactly only up to 2⁵³ in magnitude. A server whose MCP stack parses that way would run the tool on a different value than the chain binds, for a larger integer. Such a server must parse integers exactly.
+
+**Retries.** An accepted request consumes its invocation's nonce (line 50). So a retried call needs a new invocation body. That includes MCP's multi-round-trip requests, which resend `tools/call` with `inputResponses` under a new id.
+
+**Worked example: the medium profile.** The medium profile (§13.2; N = 3) invokes payments with `{amount: 500, to_account: "acct_vendor_a"}`, which the paper's §6.2 rule 1 allows. Over MCP its action is `call`, so the policy's rule 1 reads:
+
+```
+allow at=orgb:service:payments
+  tool=payments action=call
+  params { amount: int,
+           to_account: string }
+  where amount <= 1000
+```
+
+B_N has `aud = orgb:service:payments`, `tool = payments`, `action = call`, and that parameter map. The agent sends:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "payments",
+    "arguments": {
+      "amount": 500,
+      "to_account": "acct_vendor_a"
+    },
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {},
+      "io.github.nurmukhametdaniyar/delegationchain": "<unpadded base64url of the chain's envelope>"
+    }
+  }
+}
+```
+
+The verifier at `orgb:service:payments`:
+1. parses the request. Every number is an integer literal, every string and key is NFC, and no object has two equal keys. The method is `tools/call`, the name `payments`, and the chain is under the D1 key. The two `io.modelcontextprotocol/` entries are ignored.
+2. decodes the chain.
+3. maps the arguments to `{amount: 500, to_account: "acct_vendor_a"}`. Its canonical encoding is these 36 bytes: a map of two entries, then `"amount"` and 500, then `"to_account"` and `"acct_vendor_a"`, the keys in length-first order (§4.2):
+   `a2 66 616d6f756e74 19 01f4 6a 746f5f6163636f756e74 6d 616363745f76656e646f725f61`
+4. reads B_N. Its tool `payments` equals `params.name`, its action is `call`, and `Canon(B_N.params)` equals those 36 bytes.
+5. runs Verify, which accepts with N = 3 and decision `allow` (rule 1).
+
+With `"amount": 501` the request is rejected at step 4 (`ArgumentsMismatch`), before any signature check, and the chain stays usable with its own arguments. `tests/mcp_binding.rs::medium_profile_round_trip` runs this request and checks the 36 bytes.
 
 ---
 
@@ -1178,6 +1304,32 @@ Unless a row says otherwise, give every body the same `exp`, set every `hop_inde
 
 - No panics.
 - No accepted mutation, unless it is byte-identical to the original.
+
+### 11.5 MCP binding (`tests/mcp_binding.rs`)
+
+These tests are kept out of the security suite, so that the paper's security table does not change. They run in both instantiations. Each sends requests through `verify_mcp_call` against chains built for a policy whose rules name `action=call`.
+- **Round trip.** §10.6's worked example is accepted, and its canonical arguments are the 36 bytes printed there.
+- **Member order** in the arguments, and in the request around them, does not matter.
+- **NFC.**
+  - `"\u00e9"` and a literal é are accepted. As a value they are accepted end to end. As a key the binding accepts them, and Verify denies at line 40, since a key must be an identifier.
+  - `"e\u0301"`, escaped or literal, is rejected, as a value and as a key.
+  - Lone surrogates are rejected.
+- **Integers.** 2⁶⁴ − 1 and −2⁶⁴ are accepted end to end. 2⁶⁴, −2⁶⁴ − 1 and larger magnitudes are rejected; so are `1.0`, `1e3`, `1E3`, `0.5`, `-0` and other non-integers.
+- **Duplicate keys** are rejected: in the arguments at the top level and nested, keys equal only after unescaping, and keys in the request around the arguments.
+- **Depth.** Depth 16 in B_N is accepted by the binding; Verify denies it at line 40, since no path of 15 segments is declared. Depth 17 is rejected, and a body cannot hold it.
+- **The chain's encoding.** A missing key, a missing `_meta`, padding, whitespace, non-canonical trailing bits, the standard alphabet and a non-string are each rejected. The chain is then accepted.
+- **Method.** A method other than `tools/call` is rejected.
+- **Tool and action.** A tool-name mismatch is rejected, and so is a chain whose action is not `call`.
+- **Arguments before Verify.**
+  - Extra, missing and changed arguments are each rejected with no signature verification, pairing, resolution, policy-store lookup, `Contains` or `Evaluate` (`count-ops`), and with the nonce cache empty.
+  - The same chain with its arguments is then accepted, and when replayed it is rejected at line 17.
+- **Absent arguments.** An absent `arguments` equals `{}`; `null` is malformed.
+- **The whole request.** Each of these is malformed: a fraction in `id` or in another `_meta` entry, a non-NFC string there, a wrong `jsonrpc`, a missing or null `id`, trailing text, a request over the size bound, and arguments over 64 KiB. Unknown members are ignored.
+
+The unit tests in `dc_verifier::mcp` cover:
+- the base64url codec, with RFC 4648's vectors and each rejection;
+- the request size bound;
+- JSON escapes and the JSON grammar.
 
 ---
 
