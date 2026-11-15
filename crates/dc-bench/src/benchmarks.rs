@@ -940,7 +940,16 @@ impl Doc {
             }
             // The budget as adopted (D-103), from D-102's run.
             ["budgetfinal"] => match &self.ceiling2 {
-                Some(d) => d.final_markdown(self.crit("ed25519/verify_strict")?),
+                Some(d) => {
+                    let mut earlier = vec![];
+                    if let Some(h) = self.budget.as_ref().and_then(|b| b.headline.as_ref()) {
+                        earlier.push(("D-100's run (D-99's unit)", h));
+                    }
+                    if let Some(h) = self.ceiling.as_ref().and_then(|c| c.headline.as_ref()) {
+                        earlier.push(("D-101's run (D-101's unit)", h));
+                    }
+                    d.final_markdown(self.crit("ed25519/verify_strict")?, &earlier)
+                }
                 None => "_Not run yet: there is no `results/exploratory/ceiling2/criterion.tar.zst`._".into(),
             },
             // The reorder check (D-96), from its three builds' archives.

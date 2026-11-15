@@ -240,3 +240,13 @@ Reason: D-101 made the work budget's unit a sound over-approximation of Contains
 - **The author's 5% stop rule fired** on D warm+prefix (budgeted against measured; D-102's run notes). The measured build's own D warm+prefix medians fall from run to run by more than that move.
 
 Configurations re-run: none.
+
+## 2026-11-15 — Exploratory run (not pre-registered), not completed: the headline cells re-run (ceiling2)
+Reason: D-102's headline check stopped on the author's 5% rule; the author asked for the four cells to be re-run on a quieter machine, beside the stopped run (D-103).
+- **What ran.** `scripts/headline-rerun.sh --wait 180` at `97b147e`. Before each run it waits for M9's machine state, a 1-minute load average below 1.0 and XprotectService idle.
+- **An earlier attempt** (2026-11-07, `--wait 30`, at `a8a5408`) waited 30 minutes before its first run and stopped with nothing measured: Spotlight indexing, XProtect's scans, `mediaanalysisd` and `apfsd` kept the load average above 1.0. Its empty directory made the next attempt refuse; the script now allows that (`97b147e`).
+- **This attempt** completed run 1 of the measured build (quiet at its start, load average 0.99; logged in `quiet.log`), then waited 180 minutes before run 1 of the pre-budget build without the load average falling below 1.0, and stopped.
+- **What is kept.** The one run's raw data, archived under `results/exploratory/ceiling2/headline-rerun/measured/archive/` with its manifest, and `quiet.log`. One build's runs cannot be compared, so no result is reported. At the author's request the work continues without the re-run (D-103).
+
+Configurations re-run: none of the frozen grid.
+

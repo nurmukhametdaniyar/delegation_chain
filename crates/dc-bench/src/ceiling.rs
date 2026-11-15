@@ -648,6 +648,9 @@ pub struct Data {
     /// The headline check re-run on a quieter machine, beside the stopped
     /// one (D-103), once archived.
     pub headline_rerun: Option<reorder::Data>,
+    /// An attempt at the re-run that did not complete: the runs it
+    /// archived, of nine.
+    pub rerun_partial: Option<usize>,
 }
 
 pub fn load(dir: &Path) -> Result<Data, String> {
@@ -667,12 +670,25 @@ pub fn load(dir: &Path) -> Result<Data, String> {
             Ok(None)
         }
     };
+    let headline_rerun = three("headline-rerun")?;
+    let rdir = dir.join("headline-rerun");
+    let rerun_partial = (headline_rerun.is_none() && rdir.exists()).then(|| {
+        reorder::BUDGET
+            .builds
+            .iter()
+            .filter_map(|b| std::fs::read_dir(rdir.join(b).join("archive")).ok())
+            .flatten()
+            .filter_map(|e| e.ok()?.file_name().into_string().ok())
+            .filter(|n| n.ends_with("-meta.json.zst"))
+            .count()
+    });
     Ok(Data {
         est,
         work: need("work.json")?,
         oracle: need("oracle.json")?,
         headline: three("headline")?,
-        headline_rerun: three("headline-rerun")?,
+        headline_rerun,
+        rerun_partial,
     })
 }
 
@@ -938,9 +954,16 @@ impl Data {
                 w.push_str("\n**The headline cells, re-run** beside the stopped run, on a quieter machine: before each of the nine runs, a 1-minute load average below 1.0 and XprotectService idle, besides M9's machine state (D-103):\n\n");
                 w.push_str(&h.markdown(m9));
             }
-            None if stopped => w.push_str(
-                "\n_Not re-run yet: there is no verified archive under `headline-rerun/`._\n",
-            ),
+            None if stopped => match self.rerun_partial {
+                Some(n) => writeln!(
+                    w,
+                    "\n**The re-run was not completed:** {n} of its nine runs, after which the machine did not get quiet enough (a load average below 1.0, XprotectService idle) within the wait; one build's runs cannot be compared, so no result is reported (BENCH_LOG.md, D-103)."
+                )
+                .unwrap(),
+                None => w.push_str(
+                    "\n_Not re-run yet: there is no verified archive under `headline-rerun/`._\n",
+                ),
+            },
             None => {}
         }
         w
@@ -948,7 +971,10 @@ impl Data {
 
     /// BENCHMARKS.md §8's block for the budget as adopted (D-103): the
     /// numbers the paper cites, from this measurement (D-102's run).
-    pub fn final_markdown(&self, strict: f64) -> String {
+    ///
+    /// `earlier` are the headline checks of earlier runs with the budget
+    /// (label, data), reported after this run's.
+    pub fn final_markdown(&self, strict: f64, earlier: &[(&str, &reorder::Data)]) -> String {
         let mut w = String::new();
         let x = |ns: f64| format!("{:.0}", ns / strict);
         let budget = self.work["default_budget"].as_u64().unwrap_or(0);
@@ -1086,11 +1112,19 @@ impl Data {
             format!("{:+.1}% ({cell})", 100.0 * m)
         };
         if let Some(h) = &self.headline {
-            writeln!(w, "| Headline cells, largest move against the measured build | {}; stopped by the 5% rule |", mv(h)).unwrap();
+            writeln!(w, "| Headline cells with this unit (D-102's run), largest move against the measured build | {}; stopped by the 5% rule |", mv(h)).unwrap();
         }
-        match &self.headline_rerun {
-            Some(h) => writeln!(w, "| Headline cells, re-run | {} |", mv(h)).unwrap(),
-            None => writeln!(w, "| Headline cells, re-run | not run yet |").unwrap(),
+        match (&self.headline_rerun, self.rerun_partial) {
+            (Some(h), _) => writeln!(w, "| Headline cells, re-run | {} |", mv(h)).unwrap(),
+            (None, Some(n)) => writeln!(
+                w,
+                "| Headline cells, re-run | not completed: {n} of 9 runs before the machine stayed too busy; no result |"
+            )
+            .unwrap(),
+            (None, None) => writeln!(w, "| Headline cells, re-run | not run yet |").unwrap(),
+        }
+        for (label, h) in earlier {
+            writeln!(w, "| Headline cells, {label} | {} |", mv(h)).unwrap();
         }
         w
     }

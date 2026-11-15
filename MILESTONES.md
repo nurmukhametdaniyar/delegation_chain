@@ -675,6 +675,7 @@ The author asked for three follow-ups.
 ## The budget as adopted (2026-11-07)
 
 - **D-103.** At most 96 rules per scope (D-21 said 256); the 64 KiB body limit kept, so that for string-heavy scopes the body limit binds rather than the budget. Spec, tests and the earlier exploratory constructions follow; CI passes.
-- **The headline check, re-run: built, not run.** `scripts/headline-rerun.sh` re-runs D-96's four cells in three builds on a quieter machine (load average below 1.0, XprotectService idle, before each run), beside D-102's stopped run, which stays recorded with its analysis within each run.
+- **The headline re-run: not completed** (2026-11-15): one of nine runs before the machine stayed too busy; at the author's request the work continues without it (BENCH_LOG.md, D-103). The final block reports D-102's stopped check, with D-100's and D-101's checks beside it.
+- **The headline check, re-run: built (2026-11-07).** `scripts/headline-rerun.sh` re-runs D-96's four cells in three builds on a quieter machine (load average below 1.0, XprotectService idle, before each run), beside D-102's stopped run, which stays recorded with its analysis within each run.
 - **BENCHMARKS.md §8, "The budget as adopted":** the numbers the paper cites, generated from D-102's run; the headline row fills in once the re-run exists. P-35 lists the paper's locations.
 

@@ -1759,12 +1759,12 @@ The ten costliest inputs (ms):
 | A warm | -2.5% | +0.5% | -1.2% | +2.3% |
 | C warm | -2.8% | +0.4% | -1.6% | +2.7% |
 
-_Not re-run yet: there is no verified archive under `headline-rerun/`._
+**The re-run was not completed:** 1 of its nine runs, after which the machine did not get quiet enough (a load average below 1.0, XprotectService idle) within the wait; one build's runs cannot be compared, so no result is reported (BENCH_LOG.md, D-103).
 
 
 ### The budget as adopted
 
-D-103 adopts what D-101 and D-102 measured, with limits aligned to the budget: at most 96 rules per scope, and the body limit kept at 64 KiB. The default budget admits string-heavy scopes slightly larger than a body, so there the body limit, not the budget, binds, by design; the unsigned decoding cost below grows with the bytes received. These are the numbers the paper cites, from D-102's run and the re-run of its headline cells, all exploratory and generated from `results/exploratory/ceiling2/`.
+D-103 adopts what D-101 and D-102 measured, with limits aligned to the budget: at most 96 rules per scope, and the body limit kept at 64 KiB. The default budget admits string-heavy scopes slightly larger than a body, so there the body limit, not the budget, binds, by design; the unsigned decoding cost below grows with the bytes received. These are the numbers the paper cites, all exploratory and generated: from D-102's run (`results/exploratory/ceiling2/`), and, for the headline cells, from D-102's stopped check, its re-run, which could not be completed, and the checks of D-100's and D-101's runs.
 
 | Item | Value |
 |---|---|
@@ -1780,7 +1780,9 @@ D-103 adopts what D-101 and D-102 measured, with limits aligned to the budget: a
 | Unsigned decoding per chain at these limits (lines 2 and 5, 16 scope bodies, N = 16) | 36.4 ms (25.0 + 11.4), 1763 strict Ed25519 verifications; it grows with the bytes received |
 | Differential oracle (150000 pairs) | completeness 0.9197 at the budget (0.9197 without); soundness violations 0; pairs over the budget 0 |
 | Largest `Contains` count of the workload profiles | 4656 |
-| Headline cells, largest move against the measured build | -7.2% (D warm+prefix); stopped by the 5% rule |
-| Headline cells, re-run | not run yet |
+| Headline cells with this unit (D-102's run), largest move against the measured build | -7.2% (D warm+prefix); stopped by the 5% rule |
+| Headline cells, re-run | not completed: 1 of 9 runs before the machine stayed too busy; no result |
+| Headline cells, D-100's run (D-99's unit) | -0.3% (A warm) |
+| Headline cells, D-101's run (D-101's unit) | +0.5% (D warm+prefix) |
 
 
