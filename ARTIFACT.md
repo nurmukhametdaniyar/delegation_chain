@@ -134,6 +134,21 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
 - **The measured commits have no work budget on `Contains`.** From D-100 on, lines 35 and 37 run `Contains` under a budget of 65,536 atom literals examined, and `pin` checks a policy's reflexive containment against it. Every measured chain's counts are far below the budget, so its decisions are the same. The exploratory measurement of the budget, including four headline cells with and without it, is in `results/exploratory/budget/` (BENCHMARKS.md §8).
 - **How.** Check the measured commit out in its own worktree (`git worktree add ../dc-m9 b175599`) and run the commands below there. The generators of this and later commits read the archives either way.
 
+**The commit each measurement ran at,** as `BENCH_LOG.md` and BENCHMARKS.md §8 record them. The exploratory measurements after M9 run at the commit that holds their tooling, and compare builds of other commits where they say so.
+
+| Measurement | Ran at | Builds compared | Data |
+|---|---|---|---|
+| M9, the frozen grid | `4e134dc` (runs 1, 2), `b175599` (the resume) | — | `results/` |
+| The exploratory session (D-77, D-79) | `b1cc711` | — | `results/exploratory/phases/`, `aip/` |
+| D-81's encoding checks (D-87) | `25242b8` | — | `results/exploratory/encoding/` |
+| The reorder check (D-96) | `e6c885b` | measured `b175599`, pre-reorder `4239168`, reordered `e6c885b` | `results/exploratory/reorder/` |
+| `Contains` at the size bounds (D-95) | `f75b706` | — | `results/exploratory/bounds/` |
+| `Contains` after D-97, the prototype budget (D-98, D-99) | `7d71b92` | — | `results/exploratory/contains-cost/` |
+| The budget on the protocol path (D-100) | `42b84ec` | measured `b175599`, pre-budget `2df8b53`, budgeted `42b84ec` | `results/exploratory/budget/` |
+| D-101's unit (its ceiling check failed) | `1126b57` | measured `b175599`, pre-budget `2df8b53`, budgeted `1126b57` | `results/exploratory/ceiling/` |
+| The final unit (D-102) | `7f1f149` | measured `b175599`, pre-budget `2df8b53`, budgeted `7f1f149` | `results/exploratory/ceiling2/` |
+| Its headline re-run (D-103), not completed | `97b147e` | measured `b175599` (one run only); pre-budget `2df8b53` and budgeted `97b147e` not reached | `results/exploratory/ceiling2/headline-rerun/` |
+
 - **The full benchmark (M9).** Run it with the machine on AC power, in High Power mode (`pmset powermode 2`) and idle. The harness checks all three and aborts otherwise.
 
   ```sh
@@ -155,7 +170,7 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
   ```
 
   It writes `results/exploratory/encoding/` and appends its own `BENCH_LOG.md` entry. `--resume` continues an interrupted run.
-- **The reorder check (D-96).** Four cells (B and D warm+prefix, A and C warm; N = 3, medium), three runs each, in three builds: the measured commit `b175599`, the commit before D-94 and a commit with it. The script builds each in its own worktree under `target/exploratory/reorder/` (remove them afterwards with `git worktree remove`), and each run requires M9's machine state.
+- **The reorder check (D-96).** Four cells (B and D warm+prefix, A and C warm; N = 3, medium), three runs each, in three builds: the measured commit `b175599`; `4239168`, the commit before D-94 (the pre-reorder build); and `e6c885b`, a commit with D-94 (the reordered build), at which the check also ran. The script builds each in its own worktree under `target/exploratory/reorder/` (remove them afterwards with `git worktree remove`), and each run requires M9's machine state.
 
   ```sh
   scripts/reorder-check.sh
@@ -182,21 +197,22 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
   scripts/budget-check.sh
   ```
 
-  It writes `results/exploratory/budget/` and appends a `BENCH_LOG.md` entry; `dc-bench budget-report` prints its BENCHMARKS.md block. Its run was at `42b84ec`, with D-99's unit.
+  It writes `results/exploratory/budget/` and appends a `BENCH_LOG.md` entry; `dc-bench budget-report` prints its BENCHMARKS.md block. `--wait MINUTES` waits longer for an idle machine (default 10); while it waits it names what keeps the machine busy. An attempt that stops before measuring can simply be run again. `--dry` checks the pipeline under `results/dry-run/`. Its run was at `42b84ec`, with D-99's unit.
 - **D-101's unit, its derived ceiling and the proposed size limits.** At a commit with D-101, on M9's machine state; about an hour. Like the budget's measurement: the counts and the oracle first, then the criterion pass (`benches/ceiling.rs`), then the headline cells in three builds, each in its own worktree under `target/exploratory/ceiling/`. The same options.
 
   ```sh
   scripts/ceiling-check.sh
   ```
 
-  It writes `results/exploratory/ceiling/` and appends a `BENCH_LOG.md` entry; `dc-bench ceiling-report` prints its BENCHMARKS.md block. Its run was at `1126b57`, D-101's unit. D-102's run is `scripts/ceiling-check.sh --name ceiling2`, into `results/exploratory/ceiling2/` (`dc-bench ceiling-report --name ceiling2`).
-- **The headline cells re-run (D-103).** D-96's four cells in three builds, three runs, each run started only once the 1-minute load average is below 1.0 and XprotectService is idle, besides M9's machine state; about half an hour once the machine is quiet.
+  It writes `results/exploratory/ceiling/` and appends a `BENCH_LOG.md` entry; `dc-bench ceiling-report` prints its BENCHMARKS.md block. Its run was at `1126b57`, with D-101's unit; its derived ceiling's check failed, and it stays recorded as it is.
+- **The final unit's run (D-102).** The same script, `scripts/ceiling-check.sh --name ceiling2`, into `results/exploratory/ceiling2/` (`dc-bench ceiling-report --name ceiling2`). It ran at `7f1f149`, the commit with D-102's unit, which is also its budgeted build. It gives the numbers BENCHMARKS.md §8's "The budget as adopted" cites: the derived ceiling and the search against it, the admitted shapes, lines 2 and 5 under the proposed and the adopted limits, and the oracle. Its headline check stopped on the 5% rule; the analysis within each run is beside it.
+- **The headline cells re-run (D-103).** D-96's four cells in three builds, three runs: the measured commit `b175599`, `2df8b53` before the budget, and the commit it is run from (HEAD) as the budgeted build. Each run starts only once the 1-minute load average is below 1.0 and XprotectService is idle, besides M9's machine state; about half an hour once the machine is quiet.
 
   ```sh
-  scripts/headline-rerun.sh --wait 30
+  caffeinate -i scripts/headline-rerun.sh --wait 180
   ```
 
-  It writes `results/exploratory/ceiling2/headline-rerun/` and appends a `BENCH_LOG.md` entry. `--wait MINUTES` waits longer for an idle machine (default 10); while it waits it names what keeps the machine busy. An attempt that stops before measuring can simply be run again. `--dry` checks the pipeline under `results/dry-run/`.
+  It writes `results/exploratory/ceiling2/headline-rerun/` and appends a `BENCH_LOG.md` entry. `--wait MINUTES` is how long it waits before each run (default 30), naming what keeps the machine busy; an attempt that measured nothing can be run again. Its attempt of 2026-11-15 ran at `97b147e` (D-102's unit with D-103's rule limit, the budgeted build). It completed one run of the measured build before the machine stayed too busy; that run is archived as a record and not compared (BENCH_LOG.md). To try again, move `results/exploratory/ceiling2/headline-rerun/` aside first: the script refuses to overwrite a run.
 
 ## 6. Packing a deposit
 
