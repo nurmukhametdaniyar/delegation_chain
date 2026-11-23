@@ -48,6 +48,7 @@ import collections
 import csv
 import gzip
 import hashlib
+import io
 import json
 import os
 import random
@@ -474,9 +475,9 @@ def cmd_classify(a):
     rng = random.Random(105)
     seen = {}
     counts = collections.Counter()
-    with gzip.open(os.path.join(a.out, "tools.csv.gz"), "wt", newline="", encoding="utf-8") as f, open(
-        a.calls, "w", encoding="utf-8"
-    ) as cf:
+    # mtime=0: the archive regenerates byte-identically.
+    raw = gzip.GzipFile(os.path.join(a.out, "tools.csv.gz"), "wb", mtime=0)
+    with io.TextIOWrapper(raw, encoding="utf-8", newline="") as f, open(a.calls, "w", encoding="utf-8") as cf:
         w = csv.writer(f, lineterminator="\n")
         w.writerow(["server_id", "tool_name", "schema_sha256", "class", "rules", "blocking", "lossy"])
         for server, name, text in rows:
