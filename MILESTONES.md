@@ -686,3 +686,9 @@ The author asked for three follow-ups.
   - **Code.** `dc_verifier::mcp` holds a strict JSON parser and base64url codec written by hand, the arguments mapping, and `Verifier::verify_mcp_call(request, t)`, which checks tool, action and arguments against B_N before Verify. Verify is unchanged. No new crate and no new dependency.
   - **Tests.** `tests/mcp_binding.rs` (13 tests, in both instantiations) and the module's unit tests (4). The security suite and the paper's security table are unchanged.
   - **Two readings the decisions left open (D-104).** Depth is counted in B_N's terms, so the arguments nest at most 15 levels. D3, D4, duplicate keys and depth cover the whole request, not only the arguments.
+
+## Which MCP tools the policy language can authorize (2026-11-23)
+
+- **D-105.** An exploratory study of the policy language's reach over a public MCP corpus: the 110,509 tools that MCP-Eco's frozen release (CC BY 4.0) records from live `tools/list` calls, classified by whether a policy can authorize every call a tool's input schema admits, some calls, or none, with the reason for each call it cannot.
+  - **Code.** `scripts/mcp_expressiveness.py` and its tests; `scripts/mcp-expressiveness.sh` downloads the pinned table, checks its SHA-256 and runs everything; `dc-bench`'s new binary `dc-mcp-calls` cross-checks the classes against `read_tools_call`, `flatten` and `evaluate`. No protocol code and no Rust dependency changes.
+  - **Results.** `results/exploratory/mcp-expressiveness/` (`summary.md` is generated) and `paper/tables/mcp_expressiveness.tex`. The cross-check found no disagreement.

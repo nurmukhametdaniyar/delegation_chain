@@ -57,6 +57,12 @@ name = "dc-bench-memory"
 path = "src/bin/memory.rs"
 bench = false
 
+# The MCP expressiveness study's cross-check (D-105; exploratory).
+[[bin]]
+name = "dc-mcp-calls"
+path = "src/bin/mcp_calls.rs"
+bench = false
+
 [[bench]]
 name = "primitives"
 harness = false

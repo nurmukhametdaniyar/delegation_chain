@@ -26,6 +26,7 @@ The deposit is a snapshot of this repository at the commit its description names
 | The work budget on the protocol path (D-100): criterion's output for `Contains` at the default budget and lines 2 and 5, the counts, the oracle's report, the machine record, and the headline check's three builds as archives with their manifests | `results/exploratory/budget/` (`criterion.tar.zst` with its `.sha256`, `work.json`, `oracle.json`, `env.json`, `headline/<build>/archive/`, `headline/<build>/env.json`) |
 | D-101's unit: criterion's output for each charged class, the fixed cost, the search and lines 2 and 5 under the proposed limits, the counts, the oracle's report, the machine record, and the headline check's three builds as archives with their manifests | `results/exploratory/ceiling/` (`criterion.tar.zst` with its `.sha256`, `work.json`, `oracle.json`, `env.json`, `headline/<build>/archive/`, `headline/<build>/env.json`) |
 | D-102's run of the same, and the re-run of its headline cells (D-103) | `results/exploratory/ceiling2/`, as `ceiling/`, and `ceiling2/headline-rerun/<build>/` (`archive/`, `env.json`) with `quiet.log` |
+| The MCP expressiveness study (D-105): the corpus pin, one class per probed tool, the cross-check, the summary and the machine record; the corpus itself is downloaded at its frozen revision and checked by SHA-256 | `results/exploratory/mcp-expressiveness/` (`corpus.json`, `classify.json`, `tools.csv.gz`, `crosscheck.json`, `summary.json`, `summary.md`, `env.json`) |
 | Bytes on the wire (Q2), memory (Q10), the machine records | `results/bytes.json`, `results/memory.json`, `results/env.json`, `results/env-resume.json` |
 | M9's console log: the safety-valve abort and the three refused resumes that BENCHMARKS.md §7 cites | `results/logs/m9.log` |
 | The generated summary, document and paper artifacts | `results/summary.{md,json}`, `BENCHMARKS.md`, `paper/` |
@@ -89,6 +90,7 @@ The generators check every archive themselves and refuse to run on a missing man
 | `cargo run --release -p dc-bench -- benchmarks` | `BENCHMARKS.md` (regenerates the summary first) | the above, the exploratory runs' verified archives, and `crates/dc-bench/BENCHMARKS.template.md` |
 | `cargo run --release -p dc-bench -- paper` | `paper/tables/*.tex`, `paper/figures/*` (regenerates the summary first); with `--paper-dir DIR`, into DIR, with `--map FILE`, citing the sections FILE names (D-91), and with `--figure-width IN`, with every figure drawn to fit a column IN inches wide (D-93) | the above, the test sources, and `docs/test-reports/policy-oracle-m4.json` |
 | `bash scripts/plot.sh results` | `results/plots/*.png` | `results/summary.json` |
+| `scripts/mcp-expressiveness.sh` | `results/exploratory/mcp-expressiveness/*`, `paper/tables/mcp_expressiveness.tex` (D-105; needs network for the corpus, once) | MCP-Eco's `mcp_tools.parquet` at its frozen revision, checked by SHA-256 |
 
 The summary, `BENCHMARKS.md`, the tables and the PDF figures regenerate byte-identically: the bootstrap is seeded, and the PDFs carry no timestamps. The one exception is the security table's "Passed" column, which records the test run that produced it.
 
