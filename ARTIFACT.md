@@ -1,6 +1,6 @@
 # Artifact: reproducing the DelegationChain benchmark's figures and tables
 
-This repository is the reference implementation of DelegationChain (paper revision 2026-10-06, published separately) and the benchmark of whether BLS aggregation is a net benefit once caching is accounted for. The paper's IEEE Access version describes the specification at tag v0.1.2: Algorithm 2 in D-94's order, the work budget of D-100 to D-103, and the MCP binding of D-104 (SPEC §10.6). Its Supplementary Material, Section S12, reports the exploratory measurements from D-96 on, and §5's table lists their commits. This file explains how to regenerate, from the archived raw measurements:
+This repository is the reference implementation of DelegationChain (paper revision 2026-10-06, published separately) and the benchmark of whether BLS aggregation is a net benefit once caching is accounted for. The paper's IEEE Access version describes the specification at tag v0.1.2: Algorithm 2 in D-94's order, the work budget of D-100 to D-103, and the MCP binding of D-104 (SPEC §10.6). Tag v0.1.3 adds the study of which MCP tools the policy language can authorize (D-105), which the revised version reports (Section VIII-F; Supplementary Material, Section S13). The protocol is unchanged since v0.1.2. The Supplementary Material's Sections S12 and S13 report the exploratory measurements from D-96 on, and §5's table lists their commits. This file explains how to regenerate, from the archived raw measurements:
 - every figure and table in the paper's evaluation;
 - `BENCHMARKS.md`;
 - the results summary.
@@ -150,6 +150,7 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
 | D-101's unit (its ceiling check failed) | `1126b57` | measured `b175599`, pre-budget `2df8b53`, budgeted `1126b57` | `results/exploratory/ceiling/` |
 | The final unit (D-102) | `7f1f149` | measured `b175599`, pre-budget `2df8b53`, budgeted `7f1f149` | `results/exploratory/ceiling2/` |
 | Its headline re-run (D-103), not completed | `97b147e` | measured `b175599` (one run only); pre-budget `2df8b53` and budgeted `97b147e` not reached | `results/exploratory/ceiling2/headline-rerun/` |
+| The MCP expressiveness study (D-105), not a timing | `c4c09e8` | — | `results/exploratory/mcp-expressiveness/` |
 
 - **The full benchmark (M9).** Run it with the machine on AC power, in High Power mode (`pmset powermode 2`) and idle. The harness checks all three and aborts otherwise.
 
@@ -179,6 +180,13 @@ The archives come from one Apple M4 Max laptop (`results/env.json`). A new measu
   ```
 
   It writes `results/exploratory/reorder/` and appends a `BENCH_LOG.md` entry; `dc-bench reorder` prints the comparison.
+- **The MCP expressiveness study (D-105).** It classifies, not times, so it needs no particular machine state; it needs the network once, to download the corpus at its pinned revision, which it checks by SHA-256. It regenerates its outputs byte-identically, except `env.json`.
+
+  ```sh
+  scripts/mcp-expressiveness.sh
+  ```
+
+  It writes `results/exploratory/mcp-expressiveness/` and `paper/tables/mcp_expressiveness.tex`.
 - **Contains at the scope-size bounds (D-95).** An exploratory criterion pass at a commit with `benches/bounds.rs`, on M9's machine state. Its largest cell takes minutes per call, so it takes about an hour and a quarter.
 
   ```sh
