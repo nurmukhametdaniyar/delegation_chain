@@ -1,0 +1,54 @@
+{
+  "classes": {
+    "all": 69524,
+    "none": 8546,
+    "some": 32439
+  },
+  "classes_distinct": {
+    "all": 64330,
+    "none": 8016,
+    "some": 30890
+  },
+  "crosscheck": {
+    "allow_agreed": 174125,
+    "allow_expected": 174125,
+    "calls": 266016,
+    "disagreements_total": 0,
+    "reject_agreed": 91891,
+    "reject_expected": 91891
+  },
+  "distinct_name_schema": 103236,
+  "reasons_none": {
+    "array": 5123,
+    "empty object": 54,
+    "free-form object": 1870,
+    "null": 20,
+    "parameter name": 91,
+    "tool name": 1407,
+    "unreadable schema": 151
+  },
+  "reasons_not_all": {
+    "array": 13629,
+    "empty object": 2340,
+    "free-form object": 5447,
+    "no type": 769,
+    "non-integer number": 17953,
+    "null": 8498,
+    "over 96 rules": 6290,
+    "parameter name": 606,
+    "tool name": 1407,
+    "unreadable schema": 218
+  },
+  "rules_needed_all": {
+    "1": 39079,
+    "2-8": 26374,
+    "9-96": 4071
+  },
+  "servers": 6850,
+  "servers_by_class": {
+    "all": 1851,
+    "mixed": 4851,
+    "none": 148
+  },
+  "tools": 110509
+}

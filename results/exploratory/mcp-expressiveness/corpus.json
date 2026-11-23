@@ -1,0 +1,9 @@
+{
+  "dataset": "mcp-research-alliance/mcp-ecosystem",
+  "file": "parquet/mcp_tools.parquet",
+  "license": "CC BY 4.0",
+  "probe_rows": 110509,
+  "revision": "c8edfd4bdf51b15ea95d6b0ede5dec97945f398a",
+  "rows_in_table": 284845,
+  "sha256": "ad9adf2a2cd986c6c35aa50b5840392ba3ea005f570f0f98e05c65938c392b16"
+}

@@ -1,0 +1,16 @@
+{
+  "allow_agreed": 174125,
+  "allow_expected": 174125,
+  "calls": 266016,
+  "disagreements": [],
+  "disagreements_total": 0,
+  "outcomes": {
+    "allow -> allow": 174125,
+    "reject -> key": 735,
+    "reject -> malformed": 34339,
+    "reject -> tool name": 2177,
+    "reject -> untyped": 54640
+  },
+  "reject_agreed": 91891,
+  "reject_expected": 91891
+}
